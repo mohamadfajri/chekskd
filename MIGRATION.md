@@ -1,6 +1,6 @@
 # MIGRATION.md — Cek Rasionalisasi SKD (cpnsguru.id)
 
-Panduan memindahkan project ini ke luar Lovable dan menghubungkannya ke Supabase sendiri.
+Panduan menjalankan project ini secara mandiri dan menghubungkannya ke Supabase sendiri.
 
 ## 1. Stack
 
@@ -10,7 +10,7 @@ Panduan memindahkan project ini ke luar Lovable dan menghubungkannya ke Supabase
 - Supabase (Postgres + REST client via `@supabase/supabase-js`)
 - Papaparse (CSV parsing di admin)
 
-Semua business logic bebas Lovable Cloud. Yang dipakai hanya Supabase.
+Semua business logic portable. Yang dipakai untuk data hanya Supabase.
 
 ## 2. Struktur portable
 
@@ -179,9 +179,9 @@ create policy "auth insert scores"       on public.skd_scores      for insert to
 ## 5. Menjalankan lokal
 
 ```bash
-bun install
+npm install
 cp .env.example .env   # isi env
-bun run dev
+npm run dev
 ```
 
 Aplikasi tersedia di `http://localhost:8080`.

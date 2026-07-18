@@ -7,11 +7,10 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { Toaster } from "sonner";
 
 import appCss from "../styles.css?url";
-import { reportLovableError } from "../lib/lovable-error-reporting";
 
 function NotFoundComponent() {
   return (
@@ -38,9 +37,6 @@ function NotFoundComponent() {
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
-  useEffect(() => {
-    reportLovableError(error, { boundary: "tanstack_root_error_component" });
-  }, [error]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -90,22 +86,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           "Cek data nilai SKD tahun lalu, bandingkan dengan formasi sejenis, dan dapatkan analisa edukatif dari cpnsguru.id.",
       },
       { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:card", content: "summary" },
       { name: "twitter:title", content: "Cek Rasionalisasi SKD — cpnsguru.id" },
       {
         name: "twitter:description",
         content:
           "Cek data nilai SKD tahun lalu, bandingkan dengan formasi sejenis, dan dapatkan analisa edukatif dari cpnsguru.id.",
-      },
-      {
-        property: "og:image",
-        content:
-          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/289d22fb-3f46-4cb0-beff-7a771178d01b/id-preview-e23cef37--697475a1-f90b-44f1-9fae-673cc9003ab3.lovable.app-1783351194405.png",
-      },
-      {
-        name: "twitter:image",
-        content:
-          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/289d22fb-3f46-4cb0-beff-7a771178d01b/id-preview-e23cef37--697475a1-f90b-44f1-9fae-673cc9003ab3.lovable.app-1783351194405.png",
       },
     ],
     links: [
