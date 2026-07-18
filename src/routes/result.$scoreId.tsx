@@ -1,0 +1,337 @@
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useState } from "react";
+import { Loader2, AlertCircle, ArrowLeft } from "lucide-react";
+import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
+import { getSkdScoreById } from "@/services/skdService";
+import { createLeadAndSession, type LeadFormInput } from "@/services/leadService";
+import { getZona, lolosPassingGrade, zonaLabel, zonaColor } from "@/lib/analysis";
+import { toast } from "sonner";
+
+export const Route = createFileRoute("/result/$scoreId")({
+  head: () => ({
+    meta: [
+      { title: "Preview Nilai SKD — cpnsguru.id" },
+      {
+        name: "description",
+        content: "Preview nilai SKD dan form untuk menerima analisa lengkap via WhatsApp.",
+      },
+    ],
+  }),
+  component: ResultPage,
+});
+
+function ResultPage() {
+  const { scoreId } = Route.useParams();
+  const navigate = useNavigate();
+
+  const query = useQuery({
+    queryKey: ["skd-score", scoreId],
+    queryFn: () => getSkdScoreById(scoreId),
+  });
+
+  const [form, setForm] = useState<LeadFormInput>({
+    nama_panggilan: "",
+    whatsapp: "",
+    target_tahun: "2026",
+    rencana: "Belum yakin",
+    target_instansi: "",
+    target_formasi: "",
+    consent_whatsapp: false,
+  });
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const s = query.data!;
+      const f = s.skd_formations;
+      return createLeadAndSession({
+        score_id: s.id,
+        score: {
+          nama_panggilan: form.nama_panggilan,
+          nama_peserta: s.nama,
+          formasi: f?.jabatan ?? "-",
+          instansi: f?.nama_instansi ?? "-",
+          twk: s.twk,
+          tiu: s.tiu,
+          tkp: s.tkp,
+          total: s.total,
+        },
+        lead: form,
+      });
+    },
+    onSuccess: (res) => {
+      toast.success("Kode hasil berhasil dibuat!");
+      navigate({ to: "/wa/$token", params: { token: res.token } });
+    },
+    onError: (err: Error) => {
+      toast.error("Gagal menyimpan data: " + err.message);
+    },
+  });
+
+  if (query.isLoading) {
+    return (
+      <PageShell>
+        <div className="flex items-center justify-center py-20 text-muted-foreground">
+          <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Memuat data...
+        </div>
+      </PageShell>
+    );
+  }
+
+  if (query.isError || !query.data) {
+    return (
+      <PageShell>
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 text-center">
+          <AlertCircle className="mx-auto h-8 w-8 text-destructive" />
+          <p className="mt-2 font-semibold">Data tidak ditemukan</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Data mungkin sudah dihapus atau tautan tidak valid.
+          </p>
+          <Link
+            to="/search"
+            className="mt-4 inline-block text-sm font-semibold text-primary hover:underline"
+          >
+            Kembali ke pencarian
+          </Link>
+        </div>
+      </PageShell>
+    );
+  }
+
+  const s = query.data;
+  const f = s.skd_formations;
+  const zona = getZona(s.total);
+  const lolos = lolosPassingGrade(s);
+
+  function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.consent_whatsapp) {
+      toast.error("Silakan centang persetujuan WhatsApp.");
+      return;
+    }
+    mutation.mutate();
+  }
+
+  return (
+    <PageShell>
+      <Link
+        to="/search"
+        className="mb-6 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="h-4 w-4" /> Kembali ke pencarian
+      </Link>
+
+      <div className="grid gap-6 lg:grid-cols-5">
+        {/* Preview */}
+        <div className="lg:col-span-3">
+          <div className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Preview Nilai
+            </p>
+            <h1 className="mt-1 text-2xl font-bold">{s.nama}</h1>
+            <div className="mt-4 grid gap-y-1.5 text-sm sm:grid-cols-2">
+              <Info label="Instansi" value={f?.nama_instansi ?? "-"} />
+              <Info label="Formasi" value={f?.jabatan ?? "-"} />
+              <Info label="Tahun SKD" value={s.tahun_skd?.toString() ?? "-"} />
+              <Info label="Pendidikan" value={s.pendidikan ?? f?.pendidikan ?? "-"} />
+            </div>
+
+            <div className="mt-6 grid grid-cols-4 gap-2 text-center">
+              {[
+                { l: "TWK", v: s.twk, pg: 65 },
+                { l: "TIU", v: s.tiu, pg: 80 },
+                { l: "TKP", v: s.tkp, pg: 166 },
+                { l: "Total", v: s.total, hi: true },
+              ].map((c) => (
+                <div key={c.l} className={`rounded-xl p-3 ${c.hi ? "bg-brand-soft" : "bg-muted"}`}>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    {c.l}
+                  </div>
+                  <div
+                    className={`mt-0.5 text-2xl font-bold ${c.hi ? "text-primary" : "text-foreground"}`}
+                  >
+                    {c.v ?? "-"}
+                  </div>
+                  {c.pg && (
+                    <div className="mt-0.5 text-[10px] text-muted-foreground">PG {c.pg}</div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              <div
+                className={`rounded-xl border p-4 text-sm ${lolos ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-rose-200 bg-rose-50 text-rose-800"}`}
+              >
+                <div className="text-xs font-semibold uppercase tracking-wider opacity-80">
+                  Passing Grade
+                </div>
+                <div className="mt-1 text-base font-bold">
+                  {lolos ? "Lolos PG" : "Belum Lolos PG"}
+                </div>
+              </div>
+              <div className={`rounded-xl border p-4 text-sm ${zonaColor(zona)}`}>
+                <div className="text-xs font-semibold uppercase tracking-wider opacity-80">
+                  Zona Nilai
+                </div>
+                <div className="mt-1 text-base font-bold">{zonaLabel(zona)}</div>
+              </div>
+            </div>
+
+            <div className="mt-5 rounded-xl border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
+              Nilai kamu sudah melewati (atau berada di sekitar) ambang batas, tetapi persaingan
+              CPNS tidak hanya berdasarkan passing grade. Untuk formasi populer, ranking dan jumlah
+              pesaing sangat menentukan.
+            </div>
+          </div>
+        </div>
+
+        {/* Lead form */}
+        <div className="lg:col-span-2">
+          <form
+            onSubmit={onSubmit}
+            className="sticky top-20 rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6"
+          >
+            <p className="text-xs font-semibold uppercase tracking-wider text-primary">
+              Analisa Lengkap
+            </p>
+            <h2 className="mt-1 text-lg font-bold">Buat kode hasil untuk WhatsApp</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Isi data singkat, lalu terima analisa lengkap dan rekomendasi via WhatsApp.
+            </p>
+
+            <div className="mt-5 space-y-3">
+              <SmallField label="Nama panggilan" required>
+                <input
+                  className="input-base"
+                  value={form.nama_panggilan}
+                  onChange={(e) => setForm({ ...form, nama_panggilan: e.target.value })}
+                  required
+                />
+              </SmallField>
+              <SmallField label="Nomor WhatsApp" required>
+                <input
+                  className="input-base"
+                  inputMode="tel"
+                  placeholder="08xxxxxxxxxx"
+                  value={form.whatsapp}
+                  onChange={(e) => setForm({ ...form, whatsapp: e.target.value })}
+                  required
+                />
+              </SmallField>
+              <SmallField label="Target ikut seleksi" required>
+                <select
+                  className="input-base"
+                  value={form.target_tahun}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      target_tahun: e.target.value as LeadFormInput["target_tahun"],
+                    })
+                  }
+                >
+                  <option value="2026">2026</option>
+                  <option value="2027">2027</option>
+                  <option value="Belum tahu">Belum tahu</option>
+                </select>
+              </SmallField>
+              <SmallField label="Rencana" required>
+                <select
+                  className="input-base"
+                  value={form.rencana}
+                  onChange={(e) =>
+                    setForm({ ...form, rencana: e.target.value as LeadFormInput["rencana"] })
+                  }
+                >
+                  <option value="Pakai nilai lama">Pakai nilai lama</option>
+                  <option value="Tes ulang">Tes ulang</option>
+                  <option value="Belum yakin">Belum yakin</option>
+                </select>
+              </SmallField>
+              <SmallField label="Target instansi (opsional)">
+                <input
+                  className="input-base"
+                  value={form.target_instansi}
+                  onChange={(e) => setForm({ ...form, target_instansi: e.target.value })}
+                />
+              </SmallField>
+              <SmallField label="Target formasi (opsional)">
+                <input
+                  className="input-base"
+                  value={form.target_formasi}
+                  onChange={(e) => setForm({ ...form, target_formasi: e.target.value })}
+                />
+              </SmallField>
+
+              <label className="mt-2 flex items-start gap-2 rounded-lg bg-muted/60 p-3 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={form.consent_whatsapp}
+                  onChange={(e) => setForm({ ...form, consent_whatsapp: e.target.checked })}
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-[color:var(--color-primary)]"
+                  required
+                />
+                <span>
+                  Saya setuju menerima hasil analisa dan informasi CPNS/Tryout dari cpnsguru.id
+                  melalui WhatsApp.
+                </span>
+              </label>
+            </div>
+
+            <button
+              type="submit"
+              disabled={mutation.isPending}
+              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-brand-gradient px-5 py-3 text-sm font-semibold text-primary-foreground shadow-md shadow-primary/20 transition hover:opacity-95 disabled:opacity-60"
+            >
+              {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              Buat Kode Hasil WhatsApp
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <style>{`
+        .input-base { width:100%; border-radius:.5rem; border:1px solid var(--color-border); background:var(--color-background); padding:.55rem .75rem; font-size:.875rem; outline:none; transition: box-shadow .15s, border-color .15s; }
+        .input-base:focus { border-color: var(--color-primary); box-shadow: 0 0 0 3px color-mix(in oklch, var(--color-primary) 20%, transparent); }
+      `}</style>
+    </PageShell>
+  );
+}
+
+function Info({ label, value }: { label: string; value: string }) {
+  return (
+    <p>
+      <span className="text-muted-foreground">{label}: </span>
+      <span className="font-medium">{value}</span>
+    </p>
+  );
+}
+
+function SmallField({
+  label,
+  required,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-xs font-semibold">
+        {label} {required && <span className="text-destructive">*</span>}
+      </span>
+      {children}
+    </label>
+  );
+}
+
+function PageShell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="min-h-screen bg-background">
+      <SiteHeader />
+      <main className="mx-auto max-w-5xl px-4 py-10">{children}</main>
+      <SiteFooter />
+    </div>
+  );
+}
