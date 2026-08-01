@@ -176,6 +176,10 @@ function SearchPage() {
                             <span className="text-muted-foreground">Formasi: </span>
                             <span className="font-medium">{f?.jabatan ?? "-"}</span>
                           </p>
+                          <p className="text-sm">
+                            <span className="text-muted-foreground">Halaman PDF: </span>
+                            <span className="font-medium">{r.source_page ?? "-"}</span>
+                          </p>
                         </div>
                         <Link
                           to="/result/$scoreId"

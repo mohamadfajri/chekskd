@@ -134,6 +134,7 @@ function ResultPage() {
               <Info label="Formasi" value={f?.jabatan ?? "-"} />
               <Info label="Tahun SKD" value={s.tahun_skd?.toString() ?? "-"} />
               <Info label="Pendidikan" value={s.pendidikan ?? f?.pendidikan ?? "-"} />
+              <Info label="Halaman PDF" value={s.source_page?.toString() ?? "-"} />
             </div>
 
             <div className="mt-6 grid grid-cols-4 gap-2 text-center">

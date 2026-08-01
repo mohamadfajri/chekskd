@@ -21,6 +21,15 @@ dist-ssr
 .vercel
 *.local
 .DS_Store
+.playwright-cli/
+__pycache__/
+*.py[cod]
+
+# Local research/source files
+data/raw/*
+data/staging/*
+!data/raw/.gitkeep
+!data/staging/.gitkeep
 
 # Wrangler / Cloudflare
 .wrangler/

@@ -1,24 +1,35 @@
-import { requireSupabase } from "@/lib/supabase/client";
-
 /**
  * CSV row shape expected by admin importer.
  * Columns: tahun, nama_instansi, kode_instansi, jabatan, kode_jabatan,
- * lokasi_formasi, jenis_formasi, pendidikan, jumlah_formasi,
- * no_peserta, nama, tahun_skd, twk, tiu, tkp, total, keterangan,
- * source_pdf, source_page
+ * kode_lokasi, lokasi_formasi, jenis_formasi, pendidikan_formasi, pendidikan,
+ * jumlah_formasi, no_peserta, nama, tahun_nilai_skd, twk, tiu, tkp, total,
+ * keterangan, source_pdf, source_url, source_page
  */
 export interface CsvRow {
+  record_type?: string;
+  parser_family?: string;
+  parser_version?: string;
+  formation_quality_status?: string;
+  quality_status?: string;
+  parser_confidence?: string;
   tahun?: string;
   nama_instansi?: string;
   kode_instansi?: string;
   jabatan?: string;
   kode_jabatan?: string;
+  kode_lokasi?: string;
   lokasi_formasi?: string;
+  kode_jenis_formasi?: string;
   jenis_formasi?: string;
+  pendidikan_formasi?: string;
   pendidikan?: string;
+  pendidikan_raw?: string;
   jumlah_formasi?: string;
   no_peserta?: string;
   nama?: string;
+  nama_raw?: string;
+  nama_normalized?: string;
+  tahun_nilai_skd?: string;
   tahun_skd?: string;
   twk?: string;
   tiu?: string;
@@ -26,7 +37,52 @@ export interface CsvRow {
   total?: string;
   keterangan?: string;
   source_pdf?: string;
+  source_url?: string;
   source_page?: string;
+  source_page_formasi?: string;
+  source_sheet_row?: string;
+  source_drive_file_id?: string;
+  source_total_pages?: string;
+  formation_instance_id?: string;
+  validation_status?: string;
+  validation_errors?: string;
+}
+
+export interface PdfSourceCsvRow {
+  sheet_row?: string;
+  section?: string;
+  entity_name?: string;
+  entity_type?: string;
+  pdf_name?: string;
+  drive_file_id?: string;
+  drive_url?: string;
+  tahun?: string;
+  duplicate_count?: string;
+  warnings?: string;
+}
+
+export interface PdfSourceValidationIssue {
+  index: number;
+  row: PdfSourceCsvRow;
+  errors: string[];
+}
+
+export interface PdfSourceValidationResult {
+  valid: PdfSourceCsvRow[];
+  invalid: PdfSourceValidationIssue[];
+}
+
+export interface PdfSourceImportProgress {
+  processed: number;
+  sourcesInserted: number;
+  errors: string[];
+}
+
+export interface PdfSourceStats {
+  total: number;
+  withUrl: number;
+  withoutUrl: number;
+  byYear: Record<string, number>;
 }
 
 function toInt(v: string | undefined | null): number | null {
@@ -52,11 +108,16 @@ function isIntInRange(v: string | undefined | null, min: number, max: number): b
   return Number.isInteger(n) && n >= min && n <= max;
 }
 
+function formationKey(row: CsvRow): string {
+  return row.formation_instance_id?.trim() || "";
+}
+
 /**
  * Validasi baris CSV:
- * - Wajib: nama, tahun, (nama_instansi atau kode_instansi), (jabatan atau kode_jabatan)
- * - Numerik: twk, tiu, tkp, total harus integer dalam rentang wajar
- * - Konsistensi: total = twk + tiu + tkp (jika ketiganya ada)
+ * - Wajib: nomor peserta, nama, tahun, instansi, dan jabatan
+ * - TH/TMS/DIS boleh tidak memiliki nilai
+ * - Baris hasil parser yang masih perlu review selalu ditolak
+ * - Konsistensi: total = twk + tiu + tkp
  */
 export function validateCsvRows(rows: CsvRow[]): ValidationResult {
   const valid: CsvRow[] = [];
@@ -64,37 +125,60 @@ export function validateCsvRows(rows: CsvRow[]): ValidationResult {
 
   rows.forEach((row, index) => {
     const errors: string[] = [];
+    const recordType = row.record_type?.trim().toLowerCase() || "participant";
+    const formationOnly = recordType === "formation";
+    const status = row.keterangan?.trim().toUpperCase() ?? "";
+    const absent = ["TH", "TMS", "DIS"].includes(status);
 
-    if (!row.nama || String(row.nama).trim() === "") errors.push("kolom 'nama' kosong");
+    if (!row.parser_family?.trim()) errors.push("kolom 'parser_family' kosong");
+    if (!row.parser_version?.trim() || !/^3(?:\.|$)/.test(row.parser_version.trim())) {
+      errors.push("kolom 'parser_version' wajib versi 3");
+    }
+    if (!row.quality_status?.trim()) errors.push("kolom 'quality_status' kosong");
+    if (!row.formation_instance_id?.trim()) errors.push("kolom 'formation_instance_id' kosong");
+
+    if (!["participant", "formation"].includes(recordType)) {
+      errors.push("kolom 'record_type' harus participant atau formation");
+    }
+    if (!formationOnly && !row.no_peserta?.trim()) errors.push("kolom 'no_peserta' kosong");
+    if (!formationOnly && (!row.nama || String(row.nama).trim() === "")) {
+      errors.push("kolom 'nama' kosong");
+    }
     if (!isIntInRange(row.tahun, 2000, 2100))
       errors.push("kolom 'tahun' kosong / bukan tahun valid");
     if (!(row.nama_instansi?.trim() || row.kode_instansi?.trim()))
       errors.push("'nama_instansi' atau 'kode_instansi' wajib diisi");
     if (!(row.jabatan?.trim() || row.kode_jabatan?.trim()))
       errors.push("'jabatan' atau 'kode_jabatan' wajib diisi");
-
-    const numCols: Array<[keyof CsvRow, number, number]> = [
-      ["twk", 0, 200],
-      ["tiu", 0, 200],
-      ["tkp", 0, 250],
-      ["total", 0, 700],
-    ];
-    for (const [col, min, max] of numCols) {
-      const v = row[col] as string | undefined;
-      if (v == null || String(v).trim() === "") {
-        errors.push(`kolom '${String(col)}' kosong`);
-      } else if (!isIntInRange(v, min, max)) {
-        errors.push(`kolom '${String(col)}' bukan angka valid (${min}-${max})`);
-      }
+    if (row.quality_status?.trim().toLowerCase() === "rejected") {
+      errors.push("baris parser berstatus rejected");
+    }
+    if (!formationOnly && !/^(P\/L|P|TL|TH|TMS|DIS)$/.test(status)) {
+      errors.push("kolom 'keterangan' kosong / status tidak dikenal");
     }
 
-    const twk = Number(row.twk),
-      tiu = Number(row.tiu),
-      tkp = Number(row.tkp),
-      total = Number(row.total);
-    if ([twk, tiu, tkp, total].every((n) => Number.isFinite(n))) {
-      if (twk + tiu + tkp !== total) {
-        errors.push(`total (${total}) tidak sama dengan twk+tiu+tkp (${twk + tiu + tkp})`);
+    if (!formationOnly) {
+      const numCols: Array<[keyof CsvRow, number, number]> = [
+        ["twk", 0, 150],
+        ["tiu", 0, 175],
+        ["tkp", 0, 225],
+        ["total", 0, 550],
+      ];
+      for (const [col, min, max] of numCols) {
+        const v = row[col] as string | undefined;
+        if (v == null || String(v).trim() === "") {
+          if (!absent) errors.push(`kolom '${String(col)}' kosong`);
+        } else if (!isIntInRange(v, min, max)) {
+          errors.push(`kolom '${String(col)}' bukan angka valid (${min}-${max})`);
+        }
+      }
+
+      const scoreValues = [row.twk, row.tiu, row.tkp, row.total];
+      if (scoreValues.every((value) => value != null && String(value).trim() !== "")) {
+        const [twk, tiu, tkp, total] = scoreValues.map(Number);
+        if (twk + tiu + tkp !== total) {
+          errors.push(`total (${total}) tidak sama dengan twk+tiu+tkp (${twk + tiu + tkp})`);
+        }
       }
     }
 
@@ -105,115 +189,262 @@ export function validateCsvRows(rows: CsvRow[]): ValidationResult {
   return { valid, invalid };
 }
 
-function normalize(s: string): string {
-  return s
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9\s]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+export function validatePdfSourceRows(rows: PdfSourceCsvRow[]): PdfSourceValidationResult {
+  const valid: PdfSourceCsvRow[] = [];
+  const invalid: PdfSourceValidationIssue[] = [];
+
+  rows.forEach((row, index) => {
+    const errors: string[] = [];
+
+    if (!isIntInRange(row.tahun, 2000, 2100)) {
+      errors.push("kolom 'tahun' kosong / bukan tahun valid");
+    }
+    if (!row.entity_name?.trim()) errors.push("kolom 'entity_name' kosong");
+    if (!row.pdf_name?.trim()) errors.push("kolom 'pdf_name' kosong");
+    if (!row.drive_url?.trim()) errors.push("kolom 'drive_url' kosong");
+
+    if (errors.length === 0) valid.push(row);
+    else invalid.push({ index, row, errors });
+  });
+
+  return { valid, invalid };
+}
+
+async function readAdminJson<T>(response: Response): Promise<T> {
+  const body = (await response.json().catch(() => null)) as { message?: string } | null;
+  if (!response.ok) {
+    throw new Error(body?.message ?? `Request gagal (${response.status}).`);
+  }
+  return body as T;
+}
+
+export async function getPdfSourceStats(adminPassword: string): Promise<PdfSourceStats> {
+  const response = await fetch("/api/admin/pdf-sources", {
+    method: "GET",
+    headers: {
+      "x-admin-password": adminPassword,
+    },
+  });
+  return readAdminJson<PdfSourceStats>(response);
+}
+
+export interface SkdBatchSummary {
+  id: string;
+  slug: string;
+  institution_code: string | null;
+  institution_name: string;
+  selection_year: number;
+  parser_family: string;
+  parser_version: string;
+  status: "draft" | "importing" | "review" | "verified" | "published" | "rejected";
+  source_count: number;
+  source_page_count: number;
+  formation_count: number;
+  participant_count: number;
+  review_issue_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function validateAdminPassword(adminPassword: string): Promise<void> {
+  const response = await fetch("/api/admin/skd-batches", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ action: "validate", adminPassword }),
+  });
+  await readAdminJson<{ valid: true }>(response);
+}
+
+export async function getSkdBatches(adminPassword: string): Promise<SkdBatchSummary[]> {
+  const response = await fetch("/api/admin/skd-batches", {
+    headers: { "x-admin-password": adminPassword },
+  });
+  const body = await readAdminJson<{ batches: SkdBatchSummary[] }>(response);
+  return body.batches;
+}
+
+export interface SkdReviewRow {
+  id: string;
+  field_name: string;
+  issue_code: string;
+  severity: "info" | "warning" | "error";
+  raw_value: string | null;
+  suggested_value: string | null;
+  confidence: number | null;
+  no_peserta: string | null;
+  nama: string | null;
+  nama_raw: string | null;
+  pendidikan: string | null;
+  pendidikan_raw: string | null;
+  source_page: number | null;
+  institution_name: string | null;
+  formation_name: string | null;
+  source_file_name: string | null;
+  source_url: string | null;
+}
+
+export async function getSkdReviewRows(
+  adminPassword: string,
+  batchId: string,
+): Promise<SkdReviewRow[]> {
+  const response = await fetch(
+    `/api/admin/skd-review?batchId=${encodeURIComponent(batchId)}&limit=100`,
+    { headers: { "x-admin-password": adminPassword } },
+  );
+  const body = await readAdminJson<{ issues: SkdReviewRow[] }>(response);
+  return body.issues;
 }
 
 export interface ImportProgress {
+  batchId?: string;
   processed: number;
   formationsCreated: number;
   scoresInserted: number;
+  scoresSkippedExisting: number;
+  issuesCreated: number;
   errors: string[];
 }
 
-/**
- * Import CSV rows: group by formation key (kode_jabatan|kode_instansi|tahun),
- * upsert formation, then bulk-insert scores.
- */
+function chunks<T>(items: T[], size: number): T[][] {
+  const result: T[][] = [];
+  for (let i = 0; i < items.length; i += size) result.push(items.slice(i, i + size));
+  return result;
+}
+
+async function postBatchAction<T>(adminPassword: string, body: Record<string, unknown>) {
+  const response = await fetch("/api/admin/skd-batches", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ ...body, adminPassword }),
+  });
+  return readAdminJson<T>(response);
+}
+
+function batchSlug(row: CsvRow): string {
+  return [
+    row.kode_instansi || row.nama_instansi || "instansi",
+    row.tahun || "tahun",
+    `v${row.parser_version}`,
+  ]
+    .join("-")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
 export async function importCsvRows(
   rows: CsvRow[],
+  adminPassword: string,
   onProgress?: (p: ImportProgress) => void,
 ): Promise<ImportProgress> {
-  const sb = requireSupabase();
   const progress: ImportProgress = {
     processed: 0,
     formationsCreated: 0,
     scoresInserted: 0,
+    scoresSkippedExisting: 0,
+    issuesCreated: 0,
     errors: [],
   };
-
-  // Group formations
+  if (!rows.length) return progress;
+  const first = rows[0];
+  const participantRows = rows.filter(
+    (row) => (row.record_type?.trim().toLowerCase() || "participant") === "participant",
+  );
   const formationMap = new Map<string, CsvRow>();
   for (const row of rows) {
-    const key = [
-      row.tahun ?? "",
-      row.kode_instansi ?? row.nama_instansi ?? "",
-      row.kode_jabatan ?? row.jabatan ?? "",
-      row.lokasi_formasi ?? "",
-    ].join("|");
+    const key = formationKey(row);
     if (!formationMap.has(key)) formationMap.set(key, row);
   }
+  const created = await postBatchAction<{ batchId: string; sourceId: string }>(adminPassword, {
+    action: "create",
+    batch: {
+      slug: batchSlug(first),
+      institutionCode: first.kode_instansi,
+      institutionName: first.nama_instansi,
+      selectionYear: toInt(first.tahun),
+      parserFamily: first.parser_family,
+      parserVersion: first.parser_version,
+      sourcePageCount: toInt(first.source_total_pages),
+    },
+    source: {
+      sheetRow: toInt(first.source_sheet_row),
+      fileName: first.source_pdf,
+      driveFileId: first.source_drive_file_id,
+      sourceUrl: first.source_url,
+      totalPages: toInt(first.source_total_pages),
+      documentType: "skd",
+      hasTextLayer: true,
+    },
+  });
+  progress.batchId = created.batchId;
 
-  // Insert formations (chunked)
-  const formationIdByKey = new Map<string, string>();
-  const formationEntries = Array.from(formationMap.entries());
-  const CHUNK = 200;
-  for (let i = 0; i < formationEntries.length; i += CHUNK) {
-    const slice = formationEntries.slice(i, i + CHUNK);
-    const payload = slice.map(([, row]) => ({
-      tahun: toInt(row.tahun),
-      kode_instansi: row.kode_instansi ?? null,
-      nama_instansi: row.nama_instansi ?? null,
-      kode_jabatan: row.kode_jabatan ?? null,
-      jabatan: row.jabatan ?? null,
-      lokasi_formasi: row.lokasi_formasi ?? null,
-      jenis_formasi: row.jenis_formasi ?? null,
-      pendidikan: row.pendidikan ?? null,
-      jumlah_formasi: toInt(row.jumlah_formasi),
-    }));
-    const { data, error } = await sb.from("skd_formations").insert(payload).select("id");
-    if (error) {
-      progress.errors.push(`Formations chunk ${i}: ${error.message}`);
-      continue;
-    }
-    const ids = (data ?? []) as { id: string }[];
-    slice.forEach(([k], idx) => {
-      if (ids[idx]) formationIdByKey.set(k, ids[idx].id);
-    });
-    progress.formationsCreated += ids.length;
+  for (const slice of chunks([...formationMap.values()], 300)) {
+    const result = await postBatchAction<{ formationsUpserted: number; issuesCreated: number }>(
+      adminPassword,
+      {
+        action: "import_formations",
+        batchId: created.batchId,
+        sourceId: created.sourceId,
+        rows: slice,
+      },
+    );
+    progress.formationsCreated += result.formationsUpserted;
+    progress.issuesCreated += result.issuesCreated;
     onProgress?.({ ...progress });
   }
 
-  // Insert scores
+  for (const slice of chunks(participantRows, 300)) {
+    const result = await postBatchAction<{ scoresUpserted: number; issuesCreated: number }>(
+      adminPassword,
+      {
+        action: "import_scores",
+        batchId: created.batchId,
+        sourceId: created.sourceId,
+        rows: slice,
+      },
+    );
+    progress.scoresInserted += result.scoresUpserted;
+    progress.issuesCreated += result.issuesCreated;
+    progress.processed += slice.length;
+    onProgress?.({ ...progress });
+  }
+
+  await postBatchAction(adminPassword, {
+    action: "finalize",
+    batchId: created.batchId,
+    sourceId: created.sourceId,
+  });
+  return progress;
+}
+
+export async function importPdfSourceRows(
+  rows: PdfSourceCsvRow[],
+  adminPassword: string,
+  onProgress?: (p: PdfSourceImportProgress) => void,
+): Promise<PdfSourceImportProgress> {
+  const progress: PdfSourceImportProgress = { processed: 0, sourcesInserted: 0, errors: [] };
+  const CHUNK = 200;
+
   for (let i = 0; i < rows.length; i += CHUNK) {
     const slice = rows.slice(i, i + CHUNK);
-    const payload = slice
-      .filter((r) => r.nama)
-      .map((r) => {
-        const key = [
-          r.tahun ?? "",
-          r.kode_instansi ?? r.nama_instansi ?? "",
-          r.kode_jabatan ?? r.jabatan ?? "",
-          r.lokasi_formasi ?? "",
-        ].join("|");
-        return {
-          formation_id: formationIdByKey.get(key) ?? null,
-          no_peserta: r.no_peserta ?? null,
-          nama: r.nama!,
-          pendidikan: r.pendidikan ?? null,
-          tahun_skd: toInt(r.tahun_skd) ?? toInt(r.tahun),
-          twk: toInt(r.twk),
-          tiu: toInt(r.tiu),
-          tkp: toInt(r.tkp),
-          total: toInt(r.total),
-          keterangan: r.keterangan ?? null,
-          nama_normalized: normalize(r.nama!),
-          source_page: toInt(r.source_page),
-        };
-      });
-    if (payload.length === 0) continue;
-    const { error } = await sb.from("skd_scores").insert(payload);
-    if (error) {
-      progress.errors.push(`Scores chunk ${i}: ${error.message}`);
+    const response = await fetch("/api/admin/pdf-sources", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ adminPassword, rows: slice }),
+    });
+
+    if (!response.ok) {
+      const body = (await response.json().catch(() => null)) as { message?: string } | null;
+      progress.errors.push(`PDF sources chunk ${i}: ${body?.message ?? response.statusText}`);
     } else {
-      progress.scoresInserted += payload.length;
+      const body = (await response.json()) as { sourcesInserted?: number };
+      progress.sourcesInserted += body.sourcesInserted ?? 0;
     }
+
     progress.processed = Math.min(i + CHUNK, rows.length);
     onProgress?.({ ...progress });
   }

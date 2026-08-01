@@ -15,6 +15,10 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as WaTokenRouteImport } from './routes/wa.$token'
 import { Route as ResultScoreIdRouteImport } from './routes/result.$scoreId'
 import { Route as ApiWaResultRouteImport } from './routes/api/wa-result'
+import { Route as ApiResultSessionRouteImport } from './routes/api/result-session'
+import { Route as ApiAdminSkdReviewRouteImport } from './routes/api/admin/skd-review'
+import { Route as ApiAdminSkdBatchesRouteImport } from './routes/api/admin/skd-batches'
+import { Route as ApiAdminPdfSourcesRouteImport } from './routes/api/admin/pdf-sources'
 
 const SearchRoute = SearchRouteImport.update({
   id: '/search',
@@ -46,31 +50,63 @@ const ApiWaResultRoute = ApiWaResultRouteImport.update({
   path: '/api/wa-result',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiResultSessionRoute = ApiResultSessionRouteImport.update({
+  id: '/api/result-session',
+  path: '/api/result-session',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminSkdReviewRoute = ApiAdminSkdReviewRouteImport.update({
+  id: '/api/admin/skd-review',
+  path: '/api/admin/skd-review',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminSkdBatchesRoute = ApiAdminSkdBatchesRouteImport.update({
+  id: '/api/admin/skd-batches',
+  path: '/api/admin/skd-batches',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminPdfSourcesRoute = ApiAdminPdfSourcesRouteImport.update({
+  id: '/api/admin/pdf-sources',
+  path: '/api/admin/pdf-sources',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/search': typeof SearchRoute
+  '/api/result-session': typeof ApiResultSessionRoute
   '/api/wa-result': typeof ApiWaResultRoute
   '/result/$scoreId': typeof ResultScoreIdRoute
   '/wa/$token': typeof WaTokenRoute
+  '/api/admin/pdf-sources': typeof ApiAdminPdfSourcesRoute
+  '/api/admin/skd-batches': typeof ApiAdminSkdBatchesRoute
+  '/api/admin/skd-review': typeof ApiAdminSkdReviewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/search': typeof SearchRoute
+  '/api/result-session': typeof ApiResultSessionRoute
   '/api/wa-result': typeof ApiWaResultRoute
   '/result/$scoreId': typeof ResultScoreIdRoute
   '/wa/$token': typeof WaTokenRoute
+  '/api/admin/pdf-sources': typeof ApiAdminPdfSourcesRoute
+  '/api/admin/skd-batches': typeof ApiAdminSkdBatchesRoute
+  '/api/admin/skd-review': typeof ApiAdminSkdReviewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/search': typeof SearchRoute
+  '/api/result-session': typeof ApiResultSessionRoute
   '/api/wa-result': typeof ApiWaResultRoute
   '/result/$scoreId': typeof ResultScoreIdRoute
   '/wa/$token': typeof WaTokenRoute
+  '/api/admin/pdf-sources': typeof ApiAdminPdfSourcesRoute
+  '/api/admin/skd-batches': typeof ApiAdminSkdBatchesRoute
+  '/api/admin/skd-review': typeof ApiAdminSkdReviewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -78,34 +114,50 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/search'
+    | '/api/result-session'
     | '/api/wa-result'
     | '/result/$scoreId'
     | '/wa/$token'
+    | '/api/admin/pdf-sources'
+    | '/api/admin/skd-batches'
+    | '/api/admin/skd-review'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/admin'
     | '/search'
+    | '/api/result-session'
     | '/api/wa-result'
     | '/result/$scoreId'
     | '/wa/$token'
+    | '/api/admin/pdf-sources'
+    | '/api/admin/skd-batches'
+    | '/api/admin/skd-review'
   id:
     | '__root__'
     | '/'
     | '/admin'
     | '/search'
+    | '/api/result-session'
     | '/api/wa-result'
     | '/result/$scoreId'
     | '/wa/$token'
+    | '/api/admin/pdf-sources'
+    | '/api/admin/skd-batches'
+    | '/api/admin/skd-review'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   SearchRoute: typeof SearchRoute
+  ApiResultSessionRoute: typeof ApiResultSessionRoute
   ApiWaResultRoute: typeof ApiWaResultRoute
   ResultScoreIdRoute: typeof ResultScoreIdRoute
   WaTokenRoute: typeof WaTokenRoute
+  ApiAdminPdfSourcesRoute: typeof ApiAdminPdfSourcesRoute
+  ApiAdminSkdBatchesRoute: typeof ApiAdminSkdBatchesRoute
+  ApiAdminSkdReviewRoute: typeof ApiAdminSkdReviewRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -152,6 +204,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWaResultRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/result-session': {
+      id: '/api/result-session'
+      path: '/api/result-session'
+      fullPath: '/api/result-session'
+      preLoaderRoute: typeof ApiResultSessionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/skd-review': {
+      id: '/api/admin/skd-review'
+      path: '/api/admin/skd-review'
+      fullPath: '/api/admin/skd-review'
+      preLoaderRoute: typeof ApiAdminSkdReviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/skd-batches': {
+      id: '/api/admin/skd-batches'
+      path: '/api/admin/skd-batches'
+      fullPath: '/api/admin/skd-batches'
+      preLoaderRoute: typeof ApiAdminSkdBatchesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/pdf-sources': {
+      id: '/api/admin/pdf-sources'
+      path: '/api/admin/pdf-sources'
+      fullPath: '/api/admin/pdf-sources'
+      preLoaderRoute: typeof ApiAdminPdfSourcesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -159,9 +239,13 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   SearchRoute: SearchRoute,
+  ApiResultSessionRoute: ApiResultSessionRoute,
   ApiWaResultRoute: ApiWaResultRoute,
   ResultScoreIdRoute: ResultScoreIdRoute,
   WaTokenRoute: WaTokenRoute,
+  ApiAdminPdfSourcesRoute: ApiAdminPdfSourcesRoute,
+  ApiAdminSkdBatchesRoute: ApiAdminSkdBatchesRoute,
+  ApiAdminSkdReviewRoute: ApiAdminSkdReviewRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
