@@ -20,6 +20,22 @@ python tools/skd/download_pdfs_from_catalog.py --limit 0
 
 Output lokal disimpan di `data/staging/` dan `data/raw/pdfs/`; keduanya diabaikan Git.
 
+## PDF Offline di Admin
+
+Simpan PDF asli di folder `FILE SKD 2024` pada root project. Admin mencari PDF
+berdasarkan `file_name` sumber di database, lalu membuka langsung halaman
+`source_page` untuk pemeriksaan manual. Folder ini diabaikan Git dan tidak lagi
+memerlukan tautan Google Drive.
+
+Jika PDF disimpan di lokasi lain, isi `SKD_PDF_DIR` di `.env` dengan path absolut:
+
+```env
+SKD_PDF_DIR=C:\path\to\FILE SKD 2024
+```
+
+Preview ini hanya tersedia saat aplikasi berjalan di komputer yang memiliki folder
+tersebut. Vercel tidak dapat membaca folder lokal Windows.
+
 Gunakan probe untuk mengenali text layer dan struktur PDF sebelum membuat parser instansi:
 
 ```powershell

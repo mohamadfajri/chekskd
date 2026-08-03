@@ -255,6 +255,15 @@ export async function validateAdminPassword(adminPassword: string): Promise<void
   await readAdminJson<{ valid: true }>(response);
 }
 
+export async function validateAdminSession(): Promise<void> {
+  const response = await fetch("/api/admin/skd-batches", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ action: "validate" }),
+  });
+  await readAdminJson<{ valid: true }>(response);
+}
+
 export async function getSkdBatches(adminPassword: string): Promise<SkdBatchSummary[]> {
   const response = await fetch("/api/admin/skd-batches", {
     headers: { "x-admin-password": adminPassword },
@@ -281,6 +290,7 @@ export interface SkdReviewRow {
   formation_name: string | null;
   source_file_name: string | null;
   source_url: string | null;
+  source_id: string | null;
 }
 
 export async function getSkdReviewRows(
@@ -288,7 +298,7 @@ export async function getSkdReviewRows(
   batchId: string,
 ): Promise<SkdReviewRow[]> {
   const response = await fetch(
-    `/api/admin/skd-review?batchId=${encodeURIComponent(batchId)}&limit=100`,
+    `/api/admin/skd-review?batchId=${encodeURIComponent(batchId)}&limit=200`,
     { headers: { "x-admin-password": adminPassword } },
   );
   const body = await readAdminJson<{ issues: SkdReviewRow[] }>(response);

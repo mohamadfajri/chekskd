@@ -17,6 +17,7 @@ import { Route as ResultScoreIdRouteImport } from './routes/result.$scoreId'
 import { Route as ApiWaResultRouteImport } from './routes/api/wa-result'
 import { Route as ApiResultSessionRouteImport } from './routes/api/result-session'
 import { Route as ApiAdminSkdReviewRouteImport } from './routes/api/admin/skd-review'
+import { Route as ApiAdminSkdPdfRouteImport } from './routes/api/admin/skd-pdf'
 import { Route as ApiAdminSkdBatchesRouteImport } from './routes/api/admin/skd-batches'
 import { Route as ApiAdminPdfSourcesRouteImport } from './routes/api/admin/pdf-sources'
 
@@ -60,6 +61,11 @@ const ApiAdminSkdReviewRoute = ApiAdminSkdReviewRouteImport.update({
   path: '/api/admin/skd-review',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminSkdPdfRoute = ApiAdminSkdPdfRouteImport.update({
+  id: '/api/admin/skd-pdf',
+  path: '/api/admin/skd-pdf',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminSkdBatchesRoute = ApiAdminSkdBatchesRouteImport.update({
   id: '/api/admin/skd-batches',
   path: '/api/admin/skd-batches',
@@ -81,6 +87,7 @@ export interface FileRoutesByFullPath {
   '/wa/$token': typeof WaTokenRoute
   '/api/admin/pdf-sources': typeof ApiAdminPdfSourcesRoute
   '/api/admin/skd-batches': typeof ApiAdminSkdBatchesRoute
+  '/api/admin/skd-pdf': typeof ApiAdminSkdPdfRoute
   '/api/admin/skd-review': typeof ApiAdminSkdReviewRoute
 }
 export interface FileRoutesByTo {
@@ -93,6 +100,7 @@ export interface FileRoutesByTo {
   '/wa/$token': typeof WaTokenRoute
   '/api/admin/pdf-sources': typeof ApiAdminPdfSourcesRoute
   '/api/admin/skd-batches': typeof ApiAdminSkdBatchesRoute
+  '/api/admin/skd-pdf': typeof ApiAdminSkdPdfRoute
   '/api/admin/skd-review': typeof ApiAdminSkdReviewRoute
 }
 export interface FileRoutesById {
@@ -106,6 +114,7 @@ export interface FileRoutesById {
   '/wa/$token': typeof WaTokenRoute
   '/api/admin/pdf-sources': typeof ApiAdminPdfSourcesRoute
   '/api/admin/skd-batches': typeof ApiAdminSkdBatchesRoute
+  '/api/admin/skd-pdf': typeof ApiAdminSkdPdfRoute
   '/api/admin/skd-review': typeof ApiAdminSkdReviewRoute
 }
 export interface FileRouteTypes {
@@ -120,6 +129,7 @@ export interface FileRouteTypes {
     | '/wa/$token'
     | '/api/admin/pdf-sources'
     | '/api/admin/skd-batches'
+    | '/api/admin/skd-pdf'
     | '/api/admin/skd-review'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -132,6 +142,7 @@ export interface FileRouteTypes {
     | '/wa/$token'
     | '/api/admin/pdf-sources'
     | '/api/admin/skd-batches'
+    | '/api/admin/skd-pdf'
     | '/api/admin/skd-review'
   id:
     | '__root__'
@@ -144,6 +155,7 @@ export interface FileRouteTypes {
     | '/wa/$token'
     | '/api/admin/pdf-sources'
     | '/api/admin/skd-batches'
+    | '/api/admin/skd-pdf'
     | '/api/admin/skd-review'
   fileRoutesById: FileRoutesById
 }
@@ -157,6 +169,7 @@ export interface RootRouteChildren {
   WaTokenRoute: typeof WaTokenRoute
   ApiAdminPdfSourcesRoute: typeof ApiAdminPdfSourcesRoute
   ApiAdminSkdBatchesRoute: typeof ApiAdminSkdBatchesRoute
+  ApiAdminSkdPdfRoute: typeof ApiAdminSkdPdfRoute
   ApiAdminSkdReviewRoute: typeof ApiAdminSkdReviewRoute
 }
 
@@ -218,6 +231,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminSkdReviewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/skd-pdf': {
+      id: '/api/admin/skd-pdf'
+      path: '/api/admin/skd-pdf'
+      fullPath: '/api/admin/skd-pdf'
+      preLoaderRoute: typeof ApiAdminSkdPdfRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/skd-batches': {
       id: '/api/admin/skd-batches'
       path: '/api/admin/skd-batches'
@@ -245,6 +265,7 @@ const rootRouteChildren: RootRouteChildren = {
   WaTokenRoute: WaTokenRoute,
   ApiAdminPdfSourcesRoute: ApiAdminPdfSourcesRoute,
   ApiAdminSkdBatchesRoute: ApiAdminSkdBatchesRoute,
+  ApiAdminSkdPdfRoute: ApiAdminSkdPdfRoute,
   ApiAdminSkdReviewRoute: ApiAdminSkdReviewRoute,
 }
 export const routeTree = rootRouteImport

@@ -30,6 +30,7 @@ data/raw/*
 data/staging/*
 !data/raw/.gitkeep
 !data/staging/.gitkeep
+FILE SKD 2024/
 
 # Wrangler / Cloudflare
 .wrangler/

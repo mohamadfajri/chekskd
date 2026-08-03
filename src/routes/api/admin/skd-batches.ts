@@ -1,5 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { getServerSupabase, jsonResponse, requireAdmin } from "@/lib/supabase/server";
+import {
+  createAdminSessionResponse,
+  getServerSupabase,
+  jsonResponse,
+  requireAdmin,
+} from "@/lib/supabase/server";
 
 type CsvValue = string | undefined;
 
@@ -157,7 +162,7 @@ export const Route = createFileRoute("/api/admin/skd-batches")({
         if (!body) return jsonResponse({ message: "Body JSON tidak valid." }, 400);
         const authError = requireAdmin(request, body);
         if (authError) return authError;
-        if (body.action === "validate") return jsonResponse({ valid: true });
+        if (body.action === "validate") return createAdminSessionResponse();
 
         const { client: sb, error: configError } = getServerSupabase();
         if (!sb)
