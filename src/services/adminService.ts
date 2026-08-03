@@ -285,6 +285,11 @@ export interface SkdReviewRow {
   nama_raw: string | null;
   pendidikan: string | null;
   pendidikan_raw: string | null;
+  twk: number | null;
+  tiu: number | null;
+  tkp: number | null;
+  total: number | null;
+  keterangan: string | null;
   source_page: number | null;
   institution_name: string | null;
   formation_name: string | null;

@@ -6,11 +6,11 @@ import {
   AlertTriangle,
   CheckCircle2,
   ChevronRight,
+  Cloud,
   Database,
   ExternalLink,
   FileCheck2,
   FileText,
-  HardDrive,
   Layers3,
   Loader2,
   RefreshCw,
@@ -101,7 +101,7 @@ function AdminPage() {
               <LoginMetric value="1.102" label="Perlu review" />
             </div>
           </div>
-          <p className="text-xs text-blue-100/50">Offline PDF workspace</p>
+          <p className="text-xs text-blue-100/50">Secure PDF review workspace</p>
         </div>
 
         <main className="flex items-center justify-center px-5 py-12">
@@ -214,7 +214,7 @@ function AdminWorkspace({ adminPassword }: { adminPassword: string }) {
         </div>
         <div className="flex items-center gap-2">
           <span className="hidden items-center gap-1.5 rounded-full border border-[#cfe7dd] bg-[#eef9f5] px-2.5 py-1 text-[11px] font-semibold text-[#20795d] sm:inline-flex">
-            <HardDrive className="h-3 w-3" /> PDF offline
+            <Cloud className="h-3 w-3" /> PDF Storage
           </span>
           <button
             type="button"
@@ -560,7 +560,9 @@ function IssueRow({
           {issue.pendidikan_raw ?? issue.raw_value ?? issue.issue_code}
         </p>
         <span className="font-mono text-[10px] text-[#718196]">
-          {issue.confidence == null ? "-" : `${Math.round(issue.confidence * 100)}%`}
+          {issue.total ??
+            issue.keterangan ??
+            (issue.confidence == null ? "-" : `${Math.round(issue.confidence * 100)}%`)}
         </span>
       </div>
     </button>
@@ -592,7 +594,7 @@ function PdfInspector({ issue }: { issue: SkdReviewRow | null }) {
               {issue.source_file_name ?? "PDF sumber"}
             </p>
             <p className="mt-0.5 text-[11px] text-[#65768a]">
-              Halaman PDF {issue.source_page ?? "-"} · sumber offline
+              Halaman PDF {issue.source_page ?? "-"} · Supabase Storage privat
             </p>
           </div>
           {pdfUrl && (
@@ -611,6 +613,24 @@ function PdfInspector({ issue }: { issue: SkdReviewRow | null }) {
         <div className="mt-3 grid gap-2 text-[11px] sm:grid-cols-2">
           <CompareValue label="Teks PDF" value={issue.pendidikan_raw ?? "-"} />
           <CompareValue label="Hasil parser" value={issue.pendidikan ?? "-"} />
+        </div>
+        <div className="mt-3 grid grid-cols-4 overflow-hidden rounded border border-[#dce4ec] bg-[#f8fafc]">
+          {[
+            ["TWK", issue.twk],
+            ["TIU", issue.tiu],
+            ["TKP", issue.tkp],
+            ["Total", issue.total],
+          ].map(([label, value]) => (
+            <div
+              key={String(label)}
+              className="border-r border-[#dce4ec] px-2 py-2 text-center last:border-r-0"
+            >
+              <p className="text-[9px] font-semibold uppercase text-[#718196]">{label}</p>
+              <p className="mt-0.5 font-mono text-sm font-bold text-[#10233d]">
+                {value ?? issue.keterangan ?? "-"}
+              </p>
+            </div>
+          ))}
         </div>
       </div>
       {pdfUrl ? (

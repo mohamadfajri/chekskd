@@ -20,12 +20,19 @@ python tools/skd/download_pdfs_from_catalog.py --limit 0
 
 Output lokal disimpan di `data/staging/` dan `data/raw/pdfs/`; keduanya diabaikan Git.
 
-## PDF Offline di Admin
+## PDF Admin di Supabase Storage
 
-Simpan PDF asli di folder `FILE SKD 2024` pada root project. Admin mencari PDF
-berdasarkan `file_name` sumber di database, lalu membuka langsung halaman
-`source_page` untuk pemeriksaan manual. Folder ini diabaikan Git dan tidak lagi
-memerlukan tautan Google Drive.
+Simpan PDF asli di folder `FILE SKD 2024` pada root project, lalu unggah PDF yang
+sudah memiliki sumber di database:
+
+```powershell
+npm run skd:upload-pdfs
+```
+
+Script membuat bucket privat `skd-source-pdfs` dan mencocokkan nama file lokal
+dengan `file_name` di `skd_sources`. Admin menggunakan signed URL berdurasi pendek
+untuk membuka langsung halaman `source_page`, sehingga preview juga bekerja di
+Vercel tanpa Google Drive.
 
 Jika PDF disimpan di lokasi lain, isi `SKD_PDF_DIR` di `.env` dengan path absolut:
 
@@ -33,8 +40,8 @@ Jika PDF disimpan di lokasi lain, isi `SKD_PDF_DIR` di `.env` dengan path absolu
 SKD_PDF_DIR=C:\path\to\FILE SKD 2024
 ```
 
-Preview ini hanya tersedia saat aplikasi berjalan di komputer yang memiliki folder
-tersebut. Vercel tidak dapat membaca folder lokal Windows.
+Folder lokal hanya diperlukan ketika upload dan tetap diabaikan Git. PDF yang sudah
+masuk Storage tidak bergantung pada komputer lokal.
 
 Gunakan probe untuk mengenali text layer dan struktur PDF sebelum membuat parser instansi:
 

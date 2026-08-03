@@ -37,7 +37,7 @@ export const Route = createFileRoute("/api/admin/skd-review")({
           ? await sb
               .from("skd_scores")
               .select(
-                "id, no_peserta, nama, nama_raw, pendidikan, pendidikan_raw, source_page, formation_id, source_id, parser_confidence",
+                "id, no_peserta, nama, nama_raw, pendidikan, pendidikan_raw, twk, tiu, tkp, total, keterangan, source_page, formation_id, source_id, parser_confidence",
               )
               .in("id", scoreIds)
           : { data: [], error: null };
@@ -84,6 +84,11 @@ export const Route = createFileRoute("/api/admin/skd-review")({
             nama_raw: score?.nama_raw ?? null,
             pendidikan: score?.pendidikan ?? formation?.pendidikan ?? null,
             pendidikan_raw: score?.pendidikan_raw ?? null,
+            twk: score?.twk ?? null,
+            tiu: score?.tiu ?? null,
+            tkp: score?.tkp ?? null,
+            total: score?.total ?? null,
+            keterangan: score?.keterangan ?? null,
             source_page: score?.source_page ?? formation?.page_number ?? null,
             institution_name: formation?.nama_instansi ?? null,
             formation_name: formation?.jabatan ?? null,
