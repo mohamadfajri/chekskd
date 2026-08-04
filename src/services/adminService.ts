@@ -310,6 +310,121 @@ export async function getSkdReviewRows(
   return body.issues;
 }
 
+export interface SkdExplorerFormation {
+  id: string;
+  kode_jabatan: string | null;
+  jabatan: string;
+  lokasi_formasi: string | null;
+  jenis_formasi: string | null;
+  pendidikan: string | null;
+  jumlah_formasi: number;
+  quality_status: string;
+}
+
+export interface SkdExplorerSummary {
+  id: string;
+  institution_name: string;
+  institution_code: string | null;
+  selection_year: number;
+  status: SkdBatchSummary["status"];
+  formation_count: number;
+  participant_count: number;
+  review_issue_count: number;
+  present_count: number;
+  absent_count: number;
+  passing_count: number;
+  needs_review_count: number;
+  seat_count: number;
+  competition_ratio: number | null;
+}
+
+export interface SkdExplorerOverview {
+  summary: SkdExplorerSummary;
+  formations: SkdExplorerFormation[];
+}
+
+export interface SkdExplorerRow {
+  id: string;
+  source_id: string;
+  no_peserta: string;
+  nama: string;
+  pendidikan: string | null;
+  twk: number | null;
+  tiu: number | null;
+  tkp: number | null;
+  total: number | null;
+  keterangan: string;
+  source_page: number;
+  quality_status: string;
+  parser_confidence: number | null;
+  formation_id: string | null;
+  kode_jabatan: string | null;
+  jabatan: string | null;
+  lokasi_formasi: string | null;
+  jenis_formasi: string | null;
+  pendidikan_formasi: string | null;
+  jumlah_formasi: number;
+  source_file_name: string | null;
+}
+
+export interface SkdExplorerFilters {
+  page: number;
+  pageSize?: number;
+  search?: string;
+  formationId?: string;
+  attendance?: "all" | "present" | "absent";
+  passing?: "all" | "pass" | "fail";
+  quality?: string;
+  sort?: "source_page" | "total_desc" | "total_asc" | "name";
+}
+
+export interface SkdExplorerRowsResponse {
+  rows: SkdExplorerRow[];
+  pagination: {
+    page: number;
+    page_size: number;
+    total: number;
+    total_pages: number;
+  };
+}
+
+export async function getSkdExplorerOverview(
+  adminPassword: string,
+  batchId: string,
+): Promise<SkdExplorerOverview> {
+  const response = await fetch(
+    `/api/admin/skd-explorer?mode=overview&batchId=${encodeURIComponent(batchId)}`,
+    { headers: { "x-admin-password": adminPassword } },
+  );
+  return readAdminJson<SkdExplorerOverview>(response);
+}
+
+export async function getSkdExplorerRows(
+  adminPassword: string,
+  batchId: string,
+  filters: SkdExplorerFilters,
+): Promise<SkdExplorerRowsResponse> {
+  const params = new URLSearchParams({
+    mode: "rows",
+    batchId,
+    page: String(filters.page),
+    pageSize: String(filters.pageSize ?? 25),
+    attendance: filters.attendance ?? "all",
+    passing: filters.passing ?? "all",
+    quality: filters.quality ?? "all",
+    sort: filters.sort ?? "source_page",
+  });
+  if (filters.search) params.set("search", filters.search);
+  if (filters.formationId && filters.formationId !== "all") {
+    params.set("formationId", filters.formationId);
+  }
+
+  const response = await fetch(`/api/admin/skd-explorer?${params.toString()}`, {
+    headers: { "x-admin-password": adminPassword },
+  });
+  return readAdminJson<SkdExplorerRowsResponse>(response);
+}
+
 export interface ImportProgress {
   batchId?: string;
   processed: number;

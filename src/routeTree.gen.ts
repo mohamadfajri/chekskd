@@ -18,6 +18,7 @@ import { Route as ApiWaResultRouteImport } from './routes/api/wa-result'
 import { Route as ApiResultSessionRouteImport } from './routes/api/result-session'
 import { Route as ApiAdminSkdReviewRouteImport } from './routes/api/admin/skd-review'
 import { Route as ApiAdminSkdPdfRouteImport } from './routes/api/admin/skd-pdf'
+import { Route as ApiAdminSkdExplorerRouteImport } from './routes/api/admin/skd-explorer'
 import { Route as ApiAdminSkdBatchesRouteImport } from './routes/api/admin/skd-batches'
 import { Route as ApiAdminPdfSourcesRouteImport } from './routes/api/admin/pdf-sources'
 
@@ -66,6 +67,11 @@ const ApiAdminSkdPdfRoute = ApiAdminSkdPdfRouteImport.update({
   path: '/api/admin/skd-pdf',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminSkdExplorerRoute = ApiAdminSkdExplorerRouteImport.update({
+  id: '/api/admin/skd-explorer',
+  path: '/api/admin/skd-explorer',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminSkdBatchesRoute = ApiAdminSkdBatchesRouteImport.update({
   id: '/api/admin/skd-batches',
   path: '/api/admin/skd-batches',
@@ -87,6 +93,7 @@ export interface FileRoutesByFullPath {
   '/wa/$token': typeof WaTokenRoute
   '/api/admin/pdf-sources': typeof ApiAdminPdfSourcesRoute
   '/api/admin/skd-batches': typeof ApiAdminSkdBatchesRoute
+  '/api/admin/skd-explorer': typeof ApiAdminSkdExplorerRoute
   '/api/admin/skd-pdf': typeof ApiAdminSkdPdfRoute
   '/api/admin/skd-review': typeof ApiAdminSkdReviewRoute
 }
@@ -100,6 +107,7 @@ export interface FileRoutesByTo {
   '/wa/$token': typeof WaTokenRoute
   '/api/admin/pdf-sources': typeof ApiAdminPdfSourcesRoute
   '/api/admin/skd-batches': typeof ApiAdminSkdBatchesRoute
+  '/api/admin/skd-explorer': typeof ApiAdminSkdExplorerRoute
   '/api/admin/skd-pdf': typeof ApiAdminSkdPdfRoute
   '/api/admin/skd-review': typeof ApiAdminSkdReviewRoute
 }
@@ -114,6 +122,7 @@ export interface FileRoutesById {
   '/wa/$token': typeof WaTokenRoute
   '/api/admin/pdf-sources': typeof ApiAdminPdfSourcesRoute
   '/api/admin/skd-batches': typeof ApiAdminSkdBatchesRoute
+  '/api/admin/skd-explorer': typeof ApiAdminSkdExplorerRoute
   '/api/admin/skd-pdf': typeof ApiAdminSkdPdfRoute
   '/api/admin/skd-review': typeof ApiAdminSkdReviewRoute
 }
@@ -129,6 +138,7 @@ export interface FileRouteTypes {
     | '/wa/$token'
     | '/api/admin/pdf-sources'
     | '/api/admin/skd-batches'
+    | '/api/admin/skd-explorer'
     | '/api/admin/skd-pdf'
     | '/api/admin/skd-review'
   fileRoutesByTo: FileRoutesByTo
@@ -142,6 +152,7 @@ export interface FileRouteTypes {
     | '/wa/$token'
     | '/api/admin/pdf-sources'
     | '/api/admin/skd-batches'
+    | '/api/admin/skd-explorer'
     | '/api/admin/skd-pdf'
     | '/api/admin/skd-review'
   id:
@@ -155,6 +166,7 @@ export interface FileRouteTypes {
     | '/wa/$token'
     | '/api/admin/pdf-sources'
     | '/api/admin/skd-batches'
+    | '/api/admin/skd-explorer'
     | '/api/admin/skd-pdf'
     | '/api/admin/skd-review'
   fileRoutesById: FileRoutesById
@@ -169,6 +181,7 @@ export interface RootRouteChildren {
   WaTokenRoute: typeof WaTokenRoute
   ApiAdminPdfSourcesRoute: typeof ApiAdminPdfSourcesRoute
   ApiAdminSkdBatchesRoute: typeof ApiAdminSkdBatchesRoute
+  ApiAdminSkdExplorerRoute: typeof ApiAdminSkdExplorerRoute
   ApiAdminSkdPdfRoute: typeof ApiAdminSkdPdfRoute
   ApiAdminSkdReviewRoute: typeof ApiAdminSkdReviewRoute
 }
@@ -238,6 +251,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminSkdPdfRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/skd-explorer': {
+      id: '/api/admin/skd-explorer'
+      path: '/api/admin/skd-explorer'
+      fullPath: '/api/admin/skd-explorer'
+      preLoaderRoute: typeof ApiAdminSkdExplorerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/skd-batches': {
       id: '/api/admin/skd-batches'
       path: '/api/admin/skd-batches'
@@ -265,6 +285,7 @@ const rootRouteChildren: RootRouteChildren = {
   WaTokenRoute: WaTokenRoute,
   ApiAdminPdfSourcesRoute: ApiAdminPdfSourcesRoute,
   ApiAdminSkdBatchesRoute: ApiAdminSkdBatchesRoute,
+  ApiAdminSkdExplorerRoute: ApiAdminSkdExplorerRoute,
   ApiAdminSkdPdfRoute: ApiAdminSkdPdfRoute,
   ApiAdminSkdReviewRoute: ApiAdminSkdReviewRoute,
 }

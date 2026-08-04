@@ -1,10 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Papa from "papaparse";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
+  BarChart3,
   CheckCircle2,
+  ChevronLeft,
   ChevronRight,
   Cloud,
   Database,
@@ -22,6 +24,8 @@ import {
 import { toast } from "sonner";
 import {
   getSkdBatches,
+  getSkdExplorerOverview,
+  getSkdExplorerRows,
   getSkdReviewRows,
   importCsvRows,
   validateAdminPassword,
@@ -31,6 +35,7 @@ import {
   type ImportProgress,
   type RowValidationIssue,
   type SkdBatchSummary,
+  type SkdExplorerRow,
   type SkdReviewRow,
 } from "@/services/adminService";
 import { countStats, searchSkdScores } from "@/services/skdService";
@@ -44,13 +49,14 @@ export const Route = createFileRoute("/admin")({
   component: AdminPage,
 });
 
-type AdminView = "review" | "import" | "published";
+type AdminView = "explorer" | "review" | "import" | "published";
 
 const NAV_ITEMS: Array<{
   id: AdminView;
   label: string;
   icon: typeof FileCheck2;
 }> = [
+  { id: "explorer", label: "Data explorer", icon: BarChart3 },
   { id: "review", label: "Review data", icon: FileCheck2 },
   { id: "import", label: "Import batch", icon: Upload },
   { id: "published", label: "Data published", icon: Database },
@@ -181,7 +187,7 @@ function AdminPage() {
 }
 
 function AdminWorkspace({ adminPassword }: { adminPassword: string }) {
-  const [activeView, setActiveView] = useState<AdminView>("review");
+  const [activeView, setActiveView] = useState<AdminView>("explorer");
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
 
   const batches = useQuery({
@@ -228,9 +234,9 @@ function AdminWorkspace({ adminPassword }: { adminPassword: string }) {
         </div>
       </header>
 
-      <div className="mx-auto grid max-w-[1680px] lg:grid-cols-[220px_minmax(0,1fr)]">
-        <aside className="border-b border-[#dbe3ee] bg-white lg:min-h-[calc(100vh-3.5rem)] lg:border-b-0 lg:border-r">
-          <nav className="flex gap-1 overflow-x-auto p-2 lg:block lg:space-y-1 lg:p-3">
+      <div className="mx-auto grid min-w-0 max-w-[1680px] lg:grid-cols-[220px_minmax(0,1fr)]">
+        <aside className="min-w-0 border-b border-[#dbe3ee] bg-white lg:min-h-[calc(100vh-3.5rem)] lg:border-b-0 lg:border-r">
+          <nav className="flex max-w-full gap-1 overflow-x-auto p-2 lg:block lg:space-y-1 lg:p-3">
             {NAV_ITEMS.map((item) => {
               const Icon = item.icon;
               const active = activeView === item.id;
@@ -276,6 +282,14 @@ function AdminWorkspace({ adminPassword }: { adminPassword: string }) {
               onSelectBatch={setSelectedBatchId}
             />
           )}
+          {activeView === "explorer" && (
+            <DataExplorerWorkspace
+              adminPassword={adminPassword}
+              batches={batches.data ?? []}
+              selectedBatch={selectedBatch}
+              onSelectBatch={setSelectedBatchId}
+            />
+          )}
           {activeView === "import" && (
             <ImportWorkspace adminPassword={adminPassword} onImported={() => batches.refetch()} />
           )}
@@ -284,6 +298,657 @@ function AdminWorkspace({ adminPassword }: { adminPassword: string }) {
       </div>
       <DeskStyle />
     </div>
+  );
+}
+
+function DataExplorerWorkspace({
+  adminPassword,
+  batches,
+  selectedBatch,
+  onSelectBatch,
+}: {
+  adminPassword: string;
+  batches: SkdBatchSummary[];
+  selectedBatch: SkdBatchSummary | null;
+  onSelectBatch: (id: string) => void;
+}) {
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
+  const [formationId, setFormationId] = useState("all");
+  const [attendance, setAttendance] = useState<"all" | "present" | "absent">("all");
+  const [passing, setPassing] = useState<"all" | "pass" | "fail">("all");
+  const [quality, setQuality] = useState("all");
+  const [sort, setSort] = useState<"source_page" | "total_desc" | "total_asc" | "name">(
+    "source_page",
+  );
+  const [page, setPage] = useState(1);
+  const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setSearch(searchInput.trim());
+      setPage(1);
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [searchInput]);
+
+  useEffect(() => {
+    setPage(1);
+    setFormationId("all");
+    setSelectedRowId(null);
+  }, [selectedBatch?.id]);
+
+  const overview = useQuery({
+    queryKey: ["admin-skd-explorer-overview", selectedBatch?.id, adminPassword],
+    queryFn: () => getSkdExplorerOverview(adminPassword, selectedBatch!.id),
+    enabled: Boolean(selectedBatch),
+  });
+  const rows = useQuery({
+    queryKey: [
+      "admin-skd-explorer-rows",
+      selectedBatch?.id,
+      search,
+      formationId,
+      attendance,
+      passing,
+      quality,
+      sort,
+      page,
+      adminPassword,
+    ],
+    queryFn: () =>
+      getSkdExplorerRows(adminPassword, selectedBatch!.id, {
+        page,
+        pageSize: 25,
+        search,
+        formationId,
+        attendance,
+        passing,
+        quality,
+        sort,
+      }),
+    enabled: Boolean(selectedBatch),
+    placeholderData: (previous) => previous,
+  });
+
+  useEffect(() => {
+    const currentRows = rows.data?.rows ?? [];
+    if (!currentRows.length) {
+      setSelectedRowId(null);
+      return;
+    }
+    if (!currentRows.some((row) => row.id === selectedRowId)) {
+      setSelectedRowId(currentRows[0].id);
+    }
+  }, [rows.data?.rows, selectedRowId]);
+
+  const selectedRow =
+    rows.data?.rows.find((row) => row.id === selectedRowId) ?? rows.data?.rows[0] ?? null;
+  const summary = overview.data?.summary;
+  const presentRate = summary?.participant_count
+    ? (summary.present_count / summary.participant_count) * 100
+    : 0;
+  const passingRate = summary?.present_count
+    ? (summary.passing_count / summary.present_count) * 100
+    : 0;
+  const cleanRate = summary?.participant_count
+    ? ((summary.participant_count - summary.needs_review_count) / summary.participant_count) * 100
+    : 0;
+
+  const setScopedFilter = (setter: (value: string) => void, value: string) => {
+    setter(value);
+    setPage(1);
+  };
+
+  return (
+    <div>
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="font-mono text-[11px] font-semibold uppercase text-[#0d6cbd]">
+            Institution intelligence
+          </p>
+          <h1 className="mt-1 text-2xl font-semibold">Data Explorer SKD</h1>
+          <p className="mt-1 text-sm text-[#65768a]">
+            Seluruh peserta staging, termasuk data bersih dan yang perlu diperiksa.
+          </p>
+        </div>
+        <label className="min-w-[280px] text-xs font-semibold text-[#536579]">
+          Instansi
+          <select
+            value={selectedBatch?.id ?? ""}
+            onChange={(event) => onSelectBatch(event.target.value)}
+            className="desk-input mt-1 h-10 bg-white"
+          >
+            {batches.map((batch) => (
+              <option key={batch.id} value={batch.id}>
+                {batch.institution_name} · {batch.selection_year}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      {!selectedBatch ? (
+        <div className="flex min-h-[420px] items-center justify-center rounded-lg border border-[#d8e1ec] bg-white p-8 text-center">
+          <div>
+            <Layers3 className="mx-auto h-8 w-8 text-[#8da0b4]" />
+            <p className="mt-3 text-sm font-semibold">Belum ada batch instansi</p>
+          </div>
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-lg border border-[#d8e1ec] bg-white shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#d8e1ec] px-4 py-3">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-base font-semibold">{selectedBatch.institution_name}</h2>
+                <StatusBadge status={selectedBatch.status} />
+              </div>
+              <p className="mt-0.5 text-xs text-[#718196]">
+                Dataset {selectedBatch.selection_year} · {selectedBatch.parser_family}{" "}
+                {selectedBatch.parser_version}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                overview.refetch();
+                rows.refetch();
+              }}
+              className="desk-icon-button"
+              title="Muat ulang explorer"
+              aria-label="Muat ulang explorer"
+            >
+              <RefreshCw
+                className={`h-4 w-4 ${overview.isFetching || rows.isFetching ? "animate-spin" : ""}`}
+              />
+            </button>
+          </div>
+
+          {overview.isError ? (
+            <p className="p-4 text-sm text-red-700">{(overview.error as Error).message}</p>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 border-b border-[#d8e1ec] sm:grid-cols-3 xl:grid-cols-6">
+                <ExplorerMetric
+                  label="Peserta"
+                  value={summary?.participant_count}
+                  loading={overview.isLoading}
+                />
+                <ExplorerMetric
+                  label="Formasi"
+                  value={summary?.formation_count}
+                  loading={overview.isLoading}
+                />
+                <ExplorerMetric
+                  label="Kursi"
+                  value={summary?.seat_count}
+                  loading={overview.isLoading}
+                />
+                <ExplorerMetric
+                  label="Hadir"
+                  value={summary?.present_count}
+                  loading={overview.isLoading}
+                />
+                <ExplorerMetric
+                  label="Tidak hadir"
+                  value={summary?.absent_count}
+                  loading={overview.isLoading}
+                />
+                <ExplorerMetric
+                  label="Peserta/kursi"
+                  value={summary?.competition_ratio}
+                  loading={overview.isLoading}
+                  decimal
+                />
+              </div>
+
+              <div className="grid gap-px border-b border-[#d8e1ec] bg-[#d8e1ec] md:grid-cols-3">
+                <ExplorerRatio
+                  label="Kehadiran"
+                  value={presentRate}
+                  detail={`${(summary?.present_count ?? 0).toLocaleString("id-ID")} dari ${(summary?.participant_count ?? 0).toLocaleString("id-ID")} peserta`}
+                  color="#0d6cbd"
+                />
+                <ExplorerRatio
+                  label="Lulus passing grade"
+                  value={passingRate}
+                  detail={`${(summary?.passing_count ?? 0).toLocaleString("id-ID")} dari ${(summary?.present_count ?? 0).toLocaleString("id-ID")} peserta hadir`}
+                  color="#28a87d"
+                />
+                <ExplorerRatio
+                  label="Tanpa review issue"
+                  value={cleanRate}
+                  detail={`${(summary?.needs_review_count ?? 0).toLocaleString("id-ID")} peserta perlu review`}
+                  color="#d38a18"
+                />
+              </div>
+            </>
+          )}
+
+          <div className="border-b border-[#d8e1ec] bg-[#f9fbfd] p-3">
+            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(190px,1.2fr)_minmax(220px,1.4fr)_repeat(4,minmax(125px,.7fr))]">
+              <label className="relative min-w-0">
+                <span className="sr-only">Cari peserta</span>
+                <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-[#8a99aa]" />
+                <input
+                  value={searchInput}
+                  onChange={(event) => setSearchInput(event.target.value)}
+                  className="desk-input h-9 bg-white !pl-9"
+                  placeholder="Nama atau nomor peserta"
+                />
+              </label>
+              <FilterSelect
+                label="Semua formasi"
+                value={formationId}
+                onChange={(value) => setScopedFilter(setFormationId, value)}
+              >
+                {(overview.data?.formations ?? []).map((formation) => (
+                  <option key={formation.id} value={formation.id}>
+                    {formation.kode_jabatan ? `${formation.kode_jabatan} · ` : ""}
+                    {formation.jabatan}
+                    {formation.lokasi_formasi ? ` · ${formation.lokasi_formasi}` : ""}
+                  </option>
+                ))}
+              </FilterSelect>
+              <FilterSelect
+                label="Kehadiran"
+                value={attendance}
+                onChange={(value) => {
+                  setAttendance(value as typeof attendance);
+                  setPage(1);
+                }}
+              >
+                <option value="present">Hadir</option>
+                <option value="absent">Tidak hadir</option>
+              </FilterSelect>
+              <FilterSelect
+                label="Passing grade"
+                value={passing}
+                onChange={(value) => {
+                  setPassing(value as typeof passing);
+                  setPage(1);
+                }}
+              >
+                <option value="pass">Lulus PG</option>
+                <option value="fail">Tidak lulus PG</option>
+              </FilterSelect>
+              <FilterSelect
+                label="Kualitas"
+                value={quality}
+                onChange={(value) => setScopedFilter(setQuality, value)}
+              >
+                <option value="parsed">Parsed</option>
+                <option value="auto_corrected">Auto corrected</option>
+                <option value="needs_review">Perlu review</option>
+                <option value="verified">Verified</option>
+              </FilterSelect>
+              <FilterSelect
+                label="Urutan"
+                value={sort}
+                onChange={(value) => {
+                  setSort(value as typeof sort);
+                  setPage(1);
+                }}
+              >
+                <option value="source_page">Halaman PDF</option>
+                <option value="total_desc">Nilai tertinggi</option>
+                <option value="total_asc">Nilai terendah</option>
+                <option value="name">Nama A-Z</option>
+              </FilterSelect>
+            </div>
+          </div>
+
+          <div className="grid min-h-[650px] xl:grid-cols-[minmax(0,1fr)_390px]">
+            <div className="min-w-0 border-b border-[#d8e1ec] xl:border-b-0 xl:border-r">
+              <div className="flex items-center justify-between border-b border-[#e2e8f0] px-4 py-2 text-[11px] text-[#718196]">
+                <span>
+                  {(rows.data?.pagination.total ?? 0).toLocaleString("id-ID")} peserta ditemukan
+                </span>
+                <span>25 baris per halaman</span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[790px] border-collapse text-left">
+                  <thead className="bg-[#f7f9fc] text-[10px] uppercase text-[#718196]">
+                    <tr>
+                      <TableHead>Peserta</TableHead>
+                      <TableHead>Formasi</TableHead>
+                      <TableHead>Pendidikan</TableHead>
+                      <TableHead align="right">TWK</TableHead>
+                      <TableHead align="right">TIU</TableHead>
+                      <TableHead align="right">TKP</TableHead>
+                      <TableHead align="right">Total</TableHead>
+                      <TableHead>Status / PDF</TableHead>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#edf1f5] text-xs">
+                    {rows.isLoading && (
+                      <tr>
+                        <td colSpan={8} className="p-8 text-center text-[#718196]">
+                          <Loader2 className="mx-auto h-5 w-5 animate-spin" />
+                          <span className="mt-2 block">Memuat peserta</span>
+                        </td>
+                      </tr>
+                    )}
+                    {rows.isError && (
+                      <tr>
+                        <td colSpan={8} className="p-5 text-red-700">
+                          {(rows.error as Error).message}
+                        </td>
+                      </tr>
+                    )}
+                    {!rows.isLoading && !rows.isError && rows.data?.rows.length === 0 && (
+                      <tr>
+                        <td colSpan={8} className="p-8 text-center text-[#718196]">
+                          Tidak ada peserta yang cocok dengan filter.
+                        </td>
+                      </tr>
+                    )}
+                    {rows.data?.rows.map((row) => (
+                      <ExplorerTableRow
+                        key={row.id}
+                        row={row}
+                        active={row.id === selectedRow?.id}
+                        onClick={() => setSelectedRowId(row.id)}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex items-center justify-between border-t border-[#e2e8f0] px-3 py-3">
+                <p className="text-xs text-[#718196]">
+                  Halaman {rows.data?.pagination.page ?? page} dari{" "}
+                  {rows.data?.pagination.total_pages ?? 1}
+                </p>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setPage((current) => Math.max(1, current - 1))}
+                    disabled={page <= 1 || rows.isFetching}
+                    className="desk-icon-button"
+                    title="Halaman sebelumnya"
+                    aria-label="Halaman sebelumnya"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPage((current) => current + 1)}
+                    disabled={page >= (rows.data?.pagination.total_pages ?? 1) || rows.isFetching}
+                    className="desk-icon-button"
+                    title="Halaman berikutnya"
+                    aria-label="Halaman berikutnya"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+            <ExplorerInspector row={selectedRow} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ExplorerTableRow({
+  row,
+  active,
+  onClick,
+}: {
+  row: SkdExplorerRow;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <tr
+      onClick={onClick}
+      className={`cursor-pointer transition ${active ? "bg-[#edf6fc]" : "hover:bg-[#f8fafc]"}`}
+    >
+      <td
+        className={`max-w-[190px] px-3 py-2.5 ${active ? "border-l-4 border-l-[#0d6cbd] pl-2" : ""}`}
+      >
+        <p className="truncate font-semibold text-[#172638]">{row.nama}</p>
+        <p className="mt-0.5 font-mono text-[9px] text-[#718196]">{row.no_peserta}</p>
+      </td>
+      <td className="max-w-[220px] px-3 py-2.5">
+        <p className="line-clamp-2 leading-4 text-[#34475d]">{row.jabatan ?? "-"}</p>
+      </td>
+      <td className="max-w-[170px] px-3 py-2.5">
+        <p className="line-clamp-2 leading-4 text-[#536579]">{row.pendidikan ?? "-"}</p>
+      </td>
+      <ScoreTableCell value={row.twk} />
+      <ScoreTableCell value={row.tiu} />
+      <ScoreTableCell value={row.tkp} />
+      <ScoreTableCell value={row.total} strong />
+      <td className="px-3 py-2.5">
+        <QualityPill status={row.quality_status} fallback={row.keterangan} />
+        <p className="mt-1 font-mono text-[9px] text-[#718196]">Hal. {row.source_page}</p>
+      </td>
+    </tr>
+  );
+}
+
+function ScoreTableCell({ value, strong = false }: { value: number | null; strong?: boolean }) {
+  return (
+    <td
+      className={`px-3 py-2.5 text-right font-mono ${strong ? "font-bold text-[#0d6cbd]" : "text-[#34475d]"}`}
+    >
+      {value ?? "-"}
+    </td>
+  );
+}
+
+function ExplorerInspector({ row }: { row: SkdExplorerRow | null }) {
+  if (!row) {
+    return (
+      <div className="flex min-h-[560px] items-center justify-center bg-[#f7f9fc] p-8 text-center">
+        <div>
+          <Users className="mx-auto h-8 w-8 text-[#8da0b4]" />
+          <p className="mt-3 text-sm font-semibold">Pilih peserta untuk melihat detail</p>
+        </div>
+      </div>
+    );
+  }
+
+  const pdfUrl = `/api/admin/skd-pdf?sourceId=${encodeURIComponent(row.source_id)}#page=${row.source_page}&zoom=page-width`;
+  const passed =
+    row.twk != null &&
+    row.tiu != null &&
+    row.tkp != null &&
+    row.twk >= 65 &&
+    row.tiu >= 80 &&
+    row.tkp >= 166;
+
+  return (
+    <aside className="min-w-0 bg-[#f7f9fc]">
+      <div className="border-b border-[#d8e1ec] bg-white p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold">{row.nama}</p>
+            <p className="mt-0.5 font-mono text-[10px] text-[#718196]">{row.no_peserta}</p>
+          </div>
+          <a
+            href={pdfUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="desk-icon-button shrink-0"
+            title="Buka PDF di tab baru"
+            aria-label="Buka PDF di tab baru"
+          >
+            <ExternalLink className="h-4 w-4" />
+          </a>
+        </div>
+
+        <div className="mt-3 grid grid-cols-4 overflow-hidden rounded border border-[#dce4ec] bg-[#f8fafc]">
+          {[
+            ["TWK", row.twk],
+            ["TIU", row.tiu],
+            ["TKP", row.tkp],
+            ["Total", row.total],
+          ].map(([label, value]) => (
+            <div
+              key={String(label)}
+              className="border-r border-[#dce4ec] px-2 py-2 text-center last:border-r-0"
+            >
+              <p className="text-[9px] font-semibold uppercase text-[#718196]">{label}</p>
+              <p className="mt-0.5 font-mono text-sm font-bold text-[#10233d]">
+                {value ?? row.keterangan}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-[11px]">
+          <InspectorField
+            label="Passing grade"
+            value={row.total == null ? row.keterangan : passed ? "Lulus" : "Tidak lulus"}
+          />
+          <InspectorField label="Kualitas" value={row.quality_status.replaceAll("_", " ")} />
+          <InspectorField label="Pendidikan" value={row.pendidikan ?? "-"} wide />
+          <InspectorField label="Formasi" value={row.jabatan ?? "-"} wide />
+          <InspectorField label="Lokasi" value={row.lokasi_formasi ?? "-"} wide clamp />
+          <InspectorField label="Jenis" value={row.jenis_formasi ?? "-"} />
+          <InspectorField label="Halaman" value={String(row.source_page)} />
+        </div>
+      </div>
+      <div className="border-b border-[#cfd8e3] bg-[#e8edf3] px-4 py-2">
+        <p className="truncate text-[11px] font-semibold text-[#536579]">
+          {row.source_file_name ?? "PDF sumber"} · halaman {row.source_page}
+        </p>
+      </div>
+      <iframe
+        key={`${row.id}-${row.source_page}`}
+        src={pdfUrl}
+        title={`PDF ${row.source_file_name ?? "sumber"} halaman ${row.source_page}`}
+        className="h-[470px] w-full bg-[#dfe5ec]"
+      />
+    </aside>
+  );
+}
+
+function ExplorerMetric({
+  label,
+  value,
+  loading,
+  decimal = false,
+}: {
+  label: string;
+  value: number | null | undefined;
+  loading: boolean;
+  decimal?: boolean;
+}) {
+  return (
+    <div className="border-b border-r border-[#e2e8f0] px-4 py-3 last:border-r-0 xl:border-b-0">
+      <p className="text-[10px] text-[#718196]">{label}</p>
+      {loading ? (
+        <div className="mt-1 h-5 w-14 animate-pulse rounded bg-[#e6ebf1]" />
+      ) : (
+        <p className="mt-0.5 font-mono text-lg font-bold text-[#10233d]">
+          {value == null
+            ? "-"
+            : decimal
+              ? value.toLocaleString("id-ID", { maximumFractionDigits: 2 })
+              : value.toLocaleString("id-ID")}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function ExplorerRatio({
+  label,
+  value,
+  detail,
+  color,
+}: {
+  label: string;
+  value: number;
+  detail: string;
+  color: string;
+}) {
+  const safeValue = Math.max(0, Math.min(100, value));
+  return (
+    <div className="bg-white px-4 py-3">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs font-semibold">{label}</p>
+        <p className="font-mono text-xs font-bold">{Math.round(safeValue)}%</p>
+      </div>
+      <div className="mt-2 h-1.5 overflow-hidden rounded bg-[#e6ebf1]">
+        <div
+          className="h-full rounded"
+          style={{ width: `${safeValue}%`, backgroundColor: color }}
+        />
+      </div>
+      <p className="mt-1.5 text-[10px] text-[#718196]">{detail}</p>
+    </div>
+  );
+}
+
+function FilterSelect({
+  label,
+  value,
+  onChange,
+  children,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  children: ReactNode;
+}) {
+  return (
+    <label className="min-w-0">
+      <span className="sr-only">{label}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="desk-input h-9 bg-white text-xs"
+        title={label}
+      >
+        <option value="all">{label}</option>
+        {children}
+      </select>
+    </label>
+  );
+}
+
+function InspectorField({
+  label,
+  value,
+  wide = false,
+  clamp = false,
+}: {
+  label: string;
+  value: string;
+  wide?: boolean;
+  clamp?: boolean;
+}) {
+  return (
+    <div className={wide ? "col-span-2" : ""}>
+      <p className="text-[9px] uppercase text-[#8291a3]">{label}</p>
+      <p className={`mt-0.5 leading-4 text-[#34475d] ${clamp ? "line-clamp-2" : ""}`}>{value}</p>
+    </div>
+  );
+}
+
+function QualityPill({ status, fallback }: { status: string; fallback: string }) {
+  const config: Record<string, { label: string; className: string }> = {
+    parsed: {
+      label: fallback === "TH" ? "TH" : "Parsed",
+      className: "bg-[#eaf3fb] text-[#0d5f9f]",
+    },
+    auto_corrected: { label: "Auto", className: "bg-[#eef9f5] text-[#20795d]" },
+    needs_review: { label: "Review", className: "bg-[#fff1d6] text-[#9b5d00]" },
+    verified: { label: "Verified", className: "bg-[#e7f7ef] text-[#176c50]" },
+    rejected: { label: "Rejected", className: "bg-[#fdecec] text-[#a73232]" },
+  };
+  const item = config[status] ?? { label: status, className: "bg-[#eef1f5] text-[#536579]" };
+  return (
+    <span
+      className={`inline-flex rounded-sm px-1.5 py-0.5 text-[9px] font-semibold ${item.className}`}
+    >
+      {item.label}
+    </span>
   );
 }
 
