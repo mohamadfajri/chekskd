@@ -112,6 +112,19 @@ def match_education(raw_value: str, formation_value: str) -> tuple[str, str, flo
             f"pendidikan disetarakan dengan opsi formasi: {raw_value}",
         )
 
+    equivalent_prefix_matches = [
+        option
+        for option in options
+        if is_truncated_token_prefix(degree_equivalent(raw_value), degree_equivalent(option))
+    ]
+    if len(equivalent_prefix_matches) == 1:
+        return (
+            equivalent_prefix_matches[0],
+            "auto_corrected",
+            0.95,
+            f"pendidikan disetarakan dan dilengkapi dari teks terpotong: {raw_value}",
+        )
+
     ranked = sorted(
         ((similarity(raw_value, option), option) for option in options),
         reverse=True,

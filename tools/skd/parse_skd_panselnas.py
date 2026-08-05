@@ -16,6 +16,18 @@ from parse_kemenhub_v2 import (
 PARSER_NAME = "panselnas_skd_layout_v2"
 
 
+def apply_canonical_institution_name(
+    row_groups: list[list[dict[str, object]]],
+    institution_name: str,
+) -> None:
+    canonical_name = institution_name.strip()
+    if not canonical_name:
+        return
+    for rows in row_groups:
+        for row in rows:
+            row["nama_instansi"] = canonical_name
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Parse PDF hasil SKD Panselnas dari file lokal tanpa Google Drive."
@@ -47,6 +59,10 @@ def main() -> None:
         catalog,
         max_pages=args.max_pages,
         progress_every=args.progress_every,
+    )
+    apply_canonical_institution_name(
+        [clean, review, formations],
+        args.institution_name,
     )
 
     observed_codes = sorted(

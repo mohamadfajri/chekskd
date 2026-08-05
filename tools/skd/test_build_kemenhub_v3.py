@@ -76,6 +76,16 @@ class KemenhubV3QualityTest(unittest.TestCase):
         self.assertGreaterEqual(confidence, 0.96)
         self.assertIn("disetarakan", issue)
 
+    def test_degree_equivalent_truncated_suffix_is_completed(self) -> None:
+        value, status, confidence, issue = match_education(
+            "S-1 PENDIDIKAN NONFORMAL ATAU PENDIDIKAN",
+            "S-1 NONFORMAL ATAU PENDIDIKAN MASYARAKAT / S-1 PENDIDIKAN VOKASIONAL KESEJAHTERAAN KELUARGA",
+        )
+        self.assertEqual(value, "S-1 NONFORMAL ATAU PENDIDIKAN MASYARAKAT")
+        self.assertEqual(status, "auto_corrected")
+        self.assertGreaterEqual(confidence, 0.95)
+        self.assertIn("terpotong", issue)
+
     def test_combined_degrees_match_separate_formation_options(self) -> None:
         value, status, confidence, issue = match_education(
             "D-IV / S-1 EKONOMI",

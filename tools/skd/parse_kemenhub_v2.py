@@ -812,7 +812,7 @@ def parse_pdf(
             )
             results.append(current)
         elif (
-            parsed_key
+            formation_identity_complete(parsed_formation)
             and formation_identity_key(current.formation)
             != formation_identity_key(parsed_formation)
         ):

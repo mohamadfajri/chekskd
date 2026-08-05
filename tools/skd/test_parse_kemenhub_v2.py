@@ -7,6 +7,7 @@ from pypdf import PdfReader
 
 from parse_kemenhub_v2 import (
     append_education,
+    formation_identity_complete,
     formation_identity_key,
     merge_recap_stats,
     page_kind,
@@ -41,6 +42,15 @@ class PageKindTest(unittest.TestCase):
         }
         right = {**left, "pendidikan_formasi": "S-1 PENDIDIKAN FISIKA"}
         self.assertEqual(formation_identity_key(left), formation_identity_key(right))
+
+    def test_partial_result_header_is_not_a_complete_identity(self) -> None:
+        partial = {
+            "kode_instansi": "",
+            "kode_jabatan": "JF0000334",
+            "kode_lokasi": "",
+            "kode_jenis_formasi": "1",
+        }
+        self.assertFalse(formation_identity_complete(partial))
 
     def test_recap_continuation_fills_missing_values(self) -> None:
         current = {"jumlah_peserta": None, "hadir": None}
