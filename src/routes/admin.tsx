@@ -1030,7 +1030,7 @@ function ReviewWorkspace({
           <h1 className="mt-1 text-2xl font-semibold">Review data SKD</h1>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
-          {selectedBatch?.status === "review" && selectedBatch.review_issue_count > 0 && (
+          {selectedBatch?.status === "review" && (
             <button
               type="button"
               onClick={() => setBulkDialogOpen(true)}

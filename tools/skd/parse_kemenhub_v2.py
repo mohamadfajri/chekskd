@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
 
+import fitz
 from pypdf import PdfReader
 
 
@@ -70,10 +71,12 @@ def page_kind(text: str) -> str:
     upper = text.upper()
     if "REKAPITULASI HASIL SELEKSI KOMPETENSI DASAR" in upper:
         return "rekap"
-    if "HASIL SELEKSI KOMPETENSI DASAR" in upper:
-        return "hasil"
     if "NO PESERTA" in upper and "TAHUN SKD" in upper:
-        return "hasil_continuation"
+        return (
+            "hasil"
+            if "HASIL SELEKSI KOMPETENSI DASAR" in upper
+            else "hasil_continuation"
+        )
     if "LAPORAN DIGENERATE" in upper and len(compact(text)) < 300:
         return "blank_generated"
     return "unknown"
@@ -143,7 +146,7 @@ def parse_education_block(lines: list[str]) -> tuple[str, int | None]:
         return "", None
 
     stop = len(lines)
-    for marker in ("Halaman", "Kehadiran", "No Peserta"):
+    for marker in ("Halaman", "Kehadiran", "No Peserta", "Laporan digenerate"):
         found = find_line(lines, marker, jenis_index + 1)
         if found is not None:
             stop = min(stop, found)
@@ -165,18 +168,45 @@ def parse_education_block(lines: list[str]) -> tuple[str, int | None]:
             count_segment = compact(line[jumlah_column:])
             if re.fullmatch(r"\d+", count_segment):
                 count = optional_int(count_segment)
-            line = line[:jumlah_column]
+                line = line[:jumlah_column]
         if line.strip():
             content_lines.append(line.strip())
 
     raw = compact(" ".join(content_lines))
     raw = re.sub(r"\bPendidikan\b\s*:?", "", raw, count=1, flags=re.I)
+    raw = re.sub(r"\bPendidikan\b\s*:?", "", raw)
     if count is None:
         count_match = re.search(r"\s+(\d+)\s*$", raw)
         count = optional_int(count_match.group(1)) if count_match else None
         if count_match:
             raw = raw[: count_match.start()]
     return clean_education(raw), count
+
+
+def parse_education_continuation(text: str) -> str:
+    content_lines: list[str] = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith("PANITIA SELEKSI NASIONAL"):
+            continue
+        if any(marker in stripped for marker in ("Kehadiran", "Jumlah Peserta SKD")):
+            break
+        if stripped.startswith("Laporan digenerate"):
+            break
+
+        # Multi-page education blocks repeat the left-side label and count.
+        stripped = re.sub(r"^Pendidikan\s{2,}", "", stripped)
+        stripped = re.sub(r"\s{2,}\d+\s*$", "", stripped)
+        if stripped:
+            content_lines.append(stripped)
+
+    return clean_education(" ".join(content_lines))
+
+
+def append_education(base: str, continuation: str) -> str:
+    return clean_education(compact(f"{base} {continuation}"))
 
 
 def parse_location_block(lines: list[str]) -> tuple[str, str, int | None]:
@@ -253,6 +283,27 @@ def formation_key(formation: dict[str, Any]) -> str:
     )
 
 
+def formation_identity_key(formation: dict[str, Any]) -> str:
+    return "|".join(
+        str(formation.get(key) or "")
+        for key in (
+            "kode_instansi",
+            "kode_jabatan",
+            "kode_lokasi",
+            "kode_jenis_formasi",
+        )
+    )
+
+
+def formation_identity_complete(formation: dict[str, Any]) -> bool:
+    return all(formation.get(key) for key in (
+        "kode_instansi",
+        "kode_jabatan",
+        "kode_lokasi",
+        "kode_jenis_formasi",
+    ))
+
+
 RECAP_FIELDS = (
     "jumlah_formasi",
     "jumlah_peserta",
@@ -287,6 +338,16 @@ def parse_recap_stats(text: str) -> dict[str, int | None]:
             continue
         return dict(zip(RECAP_FIELDS, values, strict=True))
     return {field: None for field in RECAP_FIELDS}
+
+
+def merge_recap_stats(
+    current: dict[str, int | None],
+    continuation: dict[str, int | None],
+) -> dict[str, int | None]:
+    return {
+        field: current.get(field) if current.get(field) is not None else continuation.get(field)
+        for field in RECAP_FIELDS
+    }
 
 
 def parse_table_rows(text: str, source_page: int) -> list[dict[str, Any]]:
@@ -653,6 +714,7 @@ def parse_pdf(
     progress_every: int = 100,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
     reader = PdfReader(str(pdf_path), strict=False)
+    fallback_reader = fitz.open(str(pdf_path))
     total_pages = len(reader.pages)
     pages_to_read = total_pages if max_pages <= 0 else min(max_pages, total_pages)
     year = optional_int(catalog.get("tahun", "")) or 2024
@@ -661,6 +723,8 @@ def parse_pdf(
     page_kinds: Counter[str] = Counter()
     unknown_pages: list[int] = []
     page_parse_errors: list[str] = []
+    collecting_recap_education = False
+    reading_result_preamble = False
 
     for page_index in range(pages_to_read):
         page_number = page_index + 1
@@ -675,21 +739,67 @@ def parse_pdf(
         kind = page_kind(text)
         page_kinds[kind] += 1
         if kind in {"unknown", "blank_generated"}:
+            upper = text.upper()
+            if "HASIL SELEKSI KOMPETENSI DASAR" in upper:
+                collecting_recap_education = False
+                reading_result_preamble = True
+
+            continuation_education = ""
+            if kind == "unknown" and current is not None and collecting_recap_education:
+                continuation_education = parse_education_continuation(text)
+                if continuation_education:
+                    current.formation["pendidikan_formasi"] = append_education(
+                        str(current.formation.get("pendidikan_formasi") or ""),
+                        continuation_education,
+                    )
+
+            continuation_stats = parse_recap_stats(text)
+            if (
+                kind == "unknown"
+                and current is not None
+                and continuation_stats.get("jumlah_peserta") is not None
+            ):
+                current.recap = merge_recap_stats(current.recap, continuation_stats)
+                page_kinds[kind] -= 1
+                page_kinds["rekap_continuation"] += 1
+                continue
+            if continuation_education:
+                page_kinds[kind] -= 1
+                page_kinds["education_continuation"] += 1
+                continue
+            if kind == "unknown" and reading_result_preamble:
+                page_kinds[kind] -= 1
+                page_kinds["result_preamble"] += 1
+                continue
             if kind == "unknown":
                 unknown_pages.append(page_number)
             continue
 
         if kind == "rekap":
             formation = parse_formation(text, page_number)
+            recap = parse_recap_stats(text)
+            if not formation_identity_complete(formation) or recap.get("jumlah_peserta") is None:
+                fallback_text = fallback_reader[page_index].get_text("text", sort=True)
+                fallback_formation = parse_formation(fallback_text, page_number)
+                fallback_recap = parse_recap_stats(fallback_text)
+                if formation_identity_complete(fallback_formation):
+                    formation = fallback_formation
+                if fallback_recap.get("jumlah_peserta") is not None:
+                    recap = fallback_recap
             current = FormationResult(
                 instance_id=f"{catalog.get('sheet_row') or 'source'}-{page_number}",
                 formation=formation,
-                recap=parse_recap_stats(text),
+                recap=recap,
             )
+            collecting_recap_education = True
+            reading_result_preamble = False
             if not formation_key(formation).strip("|"):
                 current.errors.append("header formasi rekap tidak terbaca")
             results.append(current)
             continue
+
+        collecting_recap_education = False
+        reading_result_preamble = False
 
         parsed_formation = parse_formation(text, page_number)
         parsed_key = formation_key(parsed_formation).strip("|")
@@ -701,7 +811,11 @@ def parse_pdf(
                 errors=["halaman hasil tidak memiliki rekap sebelumnya"],
             )
             results.append(current)
-        elif parsed_key and formation_key(current.formation) != formation_key(parsed_formation):
+        elif (
+            parsed_key
+            and formation_identity_key(current.formation)
+            != formation_identity_key(parsed_formation)
+        ):
             current = FormationResult(
                 instance_id=f"{catalog.get('sheet_row') or 'source'}-{page_number}-orphan",
                 formation=parsed_formation,
@@ -709,6 +823,10 @@ def parse_pdf(
                 errors=["header hasil tidak cocok dengan rekap sebelumnya"],
             )
             results.append(current)
+        elif parsed_key:
+            for key, value in parsed_formation.items():
+                if not current.formation.get(key) and value:
+                    current.formation[key] = value
 
         rows = parse_table_rows(text, page_number)
         current.rows.extend(rows)
@@ -798,6 +916,7 @@ def parse_pdf(
             "ready_for_import sengaja false sampai pemeriksaan manual selesai.",
         ],
     }
+    fallback_reader.close()
     return clean_rows, review_rows, formation_rows, report
 
 

@@ -13,7 +13,7 @@ from urllib.parse import urlparse
 
 
 PARSER_FAMILY = "kemenhub_layout"
-PARSER_VERSION = "3.0.0"
+PARSER_VERSION = "3.1.0"
 SUSPICIOUS_NAME_RE = re.compile(r"\d|^(?:PENDIDIKAN|PROFESI|S-[123]|D-(?:I|II|III|IV))\b", re.I)
 
 
@@ -46,6 +46,32 @@ def similarity(left: str, right: str) -> float:
     return max(sequence, token_score)
 
 
+def is_truncated_token_prefix(raw_value: str, option: str) -> bool:
+    raw_tokens = normalized(raw_value).split()
+    option_tokens = normalized(option).split()
+    if not raw_tokens or len(raw_tokens) > len(option_tokens):
+        return False
+
+    partial_tokens = 0
+    for raw_token, option_token in zip(raw_tokens, option_tokens):
+        if raw_token == option_token:
+            continue
+        if len(raw_token) >= 3 and option_token.startswith(raw_token):
+            partial_tokens += 1
+            continue
+        return False
+    return partial_tokens <= 1
+
+
+def degree_equivalent(value: str) -> str:
+    value_normalized = normalized(value)
+    return re.sub(
+        r"^((?:S [123]|D (?:I|II|III|IV))) PENDIDIKAN\b",
+        r"\1",
+        value_normalized,
+    )
+
+
 def match_education(raw_value: str, formation_value: str) -> tuple[str, str, float, str]:
     options = split_education_options(formation_value)
     if not raw_value or not options:
@@ -56,6 +82,36 @@ def match_education(raw_value: str, formation_value: str) -> tuple[str, str, flo
     if exact:
         return exact, "parsed", 0.99, ""
 
+    raw_options = split_education_options(raw_value)
+    formation_options = {normalized(option): option for option in options}
+    if len(raw_options) > 1 and all(
+        normalized(option) in formation_options for option in raw_options
+    ):
+        matched = [formation_options[normalized(option)] for option in raw_options]
+        return " / ".join(matched), "parsed", 0.99, ""
+
+    truncated_matches = [
+        option for option in options if is_truncated_token_prefix(raw_value, option)
+    ]
+    if len(truncated_matches) == 1:
+        return (
+            truncated_matches[0],
+            "auto_corrected",
+            0.97,
+            f"pendidikan dinormalisasi dari teks kolom terpotong: {raw_value}",
+        )
+
+    equivalent_matches = [
+        option for option in options if degree_equivalent(option) == degree_equivalent(raw_value)
+    ]
+    if len(equivalent_matches) == 1:
+        return (
+            equivalent_matches[0],
+            "auto_corrected",
+            0.96,
+            f"pendidikan disetarakan dengan opsi formasi: {raw_value}",
+        )
+
     ranked = sorted(
         ((similarity(raw_value, option), option) for option in options),
         reverse=True,
@@ -63,7 +119,7 @@ def match_education(raw_value: str, formation_value: str) -> tuple[str, str, flo
     best_score, best_option = ranked[0]
     second_score = ranked[1][0] if len(ranked) > 1 else 0.0
     unique_enough = len(ranked) == 1 or best_score - second_score >= 0.08
-    if unique_enough and best_score >= 0.88:
+    if best_score >= 0.96 or (unique_enough and best_score >= 0.87):
         return (
             best_option,
             "auto_corrected",
