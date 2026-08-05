@@ -32,7 +32,7 @@ export interface SkdSource {
   sheet_row: number | null;
   file_name: string;
   drive_file_id: string | null;
-  source_url: string;
+  source_url: string | null;
   sha256: string | null;
   total_pages: number | null;
   document_type: "skd" | "integration" | "unknown";

@@ -310,6 +310,34 @@ export async function getSkdReviewRows(
   return body.issues;
 }
 
+export interface BulkVerifyResult {
+  issuesResolved: number;
+  scoresVerified: number;
+  formationsVerified: number;
+  batchStatus: "verified";
+}
+
+export async function bulkVerifySkdBatch(
+  adminPassword: string,
+  batchId: string,
+  resolutionNote: string,
+): Promise<BulkVerifyResult> {
+  const response = await fetch("/api/admin/skd-review", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-admin-password": adminPassword,
+    },
+    body: JSON.stringify({
+      action: "bulk_verify",
+      batchId,
+      confirmation: "VERIFY_ALL",
+      resolutionNote,
+    }),
+  });
+  return readAdminJson<BulkVerifyResult>(response);
+}
+
 export interface SkdExplorerFormation {
   id: string;
   kode_jabatan: string | null;

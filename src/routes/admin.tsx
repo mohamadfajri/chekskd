@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import {
+  bulkVerifySkdBatch,
   getSkdBatches,
   getSkdExplorerOverview,
   getSkdExplorerRows,
@@ -280,6 +281,7 @@ function AdminWorkspace({ adminPassword }: { adminPassword: string }) {
               batchesLoading={batches.isLoading}
               selectedBatch={selectedBatch}
               onSelectBatch={setSelectedBatchId}
+              onBatchChanged={() => batches.refetch()}
             />
           )}
           {activeView === "explorer" && (
@@ -958,20 +960,35 @@ function ReviewWorkspace({
   batchesLoading,
   selectedBatch,
   onSelectBatch,
+  onBatchChanged,
 }: {
   adminPassword: string;
   batches: SkdBatchSummary[];
   batchesLoading: boolean;
   selectedBatch: SkdBatchSummary | null;
   onSelectBatch: (id: string) => void;
+  onBatchChanged: () => void;
 }) {
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
   const [issueSearch, setIssueSearch] = useState("");
+  const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
 
   const reviewRows = useQuery({
     queryKey: ["admin-skd-review", selectedBatch?.id, adminPassword],
     queryFn: () => getSkdReviewRows(adminPassword, selectedBatch!.id),
     enabled: Boolean(selectedBatch),
+  });
+  const bulkVerify = useMutation({
+    mutationFn: (resolutionNote: string) =>
+      bulkVerifySkdBatch(adminPassword, selectedBatch!.id, resolutionNote),
+    onSuccess: (result) => {
+      toast.success(
+        `${result.issuesResolved.toLocaleString("id-ID")} issue selesai. Batch sudah verified.`,
+      );
+      setBulkDialogOpen(false);
+      reviewRows.refetch();
+      onBatchChanged();
+    },
   });
 
   const filteredIssues = useMemo(() => {
@@ -1012,9 +1029,21 @@ function ReviewWorkspace({
           </p>
           <h1 className="mt-1 text-2xl font-semibold">Review data SKD</h1>
         </div>
-        <div className="flex items-center gap-2 text-xs text-[#65768a]">
-          <span className="h-2 w-2 rounded-full bg-[#28a87d]" />
-          Database tersambung
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {selectedBatch?.status === "review" && selectedBatch.review_issue_count > 0 && (
+            <button
+              type="button"
+              onClick={() => setBulkDialogOpen(true)}
+              className="inline-flex h-9 items-center gap-2 rounded-md bg-[#176c50] px-3 text-xs font-semibold text-white transition hover:bg-[#125941]"
+            >
+              <ShieldCheck className="h-4 w-4" />
+              Verifikasi semua
+            </button>
+          )}
+          <div className="flex items-center gap-2 text-xs text-[#65768a]">
+            <span className="h-2 w-2 rounded-full bg-[#28a87d]" />
+            Database tersambung
+          </div>
         </div>
       </div>
 
@@ -1109,6 +1138,134 @@ function ReviewWorkspace({
           )}
         </div>
       </div>
+      {bulkDialogOpen && selectedBatch && (
+        <BulkVerifyDialog
+          batch={selectedBatch}
+          loading={bulkVerify.isPending}
+          error={bulkVerify.error instanceof Error ? bulkVerify.error.message : null}
+          onClose={() => setBulkDialogOpen(false)}
+          onConfirm={(note) => bulkVerify.mutate(note)}
+        />
+      )}
+    </div>
+  );
+}
+
+function BulkVerifyDialog({
+  batch,
+  loading,
+  error,
+  onClose,
+  onConfirm,
+}: {
+  batch: SkdBatchSummary;
+  loading: boolean;
+  error: string | null;
+  onClose: () => void;
+  onConfirm: (note: string) => void;
+}) {
+  const [confirmed, setConfirmed] = useState(false);
+  const [note, setNote] = useState("Sampel PDF sudah diperiksa dan hasil parser disetujui massal.");
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#10233d]/60 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="bulk-verify-title"
+    >
+      <div className="w-full max-w-lg overflow-hidden rounded-lg border border-[#d8e1ec] bg-white shadow-2xl">
+        <div className="border-b border-[#e2e8f0] px-5 py-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-[#e7f7ef] text-[#176c50]">
+              <ShieldCheck className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 id="bulk-verify-title" className="text-base font-semibold">
+                Verifikasi seluruh batch?
+              </h2>
+              <p className="mt-1 text-xs leading-5 text-[#65768a]">
+                {batch.institution_name} · {batch.selection_year}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-4 px-5 py-4">
+          <div className="grid grid-cols-3 overflow-hidden rounded border border-[#dce4ec] bg-[#f8fafc] text-center">
+            <DialogMetric label="Issue" value={batch.review_issue_count} />
+            <DialogMetric label="Peserta" value={batch.participant_count} />
+            <DialogMetric label="Formasi" value={batch.formation_count} />
+          </div>
+
+          <div className="border-l-4 border-[#d38a18] bg-[#fff8e8] px-3 py-2.5 text-xs leading-5 text-[#704b0d]">
+            Semua issue terbuka akan diselesaikan, seluruh peserta dan formasi menjadi
+            <strong> verified</strong>, dan batch berubah menjadi <strong>verified</strong>. Data
+            belum dipublikasikan ke pengguna.
+          </div>
+
+          <label className="block text-xs font-semibold text-[#536579]">
+            Catatan verifikasi
+            <textarea
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+              rows={3}
+              maxLength={500}
+              className="desk-input mt-1.5 resize-none bg-white py-2"
+            />
+          </label>
+
+          <label className="flex cursor-pointer items-start gap-3 rounded border border-[#dce4ec] p-3 text-xs leading-5 text-[#34475d]">
+            <input
+              type="checkbox"
+              checked={confirmed}
+              onChange={(event) => setConfirmed(event.target.checked)}
+              className="mt-0.5 h-4 w-4 accent-[#176c50]"
+            />
+            <span>
+              Saya sudah memeriksa sampel PDF dan menyetujui seluruh issue dalam batch ini sebagai
+              data bersih.
+            </span>
+          </label>
+
+          {error && <p className="text-xs text-red-700">{error}</p>}
+        </div>
+
+        <div className="flex justify-end gap-2 border-t border-[#e2e8f0] bg-[#f9fbfd] px-5 py-3">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={loading}
+            className="h-9 rounded-md border border-[#cfd8e3] bg-white px-4 text-xs font-semibold text-[#536579] hover:bg-[#f3f6f9] disabled:opacity-60"
+          >
+            Batal
+          </button>
+          <button
+            type="button"
+            onClick={() => onConfirm(note)}
+            disabled={!confirmed || loading}
+            className="inline-flex h-9 items-center gap-2 rounded-md bg-[#176c50] px-4 text-xs font-semibold text-white hover:bg-[#125941] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {loading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <ShieldCheck className="h-4 w-4" />
+            )}
+            Verifikasi semua
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DialogMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="border-r border-[#dce4ec] px-3 py-3 last:border-r-0">
+      <p className="text-[9px] uppercase text-[#8291a3]">{label}</p>
+      <p className="mt-0.5 font-mono text-base font-bold text-[#10233d]">
+        {value.toLocaleString("id-ID")}
+      </p>
     </div>
   );
 }

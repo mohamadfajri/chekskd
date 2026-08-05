@@ -178,8 +178,7 @@ export const Route = createFileRoute("/api/admin/skd-batches")({
             !batch.selectionYear ||
             !batch.parserFamily?.trim() ||
             !batch.parserVersion?.trim() ||
-            !source?.fileName?.trim() ||
-            !source.sourceUrl?.trim()
+            !source?.fileName?.trim()
           ) {
             return jsonResponse({ message: "Metadata batch atau sumber belum lengkap." }, 400);
           }
@@ -221,7 +220,7 @@ export const Route = createFileRoute("/api/admin/skd-batches")({
               sheet_row: source.sheetRow ?? null,
               file_name: source.fileName.trim(),
               drive_file_id: source.driveFileId?.trim() || null,
-              source_url: source.sourceUrl.trim(),
+              source_url: source.sourceUrl?.trim() || null,
               total_pages: source.totalPages ?? null,
               document_type: source.documentType ?? "skd",
               has_text_layer: source.hasTextLayer ?? null,

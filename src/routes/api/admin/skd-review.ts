@@ -100,6 +100,46 @@ export const Route = createFileRoute("/api/admin/skd-review")({
 
         return jsonResponse({ issues });
       },
+      POST: async ({ request }: { request: Request }) => {
+        const body = (await request.json().catch(() => null)) as {
+          action?: string;
+          batchId?: string;
+          confirmation?: string;
+          resolutionNote?: string;
+          adminPassword?: string;
+        } | null;
+        if (!body) return jsonResponse({ message: "Body JSON tidak valid." }, 400);
+
+        const authError = requireAdmin(request, body);
+        if (authError) return authError;
+        if (body.action !== "bulk_verify") {
+          return jsonResponse({ message: "Action tidak dikenal." }, 400);
+        }
+        if (!body.batchId?.trim()) return jsonResponse({ message: "batchId wajib diisi." }, 400);
+        if (body.confirmation !== "VERIFY_ALL") {
+          return jsonResponse({ message: "Konfirmasi bulk verification belum diberikan." }, 400);
+        }
+
+        const { client: sb, error: configError } = getServerSupabase();
+        if (!sb) {
+          return jsonResponse({ message: `Supabase server belum siap: ${configError}` }, 503);
+        }
+
+        const { data, error } = await sb.rpc("bulk_verify_skd_batch", {
+          p_batch_id: body.batchId,
+          p_resolution_note:
+            body.resolutionNote?.trim() || "Bulk verification approved from SKD Data Desk",
+        });
+        if (error) return jsonResponse({ message: error.message }, 400);
+
+        const result = Array.isArray(data) ? data[0] : data;
+        return jsonResponse({
+          issuesResolved: Number(result?.issues_resolved ?? 0),
+          scoresVerified: Number(result?.scores_verified ?? 0),
+          formationsVerified: Number(result?.formations_verified ?? 0),
+          batchStatus: result?.batch_status ?? "verified",
+        });
+      },
     },
   },
 });

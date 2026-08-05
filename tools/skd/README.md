@@ -49,6 +49,23 @@ Gunakan probe untuk mengenali text layer dan struktur PDF sebelum membuat parser
 python tools/skd/batch_probe_downloaded_pdfs.py
 ```
 
+## PDF lokal dengan layout Panselnas SKD
+
+Untuk PDF hasil SKD murni yang sudah ada di `FILE SKD 2024`, jalankan parser lokal
+tanpa katalog atau URL Google Drive:
+
+```powershell
+python tools/skd/parse_skd_panselnas.py `
+  --pdf "FILE SKD 2024/2024-4011-BKN-Hasil-SKD.pdf" `
+  --institution-code 4011 `
+  --institution-name "Badan Kepegawaian Negara" `
+  --source-sheet-row 2 `
+  --output-prefix data/staging/bkn-2024-v2
+```
+
+Output tetap berada di `data/staging/` dan `source_url` dikosongkan. Nama file
+sumber diambil langsung dari nama PDF lokal.
+
 ## Kemenhub
 
 Parser layout v2 membaca 2.612 halaman, formasi, halaman lanjutan, peserta tidak hadir,

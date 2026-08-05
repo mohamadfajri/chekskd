@@ -97,13 +97,17 @@ def write_rows(path: Path, rows: list[dict[str, Any]], fields: list[str]) -> Non
         writer.writerows(rows)
 
 
-def upgrade_row(row: dict[str, str], total_pages: int) -> dict[str, Any]:
+def upgrade_row(
+    row: dict[str, str],
+    total_pages: int,
+    parser_family: str = PARSER_FAMILY,
+) -> dict[str, Any]:
     upgraded: dict[str, Any] = dict(row)
     record_type = compact(row.get("record_type")) or "participant"
     source_url = compact(row.get("source_url"))
     upgraded.update(
         {
-            "parser_family": PARSER_FAMILY,
+            "parser_family": parser_family,
             "parser_version": PARSER_VERSION,
             "source_drive_file_id": drive_file_id(source_url),
             "source_total_pages": total_pages,
@@ -145,12 +149,16 @@ def upgrade_row(row: dict[str, str], total_pages: int) -> dict[str, Any]:
     return upgraded
 
 
-def build_v3(input_path: Path, total_pages: int) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    rows = [upgrade_row(row, total_pages) for row in read_rows(input_path)]
+def build_v3(
+    input_path: Path,
+    total_pages: int,
+    parser_family: str = PARSER_FAMILY,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    rows = [upgrade_row(row, total_pages, parser_family) for row in read_rows(input_path)]
     participant_rows = [row for row in rows if row.get("record_type") != "formation"]
     quality_counts = Counter(str(row["quality_status"]) for row in participant_rows)
     report = {
-        "parser_family": PARSER_FAMILY,
+        "parser_family": parser_family,
         "parser_version": PARSER_VERSION,
         "input": str(input_path),
         "total_pages": total_pages,
@@ -172,20 +180,21 @@ def build_v3(input_path: Path, total_pages: int) -> tuple[list[dict[str, Any]], 
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Upgrade hasil parser Kemenhub v2 menjadi staging v3.")
+    parser = argparse.ArgumentParser(description="Upgrade hasil parser SKD v2 menjadi staging v3.")
     parser.add_argument(
         "--input",
         default="data/staging/kemenhub-2024-v2-admin-import.csv",
     )
     parser.add_argument("--output-prefix", default="data/staging/kemenhub-2024-v3")
     parser.add_argument("--total-pages", type=int, default=2612)
+    parser.add_argument("--parser-family", default=PARSER_FAMILY)
     args = parser.parse_args()
 
     input_path = Path(args.input)
     if not input_path.exists():
         raise FileNotFoundError(f"CSV parser v2 tidak ditemukan: {input_path}")
 
-    rows, report = build_v3(input_path, args.total_pages)
+    rows, report = build_v3(input_path, args.total_pages, args.parser_family)
     prefix = Path(args.output_prefix)
     fields = list(rows[0].keys()) if rows else []
     write_rows(Path(f"{prefix}-staging.csv"), rows, fields)
