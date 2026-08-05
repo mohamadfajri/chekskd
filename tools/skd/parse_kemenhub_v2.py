@@ -470,6 +470,73 @@ def parse_table_rows(text: str, source_page: int) -> list[dict[str, Any]]:
     return parsed
 
 
+def parse_table_rows_with_fallback(
+    primary_text: str,
+    fallback_words: list[tuple[Any, ...]],
+    source_page: int,
+) -> list[dict[str, Any]]:
+    primary_rows = parse_table_rows(primary_text, source_page)
+    if primary_rows:
+        return primary_rows
+
+    words = [
+        (float(x0), float(y0), str(text))
+        for x0, y0, _x1, _y1, text, *_rest in fallback_words
+    ]
+    anchors = sorted(
+        ((y0, text) for x0, y0, text in words if 45 <= x0 < 115 and PARTICIPANT_RE.fullmatch(text)),
+        key=lambda item: item[0],
+    )
+    if not anchors:
+        return []
+
+    columns = {
+        "row_no": (0, 45),
+        "no_peserta": (45, 115),
+        "nama": (115, 240),
+        "pendidikan": (240, 325),
+        "tahun_nilai_skd": (325, 360),
+        "twk": (360, 400),
+        "tiu": (400, 440),
+        "tkp": (440, 480),
+        "total": (480, 520),
+        "keterangan": (520, 590),
+    }
+    parsed: list[dict[str, Any]] = []
+    for index, (anchor_y, participant_number) in enumerate(anchors):
+        previous_y = anchors[index - 1][0] if index else anchor_y - 25
+        next_y = anchors[index + 1][0] if index + 1 < len(anchors) else anchor_y + 25
+        top = (previous_y + anchor_y) / 2
+        bottom = (anchor_y + next_y) / 2
+        row_words = [word for word in words if top <= word[1] < bottom]
+
+        row: dict[str, Any] = {"source_page": source_page, "raw_text": ""}
+        raw_parts: list[str] = []
+        for key, (left, right) in columns.items():
+            values = [
+                (y0, x0, text)
+                for x0, y0, text in row_words
+                if left <= x0 < right
+            ]
+            value = compact(" ".join(text for _y0, _x0, text in sorted(values)))
+            row[key] = value
+            if value:
+                raw_parts.append(value)
+
+        row["no_peserta"] = participant_number
+        row["row_no"] = optional_int(str(row["row_no"]))
+        row["nama"] = compact(str(row["nama"]))
+        row["pendidikan"] = clean_education(str(row["pendidikan"]))
+        year_match = re.search(r"\b(2023|2024)\b", str(row["tahun_nilai_skd"]))
+        row["tahun_nilai_skd"] = optional_int(year_match.group(1) if year_match else "")
+        for column in SCORE_COLUMNS:
+            row[column] = optional_int(str(row[column]))
+        row["keterangan"] = compact(str(row["keterangan"])).upper()
+        row["raw_text"] = compact(" ".join(raw_parts))
+        parsed.append(row)
+    return parsed
+
+
 def validate_score_row(row: dict[str, Any], formation: dict[str, Any]) -> list[str]:
     errors: list[str] = []
     no_peserta = str(row.get("no_peserta") or "")
@@ -829,6 +896,12 @@ def parse_pdf(
                     current.formation[key] = value
 
         rows = parse_table_rows(text, page_number)
+        if not rows:
+            rows = parse_table_rows_with_fallback(
+                text,
+                fallback_reader[page_index].get_text("words", sort=True),
+                page_number,
+            )
         current.rows.extend(rows)
         current.result_pages.add(page_number)
 

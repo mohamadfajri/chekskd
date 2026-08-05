@@ -43,6 +43,18 @@ SKD_PDF_DIR=C:\path\to\FILE SKD 2024
 Folder lokal hanya diperlukan ketika upload dan tetap diabaikan Git. PDF yang sudah
 masuk Storage tidak bergantung pada komputer lokal.
 
+Proyek Supabase Free membatasi satu objek Storage sampai 50 MiB. Pecah PDF yang
+lebih besar menjadi part berdasarkan halaman sebelum menjalankan upload:
+
+```powershell
+python tools/skd/split_pdf_for_storage.py `
+  "FILE SKD 2024/2024-3010-Kemendikbudristek-Hasil-SKD.pdf"
+npm run skd:upload-pdfs
+```
+
+Part disimpan di `tmp/storage-pdfs` dan tetap privat. Endpoint admin memilih part
+serta nomor halaman lokal secara otomatis dari `source_page`.
+
 Gunakan probe untuk mengenali text layer dan struktur PDF sebelum membuat parser instansi:
 
 ```powershell

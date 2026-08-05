@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
+import fitz
 from pypdf import PdfReader
 
 from parse_kemenhub_v2 import (
@@ -16,11 +17,13 @@ from parse_kemenhub_v2 import (
     parse_formation,
     parse_recap_stats,
     parse_table_rows,
+    parse_table_rows_with_fallback,
     validate_score_row,
 )
 
 
 PDF_PATH = Path("data/raw/pdfs/30-KEMENHUB.pdf")
+KEMENDIKBUD_PATH = Path("FILE SKD 2024/2024-3010-Kemendikbudristek-Hasil-SKD.pdf")
 
 
 class PageKindTest(unittest.TestCase):
@@ -163,6 +166,26 @@ class KemenhubParserIntegrationTest(unittest.TestCase):
         self.assertEqual(rows[-1]["nama"], "SAUSAN FADILAH USMAN")
         self.assertEqual(rows[-1]["keterangan"], "TL")
         self.assertEqual(rows[-1]["total"], 271)
+
+
+@unittest.skipUnless(KEMENDIKBUD_PATH.exists(), "Kemendikbudristek PDF lokal belum tersedia")
+class KemendikbudParserRegressionTest(unittest.TestCase):
+    def test_last_page_uses_fallback_for_collapsed_layout_text(self) -> None:
+        reader = PdfReader(str(KEMENDIKBUD_PATH), strict=False)
+        primary_text = reader.pages[17797].extract_text(extraction_mode="layout") or ""
+        with fitz.open(str(KEMENDIKBUD_PATH)) as fallback_reader:
+            fallback_words = fallback_reader[17797].get_text("words", sort=True)
+
+        self.assertEqual(parse_table_rows(primary_text, 17798), [])
+        rows = parse_table_rows_with_fallback(primary_text, fallback_words, 17798)
+        self.assertEqual(len(rows), 12)
+        self.assertEqual(rows[0]["nama"], "FANI PERSONITA")
+        self.assertEqual(rows[0]["pendidikan"], "S-1 SASTRA INGGRIS")
+        self.assertEqual(rows[0]["total"], 271)
+        self.assertEqual(rows[0]["keterangan"], "TL")
+        self.assertEqual(rows[-1]["nama"], "MUFLIHATUL FADLILAH")
+        self.assertEqual(rows[-1]["pendidikan"], "S-1 SASTRA INDONESIA")
+        self.assertEqual(rows[-1]["keterangan"], "TH")
 
 
 if __name__ == "__main__":

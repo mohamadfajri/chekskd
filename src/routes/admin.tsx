@@ -753,7 +753,7 @@ function ExplorerInspector({ row }: { row: SkdExplorerRow | null }) {
     );
   }
 
-  const pdfUrl = `/api/admin/skd-pdf?sourceId=${encodeURIComponent(row.source_id)}#page=${row.source_page}&zoom=page-width`;
+  const pdfUrl = `/api/admin/skd-pdf?sourceId=${encodeURIComponent(row.source_id)}&page=${row.source_page}`;
   const passed =
     row.twk != null &&
     row.tiu != null &&
@@ -1404,7 +1404,7 @@ function PdfInspector({ issue }: { issue: SkdReviewRow | null }) {
   }
 
   const pdfUrl = issue.source_id
-    ? `/api/admin/skd-pdf?sourceId=${encodeURIComponent(issue.source_id)}#page=${issue.source_page ?? 1}&zoom=page-width`
+    ? `/api/admin/skd-pdf?sourceId=${encodeURIComponent(issue.source_id)}&page=${issue.source_page ?? 1}`
     : null;
 
   return (

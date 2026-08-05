@@ -4,9 +4,18 @@ import Papa from "papaparse";
 const inputPath = process.argv[2] ?? "data/staging/kemenhub-2024-v3-staging.csv";
 const baseUrl = (process.env.ADMIN_BASE_URL ?? "http://127.0.0.1:4175").replace(/\/$/, "");
 const adminPassword = process.env.ADMIN_PASSWORD;
+const resumeBatchId = process.env.RESUME_BATCH_ID?.trim();
+const resumeSourceId = process.env.RESUME_SOURCE_ID?.trim();
+const resumeOffset = Number(process.env.RESUME_OFFSET ?? 0);
 
 if (!adminPassword) throw new Error("ADMIN_PASSWORD wajib tersedia di environment.");
 if (!fs.existsSync(inputPath)) throw new Error(`CSV tidak ditemukan: ${inputPath}`);
+if (Boolean(resumeBatchId) !== Boolean(resumeSourceId)) {
+  throw new Error("RESUME_BATCH_ID dan RESUME_SOURCE_ID harus diisi bersamaan.");
+}
+if (!Number.isInteger(resumeOffset) || resumeOffset < 0) {
+  throw new Error("RESUME_OFFSET harus berupa bilangan bulat nol atau lebih.");
+}
 
 const parsed = Papa.parse(fs.readFileSync(inputPath, "utf8"), {
   header: true,
@@ -55,27 +64,29 @@ const first = rows[0];
 const slug = slugPart(
   `${first.kode_instansi || first.nama_instansi}-${first.tahun}-v${first.parser_version}`,
 );
-const created = await post({
-  action: "create",
-  batch: {
-    slug,
-    institutionCode: first.kode_instansi,
-    institutionName: first.nama_instansi,
-    selectionYear: integer(first.tahun),
-    parserFamily: first.parser_family,
-    parserVersion: first.parser_version,
-    sourcePageCount: integer(first.source_total_pages),
-  },
-  source: {
-    sheetRow: integer(first.source_sheet_row),
-    fileName: first.source_pdf,
-    driveFileId: first.source_drive_file_id,
-    sourceUrl: first.source_url,
-    totalPages: integer(first.source_total_pages),
-    documentType: "skd",
-    hasTextLayer: true,
-  },
-});
+const created = resumeBatchId
+  ? { batchId: resumeBatchId, sourceId: resumeSourceId }
+  : await post({
+      action: "create",
+      batch: {
+        slug,
+        institutionCode: first.kode_instansi,
+        institutionName: first.nama_instansi,
+        selectionYear: integer(first.tahun),
+        parserFamily: first.parser_family,
+        parserVersion: first.parser_version,
+        sourcePageCount: integer(first.source_total_pages),
+      },
+      source: {
+        sheetRow: integer(first.source_sheet_row),
+        fileName: first.source_pdf,
+        driveFileId: first.source_drive_file_id,
+        sourceUrl: first.source_url,
+        totalPages: integer(first.source_total_pages),
+        documentType: "skd",
+        hasTextLayer: true,
+      },
+    });
 
 const formationRows = [...new Map(rows.map((row) => [row.formation_instance_id, row])).values()];
 const participantRows = rows.filter(
@@ -85,18 +96,21 @@ const participantRows = rows.filter(
 let formations = 0;
 let scores = 0;
 let issues = 0;
-for (const rowsChunk of chunk(formationRows, 300)) {
-  const result = await post({
-    action: "import_formations",
-    batchId: created.batchId,
-    sourceId: created.sourceId,
-    rows: rowsChunk,
-  });
-  formations += result.formationsUpserted ?? 0;
-  issues += result.issuesCreated ?? 0;
+if (!resumeBatchId) {
+  for (const rowsChunk of chunk(formationRows, 300)) {
+    const result = await post({
+      action: "import_formations",
+      batchId: created.batchId,
+      sourceId: created.sourceId,
+      rows: rowsChunk,
+    });
+    formations += result.formationsUpserted ?? 0;
+    issues += result.issuesCreated ?? 0;
+  }
 }
 
-for (const rowsChunk of chunk(participantRows, 300)) {
+const pendingParticipantRows = participantRows.slice(resumeOffset);
+for (const rowsChunk of chunk(pendingParticipantRows, 300)) {
   const result = await post({
     action: "import_scores",
     batchId: created.batchId,
@@ -105,7 +119,9 @@ for (const rowsChunk of chunk(participantRows, 300)) {
   });
   scores += result.scoresUpserted ?? 0;
   issues += result.issuesCreated ?? 0;
-  process.stdout.write(`\rStaging peserta: ${scores}/${participantRows.length}`);
+  process.stdout.write(
+    `\rStaging peserta: ${resumeOffset + scores}/${participantRows.length}`,
+  );
 }
 
 const final = await post({
@@ -123,6 +139,7 @@ console.log(
       formations,
       scores,
       issues,
+      resumedFrom: resumeOffset,
       status: "review",
       final,
     },

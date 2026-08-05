@@ -26,12 +26,47 @@ def normalized(value: str | None) -> str:
     text = "".join(char for char in text if unicodedata.category(char) != "Mn")
     text = re.sub(r"\b(?:PROGRAM STUDI|PRODI|JURUSAN)\b", " ", text)
     text = re.sub(r"[^A-Z0-9]+", " ", text)
+    text = re.sub(
+        r"\bS(?: D)? LULUSAN TAHUN\b",
+        "LULUSAN SAMPAI DENGAN TAHUN",
+        text,
+    )
+    text = re.sub(r"\bD III TEKNIK SIP\b", "D III TEKNIK SIPIL", text)
+    text = re.sub(r"^D S 2 BIOMEDIK\b", "S 2 BIOMEDIK", text)
+    text = re.sub(r"^NERS\b", "PROFESI NERS", text)
+    text = re.sub(r"\bMULTIMEDI A\b", "MULTIMEDIA", text)
+    text = re.sub(
+        r"\bKEPERAWATAN KONSENTRASI\b",
+        "KEPERAWATAN DENGAN KONSENTRASI",
+        text,
+    )
+    text = re.sub(
+        r"\bKEPERAWATAN MEMILIKI\b",
+        "KEPERAWATAN YANG MEMILIKI",
+        text,
+    )
     return compact(text)
+
+
+def repair_name_ocr(value: str | None) -> tuple[str, bool]:
+    raw_name = compact(value)
+    if not re.fullmatch(r"[A-Z0 .,'-]+", raw_name) or re.search(r"[1-9]", raw_name):
+        return raw_name, False
+    repaired = re.sub(r"(?<=[A-Z])0(?=[A-Z])", "O", raw_name)
+    return repaired, repaired != raw_name
 
 
 def split_education_options(value: str | None) -> list[str]:
     options = [compact(item) for item in re.split(r"\s+/\s+", compact(value))]
-    return [item for item in options if item]
+    unique_options: list[str] = []
+    seen: set[str] = set()
+    for item in options:
+        key = normalized(item)
+        if not item or not key or key in seen:
+            continue
+        seen.add(key)
+        unique_options.append(item)
+    return unique_options
 
 
 def similarity(left: str, right: str) -> float:
@@ -193,13 +228,19 @@ def upgrade_row(
         return upgraded
 
     raw_name = compact(row.get("nama"))
+    repaired_name, name_was_repaired = repair_name_ocr(raw_name)
     raw_education = compact(row.get("pendidikan"))
     education, status, confidence, issue = match_education(
         raw_education,
         compact(row.get("pendidikan_formasi")),
     )
     issues = [compact(row.get("validation_errors")), issue]
-    if not raw_name or len(raw_name) < 3 or SUSPICIOUS_NAME_RE.search(raw_name):
+    if name_was_repaired:
+        if status == "parsed":
+            status = "auto_corrected"
+        confidence = min(confidence, 0.96)
+        issues.append(f"nama dinormalisasi dari teks OCR: {raw_name}")
+    if not repaired_name or len(repaired_name) < 3 or SUSPICIOUS_NAME_RE.search(repaired_name):
         status = "needs_review"
         confidence = min(confidence, 0.5)
         issues.append("nama peserta mengandung pola mencurigakan")
@@ -207,6 +248,8 @@ def upgrade_row(
     upgraded.update(
         {
             "nama_raw": raw_name,
+            "nama": repaired_name,
+            "nama_normalized": repaired_name.lower(),
             "pendidikan_raw": raw_education,
             "pendidikan": education,
             "quality_status": status,

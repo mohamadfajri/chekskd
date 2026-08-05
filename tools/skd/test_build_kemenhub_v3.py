@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from build_kemenhub_v3 import match_education, normalized, split_education_options
+from build_kemenhub_v3 import match_education, normalized, repair_name_ocr, split_education_options
 
 
 class KemenhubV3QualityTest(unittest.TestCase):
@@ -104,6 +104,106 @@ class KemenhubV3QualityTest(unittest.TestCase):
         self.assertEqual(value, "D-III TEKNIK ELEKTRO / ELEKTRONIKA")
         self.assertEqual(status, "parsed")
         self.assertEqual(issue, "")
+
+    def test_sampai_dengan_abbreviation_matches_formation_option(self) -> None:
+        value, status, _, issue = match_education(
+            "D-IV KEBIDANAN (S.D LULUSAN TAHUN 2021)",
+            "D-IV KEBIDANAN (LULUSAN SAMPAI DENGAN TAHUN 2021)",
+        )
+        self.assertEqual(
+            value,
+            "D-IV KEBIDANAN (LULUSAN SAMPAI DENGAN TAHUN 2021)",
+        )
+        self.assertEqual(status, "parsed")
+        self.assertEqual(issue, "")
+
+    def test_sampai_dengan_abbreviation_without_extracted_d_matches(self) -> None:
+        value, status, _, issue = match_education(
+            "D-IV KEBIDANAN (S. LULUSAN TAHUN 2021)",
+            "D-IV KEBIDANAN (LULUSAN SAMPAI DENGAN TAHUN 2021)",
+        )
+        self.assertEqual(
+            value,
+            "D-IV KEBIDANAN (LULUSAN SAMPAI DENGAN TAHUN 2021)",
+        )
+        self.assertEqual(status, "parsed")
+        self.assertEqual(issue, "")
+
+    def test_extracted_teknik_sip_is_completed(self) -> None:
+        value, status, _, issue = match_education(
+            "D-III TEKNIK SIP",
+            "D-III TEKNIK SIPIL / D-III TEKNIK MESIN",
+        )
+        self.assertEqual(value, "D-III TEKNIK SIPIL")
+        self.assertEqual(status, "parsed")
+        self.assertEqual(issue, "")
+
+    def test_extracted_biomedik_prefix_is_removed(self) -> None:
+        value, status, _, issue = match_education(
+            "D. S-2 BIOMEDIK",
+            "S-2 BIOMEDIK / S-2 BIOKIMIA",
+        )
+        self.assertEqual(value, "S-2 BIOMEDIK")
+        self.assertEqual(status, "parsed")
+        self.assertEqual(issue, "")
+
+    def test_ners_matches_profesi_ners(self) -> None:
+        value, status, _, issue = match_education(
+            "NERS (MEMILIKI SERTIFIKAT PELATIHA ANESTESI",
+            "PROFESI NERS (MEMILIKI SERTIFIKAT PELATIHAN ANESTESI SEBELUM 1 JUNI 2021)",
+        )
+        self.assertEqual(
+            value,
+            "PROFESI NERS (MEMILIKI SERTIFIKAT PELATIHAN ANESTESI SEBELUM 1 JUNI 2021)",
+        )
+        self.assertEqual(status, "auto_corrected")
+        self.assertIn("terpotong", issue)
+
+    def test_zero_between_letters_in_name_is_repaired(self) -> None:
+        self.assertEqual(repair_name_ocr("R0HANA BASRI"), ("ROHANA BASRI", True))
+        self.assertEqual(repair_name_ocr("ROHANA BASRI"), ("ROHANA BASRI", False))
+
+    def test_split_multimedia_word_matches_combined_formation_options(self) -> None:
+        value, status, _, issue = match_education(
+            "SMK TEKNIK BANGUNAN / MULTIMEDI A / DESAIN GRAFIS",
+            "SMK DESAIN GRAFIS / SMK MULTIMEDIA / SMK TEKNIK BANGUNAN / MULTIMEDIA / DESAIN GRAFIS",
+        )
+        self.assertEqual(
+            value,
+            "SMK TEKNIK BANGUNAN / MULTIMEDIA / DESAIN GRAFIS",
+        )
+        self.assertEqual(status, "parsed")
+        self.assertEqual(issue, "")
+
+    def test_anesthesia_education_phrase_can_be_completed(self) -> None:
+        value, status, _, _ = match_education(
+            "D-III KEPERAWATAN (KONSENTRASI ANESTESI DAN GAWAT",
+            "D-III KEPERAWATAN DENGAN KONSENTRASI ANESTESI DAN GAWAT DARURAT MEDIK",
+        )
+        self.assertEqual(
+            value,
+            "D-III KEPERAWATAN DENGAN KONSENTRASI ANESTESI DAN GAWAT DARURAT MEDIK",
+        )
+        self.assertEqual(status, "auto_corrected")
+
+    def test_anesthesia_certificate_phrase_can_be_completed(self) -> None:
+        value, status, _, _ = match_education(
+            "D-III KEPERAWATAN (MEMILIKI SERTIFIKA PELATIHAN ANESTESI",
+            "D-III KEPERAWATAN YANG MEMILIKI SERTIFIKAT PELATIHAN ANESTESI SEBELUM 1 JUNI 2021",
+        )
+        self.assertEqual(
+            value,
+            "D-III KEPERAWATAN YANG MEMILIKI SERTIFIKAT PELATIHAN ANESTESI SEBELUM 1 JUNI 2021",
+        )
+        self.assertEqual(status, "auto_corrected")
+
+    def test_duplicate_formation_options_do_not_make_match_ambiguous(self) -> None:
+        value, status, _, _ = match_education(
+            "S-1 PENDIDIKAN TEKNI ELEKTRO",
+            "S-1 TEKNIK ELEKTRO / S-1 TEKNIK ELEKTRO",
+        )
+        self.assertEqual(value, "S-1 TEKNIK ELEKTRO")
+        self.assertEqual(status, "auto_corrected")
 
     def test_normalization_and_option_split(self) -> None:
         self.assertEqual(normalized("S-1 Teknik Sipil"), "S 1 TEKNIK SIPIL")
