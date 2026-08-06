@@ -97,6 +97,22 @@ function qualityStatus(value: CsvValue): string {
   return QUALITY_STATUSES.has(normalized) ? normalized : "needs_review";
 }
 
+function compactAuditPayload(row: ImportRow, status: string): Record<string, string> {
+  if (status !== "needs_review") return {};
+
+  return Object.fromEntries(
+    Object.entries({
+      formation_instance_id: clean(row.formation_instance_id),
+      no_peserta: clean(row.no_peserta),
+      nama_raw: clean(row.nama_raw),
+      pendidikan_raw: clean(row.pendidikan_raw),
+      validation_errors: clean(row.validation_errors),
+      source_page: clean(row.source_page),
+      source_page_formasi: clean(row.source_page_formasi),
+    }).filter((entry): entry is [string, string] => entry[1] != null),
+  );
+}
+
 function validateFormationRow(row: ImportRow, index: number): string[] {
   const errors: string[] = [];
   const label = `baris ${index + 1}`;
@@ -250,30 +266,33 @@ export const Route = createFileRoute("/api/admin/skd-batches")({
           const errors = rows.flatMap(validateFormationRow);
           if (errors.length) return jsonResponse({ message: errors.slice(0, 20).join("; ") }, 400);
 
-          const payload = rows.map((row) => ({
-            batch_id: body.batchId,
-            source_id: body.sourceId,
-            formation_key: clean(row.formation_instance_id),
-            tahun: toInt(row.tahun),
-            kode_instansi: clean(row.kode_instansi),
-            nama_instansi: clean(row.nama_instansi),
-            kode_jabatan: clean(row.kode_jabatan),
-            jabatan: clean(row.jabatan),
-            kode_lokasi: clean(row.kode_lokasi),
-            lokasi_formasi: clean(row.lokasi_formasi),
-            kode_jenis_formasi: clean(row.kode_jenis_formasi),
-            jenis_formasi: clean(row.jenis_formasi),
-            pendidikan: clean(row.pendidikan_formasi),
-            pendidikan_options: (clean(row.pendidikan_formasi) ?? "")
-              .split(/\s+\/\s+/)
-              .map((item) => item.trim())
-              .filter(Boolean),
-            jumlah_formasi: toInt(row.jumlah_formasi) ?? 0,
-            page_number: toInt(row.source_page_formasi),
-            quality_status: qualityStatus(row.formation_quality_status),
-            parser_confidence: toConfidence(row.parser_confidence),
-            raw_payload: row,
-          }));
+          const payload = rows.map((row) => {
+            const status = qualityStatus(row.formation_quality_status);
+            return {
+              batch_id: body.batchId,
+              source_id: body.sourceId,
+              formation_key: clean(row.formation_instance_id),
+              tahun: toInt(row.tahun),
+              kode_instansi: clean(row.kode_instansi),
+              nama_instansi: clean(row.nama_instansi),
+              kode_jabatan: clean(row.kode_jabatan),
+              jabatan: clean(row.jabatan),
+              kode_lokasi: clean(row.kode_lokasi),
+              lokasi_formasi: clean(row.lokasi_formasi),
+              kode_jenis_formasi: clean(row.kode_jenis_formasi),
+              jenis_formasi: clean(row.jenis_formasi),
+              pendidikan: clean(row.pendidikan_formasi),
+              pendidikan_options: (clean(row.pendidikan_formasi) ?? "")
+                .split(/\s+\/\s+/)
+                .map((item) => item.trim())
+                .filter(Boolean),
+              jumlah_formasi: toInt(row.jumlah_formasi) ?? 0,
+              page_number: toInt(row.source_page_formasi),
+              quality_status: status,
+              parser_confidence: toConfidence(row.parser_confidence),
+              raw_payload: compactAuditPayload(row, status),
+            };
+          });
           const { data, error } = await sb
             .from("skd_formations")
             .upsert(payload, { onConflict: "batch_id,formation_key" })
@@ -328,27 +347,35 @@ export const Route = createFileRoute("/api/admin/skd-batches")({
             return jsonResponse({ message: "Ada formasi peserta yang belum distaging." }, 409);
           }
 
-          const payload = rows.map((row) => ({
-            batch_id: body.batchId,
-            source_id: body.sourceId,
-            formation_id: formationIds.get(clean(row.formation_instance_id)!)!,
-            no_peserta: clean(row.no_peserta),
-            nama: clean(row.nama),
-            nama_raw: clean(row.nama_raw) ?? clean(row.nama),
-            nama_normalized: clean(row.nama_normalized) ?? clean(row.nama)?.toLowerCase(),
-            pendidikan: clean(row.pendidikan),
-            pendidikan_raw: clean(row.pendidikan_raw) ?? clean(row.pendidikan),
-            tahun_skd: toInt(row.tahun_nilai_skd),
-            twk: toInt(row.twk),
-            tiu: toInt(row.tiu),
-            tkp: toInt(row.tkp),
-            total: toInt(row.total),
-            keterangan: clean(row.keterangan)?.toUpperCase(),
-            source_page: toInt(row.source_page),
-            quality_status: qualityStatus(row.quality_status),
-            parser_confidence: toConfidence(row.parser_confidence),
-            raw_payload: row,
-          }));
+          const payload = rows.map((row) => {
+            const status = qualityStatus(row.quality_status);
+            const name = clean(row.nama)!;
+            const rawName = clean(row.nama_raw) ?? name;
+            const education = clean(row.pendidikan);
+            const rawEducation = clean(row.pendidikan_raw) ?? education;
+            return {
+              batch_id: body.batchId,
+              source_id: body.sourceId,
+              formation_id: formationIds.get(clean(row.formation_instance_id)!)!,
+              no_peserta: clean(row.no_peserta),
+              nama: name,
+              nama_raw: status === "needs_review" || rawName !== name ? rawName : null,
+              nama_normalized: clean(row.nama_normalized) ?? name.toLowerCase(),
+              pendidikan: education,
+              pendidikan_raw:
+                status === "needs_review" || rawEducation !== education ? rawEducation : null,
+              tahun_skd: toInt(row.tahun_nilai_skd),
+              twk: toInt(row.twk),
+              tiu: toInt(row.tiu),
+              tkp: toInt(row.tkp),
+              total: toInt(row.total),
+              keterangan: clean(row.keterangan)?.toUpperCase(),
+              source_page: toInt(row.source_page),
+              quality_status: status,
+              parser_confidence: toConfidence(row.parser_confidence),
+              raw_payload: compactAuditPayload(row, status),
+            };
+          });
           const { data, error } = await sb
             .from("skd_scores")
             .upsert(payload, { onConflict: "batch_id,no_peserta" })

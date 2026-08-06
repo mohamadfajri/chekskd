@@ -119,7 +119,7 @@ create table public.skd_scores (
   formation_id uuid not null references public.skd_formations(id) on delete cascade,
   no_peserta text not null check (no_peserta ~ '^[0-9]{15,20}$'),
   nama text not null,
-  nama_raw text not null,
+  nama_raw text,
   nama_normalized text not null,
   pendidikan text,
   pendidikan_raw text,
@@ -304,6 +304,10 @@ comment on table public.skd_batches is
   'One versioned, reviewable institution import. Only published batches are public.';
 comment on table public.skd_review_issues is
   'Field-level parser/OCR issues that must be resolved before publication.';
+comment on column public.skd_scores.raw_payload is
+  'Compact parser evidence for needs_review rows only; full staging rows stay in local audit CSV files.';
+comment on column public.skd_formations.raw_payload is
+  'Compact parser evidence for needs_review rows only; full staging rows stay in local audit CSV files.';
 
 notify pgrst, 'reload schema';
 

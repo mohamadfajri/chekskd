@@ -6,12 +6,21 @@ const baseUrl = (process.env.ADMIN_BASE_URL ?? "http://127.0.0.1:4175").replace(
 const adminPassword = process.env.ADMIN_PASSWORD;
 const resumeBatchId = process.env.RESUME_BATCH_ID?.trim();
 const resumeSourceId = process.env.RESUME_SOURCE_ID?.trim();
+const reuseBatchId = process.env.REUSE_BATCH_ID?.trim();
+const reuseSourceId = process.env.REUSE_SOURCE_ID?.trim();
 const resumeOffset = Number(process.env.RESUME_OFFSET ?? 0);
+const skipFinalize = process.env.SKIP_FINALIZE === "1";
 
 if (!adminPassword) throw new Error("ADMIN_PASSWORD wajib tersedia di environment.");
 if (!fs.existsSync(inputPath)) throw new Error(`CSV tidak ditemukan: ${inputPath}`);
 if (Boolean(resumeBatchId) !== Boolean(resumeSourceId)) {
   throw new Error("RESUME_BATCH_ID dan RESUME_SOURCE_ID harus diisi bersamaan.");
+}
+if (Boolean(reuseBatchId) !== Boolean(reuseSourceId)) {
+  throw new Error("REUSE_BATCH_ID dan REUSE_SOURCE_ID harus diisi bersamaan.");
+}
+if (resumeBatchId && reuseBatchId) {
+  throw new Error("Pilih mode RESUME atau REUSE, jangan keduanya.");
 }
 if (!Number.isInteger(resumeOffset) || resumeOffset < 0) {
   throw new Error("RESUME_OFFSET harus berupa bilangan bulat nol atau lebih.");
@@ -64,8 +73,11 @@ const first = rows[0];
 const slug = slugPart(
   `${first.kode_instansi || first.nama_instansi}-${first.tahun}-v${first.parser_version}`,
 );
-const created = resumeBatchId
-  ? { batchId: resumeBatchId, sourceId: resumeSourceId }
+const created = resumeBatchId || reuseBatchId
+  ? {
+      batchId: resumeBatchId ?? reuseBatchId,
+      sourceId: resumeSourceId ?? reuseSourceId,
+    }
   : await post({
       action: "create",
       batch: {
@@ -124,11 +136,13 @@ for (const rowsChunk of chunk(pendingParticipantRows, 300)) {
   );
 }
 
-const final = await post({
-  action: "finalize",
-  batchId: created.batchId,
-  sourceId: created.sourceId,
-});
+const final = skipFinalize
+  ? null
+  : await post({
+      action: "finalize",
+      batchId: created.batchId,
+      sourceId: created.sourceId,
+    });
 
 process.stdout.write("\n");
 console.log(

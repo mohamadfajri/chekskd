@@ -72,7 +72,7 @@ export interface SkdScore {
   formation_id: string;
   no_peserta: string;
   nama: string;
-  nama_raw: string;
+  nama_raw: string | null;
   nama_normalized: string;
   pendidikan: string | null;
   pendidikan_raw: string | null;
