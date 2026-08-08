@@ -28,7 +28,11 @@ export default defineConfig(({ command }) => ({
       "react/jsx-runtime",
       "react/jsx-dev-runtime",
     ],
+    exclude: ["@resvg/resvg-js"],
     ignoreOutdatedRequests: true,
+  },
+  ssr: {
+    external: ["@resvg/resvg-js"],
   },
   plugins: [
     tailwindcss(),

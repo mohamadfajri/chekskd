@@ -59,14 +59,20 @@ export function maskNoPeserta(no?: string | null): string {
   return s.slice(0, 3) + "****" + s.slice(-3);
 }
 
-/** Token format RSKD-XXXXX (5 karakter alfanumerik upper, tanpa 0/O/1/I). */
+/** Token format RSKD-XXXXXXXX (8 karakter alfanumerik upper, tanpa 0/O/1/I). */
 export function generateToken(): string {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const random = new Uint8Array(8);
+  globalThis.crypto.getRandomValues(random);
   let out = "";
-  for (let i = 0; i < 5; i++) {
-    out += alphabet[Math.floor(Math.random() * alphabet.length)];
+  for (const value of random) {
+    out += alphabet[value % alphabet.length];
   }
   return `RSKD-${out}`;
+}
+
+export function extractResultToken(value: string): string | null {
+  return value.toUpperCase().match(/\bRSKD-[A-HJ-NP-Z2-9]{5,8}\b/)?.[0] ?? null;
 }
 
 export interface AnalysisContext {
@@ -78,26 +84,52 @@ export interface AnalysisContext {
   tiu: number | null;
   tkp: number | null;
   total: number | null;
+  target_tahun?: string | null;
+  target_instansi?: string | null;
+  target_formasi?: string | null;
   rencana?: string | null;
+}
+
+export interface AnalysisSnapshot {
+  version: 1;
+  generated_at: string;
+  dataset_year: 2024;
+  nama_panggilan: string;
+  nama_peserta: string;
+  formasi: string;
+  instansi: string;
+  twk: number | null;
+  tiu: number | null;
+  tkp: number | null;
+  total: number | null;
+  lolos_pg: boolean;
+  zona: Zona;
+  zona_label: string;
+  target_tahun: string | null;
+  target_instansi: string | null;
+  target_formasi: string | null;
+  rencana: string | null;
+  analysis_summary: string;
+  recommendation: string;
 }
 
 function analisaByZona(zona: Zona, lolos: boolean): string {
   if (!lolos) {
-    return "belum memenuhi ambang batas passing grade pada salah satu subtes. Fokus perbaikan pada subtes terendah biasanya memberi peningkatan skor total paling cepat.";
+    return "Nilai belum memenuhi ambang batas pada sedikitnya satu subtes. Subtes terendah menjadi prioritas latihan sebelum seleksi berikutnya.";
   }
   switch (zona) {
     case "aman":
-      return "sudah berada pada zona relatif aman. Meski begitu, tingkat persaingan dan jumlah pelamar per formasi tetap menentukan ranking akhir.";
+      return "Nilai berada pada kelompok cukup kompetitif secara skor. Posisi akhirnya tetap bergantung pada kuota dan peserta di formasi yang dipilih.";
     case "waspada":
-      return "berada pada zona waspada. Peluang tetap ada, namun sangat bergantung pada tingkat kompetisi formasi yang dipilih.";
+      return "Nilai berada pada zona waspada. Pemilihan formasi dan kenaikan skor akan sangat memengaruhi daya saing.";
     case "rawan":
-      return "berada pada zona rawan. Peluang lolos ranking cukup tipis, terutama untuk formasi populer.";
+      return "Nilai masih berada pada zona yang perlu ditingkatkan, terutama bila targetnya merupakan formasi dengan persaingan tinggi.";
   }
 }
 
 function rekomendasi(zona: Zona, lolos: boolean, rencana?: string | null): string {
   if (!lolos) {
-    return "Kami sarankan mempertimbangkan tes ulang dan menyusun rencana latihan intensif pada subtes yang paling lemah sebelum masuk pendaftaran berikutnya.";
+    return "Susun latihan terarah untuk subtes terendah dan ukur ulang progres sebelum menentukan target formasi.";
   }
   const suffixTryout =
     rencana === "Pakai nilai lama"
@@ -106,17 +138,44 @@ function rekomendasi(zona: Zona, lolos: boolean, rencana?: string | null): strin
   switch (zona) {
     case "aman":
       return (
-        "Pilih formasi secara rasional (perhatikan rasio pendaftar vs kuota) dan lakukan tryout pemantapan untuk menjaga performa." +
+        "Bandingkan kuota, jumlah peserta, dan kecocokan pendidikan sebelum memilih formasi. Pertahankan performa dengan latihan berkala." +
         suffixTryout
       );
     case "waspada":
-      return "Ikuti tryout untuk mengukur potensi kenaikan 20-30 poin. Jika latihan terarah, banyak peserta bisa naik ke zona aman dalam beberapa minggu.";
+      return "Prioritaskan kenaikan skor dan hindari memilih target hanya dari nama instansi. Gunakan data persaingan ketika formasi resmi tersedia.";
     case "rawan":
       return (
-        "Sebaiknya mulai persiapan ulang secara terstruktur dan latihan intensif. Tryout berkala akan membantu memetakan progres." +
+        "Mulai persiapan ulang secara terstruktur. Tryout berkala membantu memetakan progres sebelum memilih target." +
         suffixTryout
       );
   }
+}
+
+export function buildAnalysisSnapshot(ctx: AnalysisContext): AnalysisSnapshot {
+  const zona = getZona(ctx.total);
+  const lolos = lolosPassingGrade(ctx);
+  return {
+    version: 1,
+    generated_at: new Date().toISOString(),
+    dataset_year: 2024,
+    nama_panggilan: ctx.nama_panggilan,
+    nama_peserta: ctx.nama_peserta,
+    formasi: ctx.formasi,
+    instansi: ctx.instansi,
+    twk: ctx.twk,
+    tiu: ctx.tiu,
+    tkp: ctx.tkp,
+    total: ctx.total,
+    lolos_pg: lolos,
+    zona,
+    zona_label: zonaLabel(zona),
+    target_tahun: ctx.target_tahun ?? null,
+    target_instansi: ctx.target_instansi ?? null,
+    target_formasi: ctx.target_formasi ?? null,
+    rencana: ctx.rencana ?? null,
+    analysis_summary: analisaByZona(zona, lolos),
+    recommendation: rekomendasi(zona, lolos, ctx.rencana),
+  };
 }
 
 export function buildAnalysisText(ctx: AnalysisContext): {
@@ -124,9 +183,8 @@ export function buildAnalysisText(ctx: AnalysisContext): {
   zona: Zona;
   lolos: boolean;
 } {
-  const zona = getZona(ctx.total);
-  const lolos = lolosPassingGrade(ctx);
-  const statusPg = lolos ? "Lolos PG" : "Belum Lolos PG";
+  const snapshot = buildAnalysisSnapshot(ctx);
+  const statusPg = snapshot.lolos_pg ? "Lolos PG" : "Belum Lolos PG";
 
   const text = [
     `Halo Kak ${ctx.nama_panggilan}, ini hasil analisa rasionalisasi SKD Kakak.`,
@@ -142,22 +200,30 @@ export function buildAnalysisText(ctx: AnalysisContext): {
     `Total: ${ctx.total ?? "-"}`,
     ``,
     `Status ambang batas: ${statusPg}`,
-    `Zona nilai: ${zonaLabel(zona)}`,
+    `Zona daya saing: ${snapshot.zona_label}`,
     ``,
     `Analisa:`,
-    `Nilai Kakak ${analisaByZona(zona, lolos)} Perlu diingat, CPNS tidak hanya ditentukan oleh passing grade, tetapi juga ranking, jumlah pesaing, kuota formasi, dan strategi pemilihan formasi.`,
+    snapshot.analysis_summary,
     ``,
     `Saran cpnsguru.id:`,
-    rekomendasi(zona, lolos, ctx.rencana),
+    snapshot.recommendation,
     ``,
     `Mau ukur kemampuan terbaru sebelum memutuskan pakai nilai lama atau tes ulang? Kakak bisa coba Tryout Prediksi SKD cpnsguru.id.`,
   ].join("\n");
 
-  return { text, zona, lolos };
+  return { text, zona: snapshot.zona, lolos: snapshot.lolos_pg };
+}
+
+export function buildHermesCaption(snapshot: AnalysisSnapshot): string {
+  return [
+    `Halo Kak ${snapshot.nama_panggilan}, kartu analisis daya saing SKD sudah siap.`,
+    `Total ${snapshot.total ?? "-"} | ${snapshot.lolos_pg ? "Lolos PG" : "Belum Lolos PG"} | ${snapshot.zona_label}`,
+    "Hasil ini merupakan simulasi berbasis data SKD 2024, bukan jaminan kelulusan.",
+  ].join("\n");
 }
 
 export function buildWhatsAppUrl(token: string): string {
   const number = (import.meta.env.VITE_WHATSAPP_BOT_NUMBER as string | undefined) ?? "";
-  const msg = `Halo cpnsguru.id, saya mau lihat hasil lengkap rasionalisasi SKD. Kode: ${token}`;
+  const msg = `CEK ${token}`;
   return `https://wa.me/${number}?text=${encodeURIComponent(msg)}`;
 }

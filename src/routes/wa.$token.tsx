@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CheckCircle2, MessageCircle, Copy } from "lucide-react";
+import { CheckCircle2, MessageCircle, Copy, Image } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { buildWhatsAppUrl } from "@/lib/analysis";
 import { toast } from "sonner";
@@ -22,14 +22,14 @@ function WaRedirectPage() {
     <div className="min-h-screen bg-background">
       <SiteHeader />
       <main className="mx-auto max-w-xl px-4 py-16">
-        <div className="rounded-2xl border border-border bg-card p-8 text-center shadow-sm">
+        <div className="rounded-lg border border-border bg-card p-8 text-center shadow-sm">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
             <CheckCircle2 className="h-7 w-7" />
           </div>
-          <h1 className="mt-4 text-2xl font-bold">Kode Hasil Kamu Sudah Siap</h1>
+          <h1 className="mt-4 text-2xl font-bold">Kode untuk Hermes sudah siap</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Klik tombol di bawah untuk membuka WhatsApp dan kirim kode hasil ke Assistant
-            cpnsguru.id.
+            Buka WhatsApp lalu kirim pesan yang sudah terisi. Hermes akan membalas hasil analisis
+            sebagai gambar.
           </p>
 
           <div className="mt-6 flex items-center justify-center gap-2 rounded-xl border border-dashed border-primary/40 bg-brand-soft px-4 py-4">
@@ -55,13 +55,16 @@ function WaRedirectPage() {
             className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#25D366] px-5 py-3 text-sm font-semibold text-white shadow-md transition hover:opacity-95"
           >
             <MessageCircle className="h-4 w-4" />
-            Lihat Hasil Lengkap via WhatsApp
+            Buka WhatsApp dan Kirim Kode
           </a>
 
-          <p className="mt-4 text-xs text-muted-foreground">
-            Setelah membuka WhatsApp, tekan kirim. Assistant kami akan membalas dengan analisa
-            lengkap.
-          </p>
+          <div className="mt-4 flex items-start gap-2 rounded-lg bg-muted/60 p-3 text-left text-xs text-muted-foreground">
+            <Image className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+            <span>
+              Kode berlaku 30 menit. Nomor WhatsApp dikenali dari akun yang mengirim kode, bukan
+              dari form web.
+            </span>
+          </div>
         </div>
 
         <div className="mt-6 text-center text-sm">

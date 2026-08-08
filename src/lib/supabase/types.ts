@@ -122,6 +122,7 @@ export interface Lead {
   target_formasi: string | null;
   rencana: string | null;
   consent_whatsapp: boolean;
+  consent_marketing: boolean;
   segment: string | null;
   created_at: string;
   last_contacted_at: string | null;
@@ -142,9 +143,14 @@ export interface ResultSession {
   total: number | null;
   zona: string | null;
   analysis_text: string;
+  analysis_snapshot: Record<string, unknown>;
   created_at: string;
-  expired_at: string | null;
+  expired_at: string;
   used_count: number;
+  sender_wa_id: string | null;
+  last_inbound_message_id: string | null;
+  delivered_at: string | null;
+  card_rendered_at: string | null;
 }
 
 type Table<Row> = {

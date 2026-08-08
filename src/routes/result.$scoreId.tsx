@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState } from "react";
-import { Loader2, AlertCircle, ArrowLeft } from "lucide-react";
+import { Loader2, AlertCircle, ArrowLeft, Image, MessageCircle } from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { getSkdScoreById } from "@/services/skdService";
 import { createLeadAndSession, type LeadFormInput } from "@/services/leadService";
@@ -32,30 +32,19 @@ function ResultPage() {
 
   const [form, setForm] = useState<LeadFormInput>({
     nama_panggilan: "",
-    whatsapp: "",
     target_tahun: "2026",
     rencana: "Belum yakin",
     target_instansi: "",
     target_formasi: "",
     consent_whatsapp: false,
+    consent_marketing: false,
   });
 
   const mutation = useMutation({
     mutationFn: async () => {
       const s = query.data!;
-      const f = s.skd_formations;
       return createLeadAndSession({
         score_id: s.id,
-        score: {
-          nama_panggilan: form.nama_panggilan,
-          nama_peserta: s.nama,
-          formasi: f?.jabatan ?? "-",
-          instansi: f?.nama_instansi ?? "-",
-          twk: s.twk,
-          tiu: s.tiu,
-          tkp: s.tkp,
-          total: s.total,
-        },
         lead: form,
       });
     },
@@ -194,12 +183,19 @@ function ResultPage() {
             className="sticky top-20 rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6"
           >
             <p className="text-xs font-semibold uppercase tracking-wider text-primary">
-              Analisa Lengkap
+              Hasil via WhatsApp
             </p>
-            <h2 className="mt-1 text-lg font-bold">Buat kode hasil untuk WhatsApp</h2>
+            <h2 className="mt-1 text-lg font-bold">Terima kartu analisis di WhatsApp</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Isi data singkat, lalu terima analisa lengkap dan rekomendasi via WhatsApp.
+              Isi target singkat. Nomor WhatsApp akan dikenali saat kamu mengirim kode ke Hermes.
             </p>
+
+            <div className="mt-4 flex items-center gap-3 rounded-lg border border-[#cfe2f2] bg-[#eef6fc] p-3 text-xs text-[#245e88]">
+              <Image className="h-5 w-5 shrink-0" />
+              <span>
+                Hermes akan membalas satu gambar ringkasan yang siap disimpan atau dibagikan.
+              </span>
+            </div>
 
             <div className="mt-5 space-y-3">
               <SmallField label="Nama panggilan" required>
@@ -207,16 +203,6 @@ function ResultPage() {
                   className="input-base"
                   value={form.nama_panggilan}
                   onChange={(e) => setForm({ ...form, nama_panggilan: e.target.value })}
-                  required
-                />
-              </SmallField>
-              <SmallField label="Nomor WhatsApp" required>
-                <input
-                  className="input-base"
-                  inputMode="tel"
-                  placeholder="08xxxxxxxxxx"
-                  value={form.whatsapp}
-                  onChange={(e) => setForm({ ...form, whatsapp: e.target.value })}
                   required
                 />
               </SmallField>
@@ -272,9 +258,18 @@ function ResultPage() {
                   className="mt-0.5 h-4 w-4 shrink-0 accent-[color:var(--color-primary)]"
                   required
                 />
+                <span>Saya meminta Hermes mengirim kartu hasil analisis ini melalui WhatsApp.</span>
+              </label>
+
+              <label className="flex items-start gap-2 px-1 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={form.consent_marketing}
+                  onChange={(e) => setForm({ ...form, consent_marketing: e.target.checked })}
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-[color:var(--color-primary)]"
+                />
                 <span>
-                  Saya setuju menerima hasil analisa dan informasi CPNS/Tryout dari cpnsguru.id
-                  melalui WhatsApp.
+                  Saya juga bersedia menerima informasi CPNS dan tryout. Pilihan ini tidak wajib.
                 </span>
               </label>
             </div>
@@ -285,7 +280,8 @@ function ResultPage() {
               className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-brand-gradient px-5 py-3 text-sm font-semibold text-primary-foreground shadow-md shadow-primary/20 transition hover:opacity-95 disabled:opacity-60"
             >
               {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              Buat Kode Hasil WhatsApp
+              <MessageCircle className="h-4 w-4" />
+              Buat Kode untuk Hermes
             </button>
           </form>
         </div>

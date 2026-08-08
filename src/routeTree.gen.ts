@@ -16,6 +16,7 @@ import { Route as WaTokenRouteImport } from './routes/wa.$token'
 import { Route as ResultScoreIdRouteImport } from './routes/result.$scoreId'
 import { Route as ApiWaResultRouteImport } from './routes/api/wa-result'
 import { Route as ApiResultSessionRouteImport } from './routes/api/result-session'
+import { Route as ApiResultCardRouteImport } from './routes/api/result-card'
 import { Route as ApiAdminSkdReviewRouteImport } from './routes/api/admin/skd-review'
 import { Route as ApiAdminSkdPdfRouteImport } from './routes/api/admin/skd-pdf'
 import { Route as ApiAdminSkdExplorerRouteImport } from './routes/api/admin/skd-explorer'
@@ -57,6 +58,11 @@ const ApiResultSessionRoute = ApiResultSessionRouteImport.update({
   path: '/api/result-session',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiResultCardRoute = ApiResultCardRouteImport.update({
+  id: '/api/result-card',
+  path: '/api/result-card',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminSkdReviewRoute = ApiAdminSkdReviewRouteImport.update({
   id: '/api/admin/skd-review',
   path: '/api/admin/skd-review',
@@ -87,6 +93,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/search': typeof SearchRoute
+  '/api/result-card': typeof ApiResultCardRoute
   '/api/result-session': typeof ApiResultSessionRoute
   '/api/wa-result': typeof ApiWaResultRoute
   '/result/$scoreId': typeof ResultScoreIdRoute
@@ -101,6 +108,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/search': typeof SearchRoute
+  '/api/result-card': typeof ApiResultCardRoute
   '/api/result-session': typeof ApiResultSessionRoute
   '/api/wa-result': typeof ApiWaResultRoute
   '/result/$scoreId': typeof ResultScoreIdRoute
@@ -116,6 +124,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/search': typeof SearchRoute
+  '/api/result-card': typeof ApiResultCardRoute
   '/api/result-session': typeof ApiResultSessionRoute
   '/api/wa-result': typeof ApiWaResultRoute
   '/result/$scoreId': typeof ResultScoreIdRoute
@@ -132,6 +141,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/search'
+    | '/api/result-card'
     | '/api/result-session'
     | '/api/wa-result'
     | '/result/$scoreId'
@@ -146,6 +156,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/search'
+    | '/api/result-card'
     | '/api/result-session'
     | '/api/wa-result'
     | '/result/$scoreId'
@@ -160,6 +171,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/search'
+    | '/api/result-card'
     | '/api/result-session'
     | '/api/wa-result'
     | '/result/$scoreId'
@@ -175,6 +187,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   SearchRoute: typeof SearchRoute
+  ApiResultCardRoute: typeof ApiResultCardRoute
   ApiResultSessionRoute: typeof ApiResultSessionRoute
   ApiWaResultRoute: typeof ApiWaResultRoute
   ResultScoreIdRoute: typeof ResultScoreIdRoute
@@ -237,6 +250,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiResultSessionRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/result-card': {
+      id: '/api/result-card'
+      path: '/api/result-card'
+      fullPath: '/api/result-card'
+      preLoaderRoute: typeof ApiResultCardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/skd-review': {
       id: '/api/admin/skd-review'
       path: '/api/admin/skd-review'
@@ -279,6 +299,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   SearchRoute: SearchRoute,
+  ApiResultCardRoute: ApiResultCardRoute,
   ApiResultSessionRoute: ApiResultSessionRoute,
   ApiWaResultRoute: ApiWaResultRoute,
   ResultScoreIdRoute: ResultScoreIdRoute,

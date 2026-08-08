@@ -1,15 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { buildAnalysisText, generateToken, type AnalysisContext } from "@/lib/analysis";
+import {
+  buildAnalysisSnapshot,
+  buildAnalysisText,
+  generateToken,
+  type AnalysisContext,
+} from "@/lib/analysis";
 import { getServerSupabase, jsonResponse } from "@/lib/supabase/server";
 
 interface LeadInput {
   nama_panggilan?: string;
-  whatsapp?: string;
   target_tahun?: string;
   target_instansi?: string;
   target_formasi?: string;
   rencana?: string;
   consent_whatsapp?: boolean;
+  consent_marketing?: boolean;
 }
 
 interface CreateBody {
@@ -24,10 +29,6 @@ function clean(value: unknown, maxLength: number): string | null {
   return result;
 }
 
-function validWhatsApp(value: string): boolean {
-  return /^(?:\+?62|0)8[0-9]{7,13}$/.test(value.replace(/[\s-]/g, ""));
-}
-
 export const Route = createFileRoute("/api/result-session")({
   server: {
     handlers: {
@@ -36,21 +37,18 @@ export const Route = createFileRoute("/api/result-session")({
         const scoreId = clean(body?.score_id, 100);
         const leadInput = body?.lead;
         const namaPanggilan = clean(leadInput?.nama_panggilan, 80);
-        const whatsapp = clean(leadInput?.whatsapp, 30);
         const targetTahun = clean(leadInput?.target_tahun, 30);
         const rencana = clean(leadInput?.rencana, 50);
 
         if (
           !scoreId ||
           !namaPanggilan ||
-          !whatsapp ||
-          !validWhatsApp(whatsapp) ||
           !targetTahun ||
           !rencana ||
           leadInput?.consent_whatsapp !== true
         ) {
           return jsonResponse(
-            { message: "Data form belum lengkap atau nomor WhatsApp tidak valid." },
+            { message: "Data form belum lengkap atau persetujuan hasil belum diberikan." },
             400,
           );
         }
@@ -87,12 +85,13 @@ export const Route = createFileRoute("/api/result-session")({
           .insert({
             score_id: score.id,
             nama_panggilan: namaPanggilan,
-            whatsapp: whatsapp.replace(/[\s-]/g, ""),
+            whatsapp: null,
             target_tahun: targetTahun,
             target_instansi: clean(leadInput?.target_instansi, 160),
             target_formasi: clean(leadInput?.target_formasi, 200),
             rencana,
             consent_whatsapp: true,
+            consent_marketing: leadInput?.consent_marketing === true,
           })
           .select("*")
           .single();
@@ -107,9 +106,13 @@ export const Route = createFileRoute("/api/result-session")({
           tiu: score.tiu,
           tkp: score.tkp,
           total: score.total,
+          target_tahun: targetTahun,
+          target_instansi: clean(leadInput?.target_instansi, 160),
+          target_formasi: clean(leadInput?.target_formasi, 200),
           rencana,
         };
         const { text, zona } = buildAnalysisText(context);
+        const snapshot = buildAnalysisSnapshot(context);
 
         let token = generateToken();
         for (let attempt = 0; attempt < 5; attempt += 1) {
@@ -137,6 +140,8 @@ export const Route = createFileRoute("/api/result-session")({
             total: context.total,
             zona,
             analysis_text: text,
+            analysis_snapshot: snapshot,
+            expired_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
           })
           .select("*")
           .single();
@@ -145,7 +150,7 @@ export const Route = createFileRoute("/api/result-session")({
           return jsonResponse({ message: sessionError.message }, 500);
         }
 
-        return jsonResponse({ token, session, lead }, 201);
+        return jsonResponse({ token, expired_at: session.expired_at }, 201);
       },
     },
   },

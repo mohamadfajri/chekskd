@@ -1,26 +1,21 @@
-import type { AnalysisContext } from "@/lib/analysis";
-import type { Lead, ResultSession } from "@/lib/supabase/types";
-
 export interface LeadFormInput {
   nama_panggilan: string;
-  whatsapp: string;
   target_tahun: "2026" | "2027" | "Belum tahu";
   rencana: "Pakai nilai lama" | "Tes ulang" | "Belum yakin";
   target_instansi?: string;
   target_formasi?: string;
   consent_whatsapp: boolean;
+  consent_marketing: boolean;
 }
 
 export interface CreateSessionInput {
   score_id: string;
-  score: AnalysisContext;
   lead: LeadFormInput;
 }
 
 export interface CreateSessionResult {
   token: string;
-  session: ResultSession;
-  lead: Lead;
+  expired_at: string;
 }
 
 export async function createLeadAndSession(
