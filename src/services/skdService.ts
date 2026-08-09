@@ -1,5 +1,6 @@
 import { requireSupabase } from "@/lib/supabase/client";
 import type { SkdScoreWithFormation } from "@/lib/supabase/types";
+import { MIN_NAME_SEARCH_LENGTH, normalizeNameForSearch } from "@/lib/skdSearch";
 
 export interface SearchParams {
   nama: string;
@@ -9,10 +10,6 @@ export interface SearchParams {
   limit?: number;
 }
 
-/**
- * Search peserta by nama (ilike) + optional filters.
- * MVP: pakai ilike. Nanti diganti pg_trgm/similarity di Codex.
- */
 export async function searchSkdScores(params: SearchParams): Promise<SkdScoreWithFormation[]> {
   const sb = requireSupabase();
   const limit = params.limit ?? 30;
@@ -25,7 +22,11 @@ export async function searchSkdScores(params: SearchParams): Promise<SkdScoreWit
     .limit(limit);
 
   if (params.nama?.trim()) {
-    q = q.ilike("nama", `%${params.nama.trim()}%`);
+    const normalizedName = normalizeNameForSearch(params.nama);
+    if (normalizedName.length < MIN_NAME_SEARCH_LENGTH) {
+      throw new Error(`Nama peserta minimal ${MIN_NAME_SEARCH_LENGTH} karakter.`);
+    }
+    q = q.ilike("nama_normalized", `%${normalizedName}%`);
   }
   if (params.no_peserta?.trim()) {
     q = q.ilike("no_peserta", `%${params.no_peserta.trim()}%`);

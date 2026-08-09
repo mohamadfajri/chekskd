@@ -6,6 +6,7 @@ import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { searchSkdScores } from "@/services/skdService";
 import { isSupabaseConfigured, supabaseConfigError } from "@/lib/supabase/client";
 import { maskNoPeserta } from "@/lib/analysis";
+import { MIN_NAME_SEARCH_LENGTH } from "@/lib/skdSearch";
 
 export const Route = createFileRoute("/search")({
   head: () => ({
@@ -75,6 +76,7 @@ function SearchPage() {
                 onChange={(e) => setNama(e.target.value)}
                 placeholder="Contoh: Andi Saputra"
                 className="input-base"
+                minLength={MIN_NAME_SEARCH_LENGTH}
                 required
               />
             </Field>
@@ -106,7 +108,7 @@ function SearchPage() {
 
           <div className="mt-5 flex items-center justify-between gap-3">
             <p className="text-xs text-muted-foreground">
-              Pencarian menggunakan pencocokan sebagian (case-insensitive).
+              Nama minimal {MIN_NAME_SEARCH_LENGTH} karakter dan dapat dicari sebagian.
             </p>
             <button
               type="submit"

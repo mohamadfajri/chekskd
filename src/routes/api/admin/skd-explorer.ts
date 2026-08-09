@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { normalizeNameForSearch } from "@/lib/skdSearch";
 import { getServerSupabase, jsonResponse, requireAdmin } from "@/lib/supabase/server";
 
 const PAGE_SIZE_MAX = 100;
@@ -137,7 +138,7 @@ export const Route = createFileRoute("/api/admin/skd-explorer")({
         if (search) {
           query = /^\d+$/.test(search)
             ? query.ilike("no_peserta", `%${search}%`)
-            : query.ilike("nama", `%${search}%`);
+            : query.ilike("nama_normalized", `%${normalizeNameForSearch(search)}%`);
         }
         if (formationId) query = query.eq("formation_id", formationId);
         if (attendance === "present") query = query.not("total", "is", null);
