@@ -43,9 +43,10 @@ interface ImportRow {
 
 interface BatchBody {
   adminPassword?: string;
-  action?: "validate" | "create" | "import_formations" | "import_scores" | "finalize";
+  action?: "validate" | "create" | "import_formations" | "import_scores" | "finalize" | "publish";
   batchId?: string;
   sourceId?: string;
+  confirmation?: string;
   batch?: {
     slug?: string;
     institutionCode?: string;
@@ -183,6 +184,28 @@ export const Route = createFileRoute("/api/admin/skd-batches")({
         const { client: sb, error: configError } = getServerSupabase();
         if (!sb)
           return jsonResponse({ message: `Supabase server belum siap: ${configError}` }, 503);
+
+        if (body.action === "publish") {
+          if (!body.batchId?.trim()) {
+            return jsonResponse({ message: "batchId wajib diisi." }, 400);
+          }
+          if (body.confirmation !== "PUBLISH_BATCH") {
+            return jsonResponse({ message: "Konfirmasi publikasi belum diberikan." }, 400);
+          }
+
+          const { data, error } = await sb.rpc("publish_skd_batch", {
+            p_batch_id: body.batchId,
+          });
+          if (error) return jsonResponse({ message: error.message }, 400);
+
+          const result = Array.isArray(data) ? data[0] : data;
+          return jsonResponse({
+            participantCount: Number(result?.participant_count ?? 0),
+            formationCount: Number(result?.formation_count ?? 0),
+            batchStatus: result?.batch_status ?? "published",
+            publishedAt: result?.published_at ?? null,
+          });
+        }
 
         if (body.action === "create") {
           const batch = body.batch;

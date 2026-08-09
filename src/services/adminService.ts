@@ -338,6 +338,32 @@ export async function bulkVerifySkdBatch(
   return readAdminJson<BulkVerifyResult>(response);
 }
 
+export interface PublishBatchResult {
+  participantCount: number;
+  formationCount: number;
+  batchStatus: "published";
+  publishedAt: string;
+}
+
+export async function publishSkdBatch(
+  adminPassword: string,
+  batchId: string,
+): Promise<PublishBatchResult> {
+  const response = await fetch("/api/admin/skd-batches", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-admin-password": adminPassword,
+    },
+    body: JSON.stringify({
+      action: "publish",
+      batchId,
+      confirmation: "PUBLISH_BATCH",
+    }),
+  });
+  return readAdminJson<PublishBatchResult>(response);
+}
+
 export interface SkdExplorerFormation {
   id: string;
   kode_jabatan: string | null;

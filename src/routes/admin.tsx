@@ -13,6 +13,7 @@ import {
   ExternalLink,
   FileCheck2,
   FileText,
+  Globe2,
   Layers3,
   Loader2,
   RefreshCw,
@@ -29,6 +30,7 @@ import {
   getSkdExplorerRows,
   getSkdReviewRows,
   importCsvRows,
+  publishSkdBatch,
   validateAdminPassword,
   validateAdminSession,
   validateCsvRows,
@@ -972,6 +974,7 @@ function ReviewWorkspace({
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
   const [issueSearch, setIssueSearch] = useState("");
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
+  const [publishDialogOpen, setPublishDialogOpen] = useState(false);
 
   const reviewRows = useQuery({
     queryKey: ["admin-skd-review", selectedBatch?.id, adminPassword],
@@ -987,6 +990,16 @@ function ReviewWorkspace({
       );
       setBulkDialogOpen(false);
       reviewRows.refetch();
+      onBatchChanged();
+    },
+  });
+  const publishBatch = useMutation({
+    mutationFn: () => publishSkdBatch(adminPassword, selectedBatch!.id),
+    onSuccess: (result) => {
+      toast.success(
+        `${result.participantCount.toLocaleString("id-ID")} peserta sudah tersedia di pencarian publik.`,
+      );
+      setPublishDialogOpen(false);
       onBatchChanged();
     },
   });
@@ -1038,6 +1051,16 @@ function ReviewWorkspace({
             >
               <ShieldCheck className="h-4 w-4" />
               Verifikasi semua
+            </button>
+          )}
+          {selectedBatch?.status === "verified" && (
+            <button
+              type="button"
+              onClick={() => setPublishDialogOpen(true)}
+              className="inline-flex h-9 items-center gap-2 rounded-md bg-[#0d6cbd] px-3 text-xs font-semibold text-white transition hover:bg-[#0a5799]"
+            >
+              <Globe2 className="h-4 w-4" />
+              Publikasikan data
             </button>
           )}
           <div className="flex items-center gap-2 text-xs text-[#65768a]">
@@ -1147,6 +1170,106 @@ function ReviewWorkspace({
           onConfirm={(note) => bulkVerify.mutate(note)}
         />
       )}
+      {publishDialogOpen && selectedBatch && (
+        <PublishBatchDialog
+          batch={selectedBatch}
+          loading={publishBatch.isPending}
+          error={publishBatch.error instanceof Error ? publishBatch.error.message : null}
+          onClose={() => setPublishDialogOpen(false)}
+          onConfirm={() => publishBatch.mutate()}
+        />
+      )}
+    </div>
+  );
+}
+
+function PublishBatchDialog({
+  batch,
+  loading,
+  error,
+  onClose,
+  onConfirm,
+}: {
+  batch: SkdBatchSummary;
+  loading: boolean;
+  error: string | null;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  const [confirmed, setConfirmed] = useState(false);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#10233d]/60 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="publish-batch-title"
+    >
+      <div className="w-full max-w-lg overflow-hidden rounded-lg border border-[#d8e1ec] bg-white shadow-2xl">
+        <div className="border-b border-[#e2e8f0] px-5 py-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-[#eaf3fb] text-[#0d6cbd]">
+              <Globe2 className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 id="publish-batch-title" className="text-base font-semibold">
+                Publikasikan batch ini?
+              </h2>
+              <p className="mt-1 text-xs leading-5 text-[#65768a]">
+                {batch.institution_name} · {batch.selection_year}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-4 px-5 py-4">
+          <div className="grid grid-cols-2 overflow-hidden rounded border border-[#dce4ec] bg-[#f8fafc] text-center">
+            <DialogMetric label="Peserta" value={batch.participant_count} />
+            <DialogMetric label="Formasi" value={batch.formation_count} />
+          </div>
+
+          <div className="border-l-4 border-[#0d6cbd] bg-[#eef7ff] px-3 py-2.5 text-xs leading-5 text-[#17496f]">
+            Setelah diterbitkan, peserta dan formasi yang sudah verified dapat ditemukan oleh
+            pengguna di halaman pencarian.
+          </div>
+
+          <label className="flex cursor-pointer items-start gap-3 rounded border border-[#dce4ec] p-3 text-xs leading-5 text-[#34475d]">
+            <input
+              type="checkbox"
+              checked={confirmed}
+              onChange={(event) => setConfirmed(event.target.checked)}
+              className="mt-0.5 h-4 w-4 accent-[#0d6cbd]"
+            />
+            <span>Saya menyetujui batch terverifikasi ini ditampilkan kepada pengguna.</span>
+          </label>
+
+          {error && <p className="text-xs text-red-700">{error}</p>}
+        </div>
+
+        <div className="flex justify-end gap-2 border-t border-[#e2e8f0] bg-[#f9fbfd] px-5 py-3">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={loading}
+            className="h-9 rounded-md border border-[#cfd8e3] bg-white px-4 text-xs font-semibold text-[#536579] hover:bg-[#f3f6f9] disabled:opacity-60"
+          >
+            Batal
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={!confirmed || loading}
+            className="inline-flex h-9 items-center gap-2 rounded-md bg-[#0d6cbd] px-4 text-xs font-semibold text-white hover:bg-[#0a5799] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {loading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Globe2 className="h-4 w-4" />
+            )}
+            Publikasikan
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
