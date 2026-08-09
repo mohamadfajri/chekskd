@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { buildAnalysisSnapshot, extractResultToken, type AnalysisSnapshot } from "@/lib/analysis";
 import { getServerSupabase, jsonResponse } from "@/lib/supabase/server";
-import { renderResultCard } from "@/server/result-card";
+import { prepareResultCardFont, renderResultCard } from "@/server/result-card";
 
 function demoSnapshot(): AnalysisSnapshot {
   return buildAnalysisSnapshot({
@@ -52,7 +52,8 @@ export const Route = createFileRoute("/api/result-card")({
           }
         }
 
-        const png = renderResultCard(snapshot);
+        const fontPath = await prepareResultCardFont();
+        const png = renderResultCard(snapshot, fontPath);
         return new Response(new Blob([png], { type: "image/png" }), {
           status: 200,
           headers: {

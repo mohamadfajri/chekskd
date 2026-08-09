@@ -1,0 +1,7 @@
+name: skd-result
+version: "1.0.0"
+description: Fetch a verified SKD result card from chekskd for WhatsApp delivery.
+requires_env:
+  - name: SKD_APP_URL
+    description: Public HTTPS origin of the chekskd application.
+    secret: false

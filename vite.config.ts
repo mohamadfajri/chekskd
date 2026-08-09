@@ -50,6 +50,12 @@ export default defineConfig(({ command }) => ({
     command === "build"
       ? nitro({
           defaultPreset: "vercel",
+          serverAssets: [
+            {
+              baseName: "fonts",
+              dir: "./server-assets/fonts",
+            },
+          ],
         })
       : null,
     viteReact(),
