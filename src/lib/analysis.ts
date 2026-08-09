@@ -222,8 +222,22 @@ export function buildHermesCaption(snapshot: AnalysisSnapshot): string {
   ].join("\n");
 }
 
+const DEFAULT_WHATSAPP_BOT_NUMBER = "6282265507384";
+
+export function normalizeWhatsAppNumber(value: string): string {
+  const digits = value.replace(/\D/g, "");
+  if (digits.startsWith("0")) return `62${digits.slice(1)}`;
+  return digits;
+}
+
 export function buildWhatsAppUrl(token: string): string {
-  const number = (import.meta.env.VITE_WHATSAPP_BOT_NUMBER as string | undefined) ?? "";
+  const configuredNumber =
+    (import.meta.env.VITE_WHATSAPP_BOT_NUMBER as string | undefined) ?? DEFAULT_WHATSAPP_BOT_NUMBER;
+  const normalizedNumber = normalizeWhatsAppNumber(configuredNumber);
+  const number =
+    /^62\d{8,13}$/.test(normalizedNumber) && normalizedNumber !== "6281234567890"
+      ? normalizedNumber
+      : DEFAULT_WHATSAPP_BOT_NUMBER;
   const msg = `CEK ${token}`;
   return `https://wa.me/${number}?text=${encodeURIComponent(msg)}`;
 }
