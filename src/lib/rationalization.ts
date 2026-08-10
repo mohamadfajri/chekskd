@@ -4,6 +4,10 @@ export type RationalizationVerdict =
 export type TargetSimulationVerdict =
   "very_competitive" | "competitive" | "close" | "below" | "ineligible" | "unavailable";
 
+export type RecommendationMode = "related" | "all";
+export type RecommendationTier = "most_rational" | "competitive" | "ambitious" | "below";
+export type RecommendationConfidence = "strong" | "moderate" | "limited";
+
 export interface RationalizationTargetSimulation {
   formation_id: string;
   dataset_year: number;
@@ -13,6 +17,9 @@ export interface RationalizationTargetSimulation {
   formation_type: string;
   education_requirement: string | null;
   education_match: "exact";
+  position_relation?: "same_position" | "related_position" | "cross_position";
+  is_mode_fallback?: boolean;
+  is_preferred?: boolean;
   quota: number;
   participants: number;
   attended: number;
@@ -36,6 +43,11 @@ export interface RationalizationTargetSimulation {
     code: TargetSimulationVerdict;
     label: string;
   };
+  recommendation_tier?: RecommendationTier;
+  confidence?: {
+    code: RecommendationConfidence;
+    label: string;
+  };
   data_quality: {
     basis: string;
     capacity_consistent: boolean;
@@ -45,7 +57,7 @@ export interface RationalizationTargetSimulation {
 
 export interface RationalizationSnapshot {
   kind: "skd_rationalization";
-  version: 1 | 2;
+  version: 1 | 2 | 3;
   generated_at: string;
   score_id: string;
   formation_id: string;
@@ -112,6 +124,21 @@ export interface RationalizationSnapshot {
     stats_calculated_at: string;
   };
   target_simulation?: RationalizationTargetSimulation;
+  recommendation_mode?: RecommendationMode;
+  recommendation_summary?: {
+    mode: RecommendationMode;
+    mode_label: string;
+    returned_count: number;
+    eligible_formations: number;
+    eligible_institutions: number;
+    related_formations: number;
+    dataset_formations: number;
+    dataset_institutions: number;
+    education_match: "exact";
+    formation_type: "UMUM";
+    scope_note: string;
+  };
+  target_recommendations?: RationalizationTargetSimulation[];
 }
 
 export function isRationalizationSnapshot(value: unknown): value is RationalizationSnapshot {
@@ -119,7 +146,7 @@ export function isRationalizationSnapshot(value: unknown): value is Rationalizat
   const snapshot = value as Partial<RationalizationSnapshot>;
   return (
     snapshot.kind === "skd_rationalization" &&
-    (snapshot.version === 1 || snapshot.version === 2) &&
+    (snapshot.version === 1 || snapshot.version === 2 || snapshot.version === 3) &&
     typeof snapshot.participant?.name === "string" &&
     typeof snapshot.formation?.institution === "string" &&
     typeof snapshot.verdict?.code === "string"
@@ -166,6 +193,25 @@ export function buildRationalizationCaption(snapshot: RationalizationSnapshot): 
   const target = snapshot.target_simulation;
   const targetGap = target?.score_gap_to_shortlist_cutoff;
   const targetRank = target?.simulated_rank;
+  const recommendations = snapshot.target_recommendations ?? [];
+  if (recommendations.length) {
+    return [
+      `Hasil rasionalisasi SKD ${snapshot.participant.name} sudah siap.`,
+      `${snapshot.verdict.label} | Total ${snapshot.participant.total ?? "-"}`,
+      ...recommendations.map((item, index) => {
+        const gap = item.score_gap_to_shortlist_cutoff;
+        const relation = item.is_mode_fallback ? " | lintas jabatan" : "";
+        return `${index + 1}. ${item.verdict.label}: ${item.position} - ${item.institution} | posisi ${item.simulated_rank ?? "-"}/${item.attended} | selisih ${
+          gap === null ? "-" : gap > 0 ? `+${gap}` : gap
+        }${relation}`;
+      }),
+      snapshot.recommendation_summary?.scope_note ?? null,
+      `Acuan data resmi SKD ${snapshot.dataset_year}; bukan jaminan hasil seleksi berikutnya.`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }
+
   return [
     `Hasil rasionalisasi SKD ${snapshot.participant.name} sudah siap.`,
     `${snapshot.verdict.label} | Total ${snapshot.participant.total ?? "-"}`,

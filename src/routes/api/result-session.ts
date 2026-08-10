@@ -13,6 +13,7 @@ interface LeadInput {
   target_instansi?: string;
   target_formasi?: string;
   target_formation_id?: string;
+  recommendation_mode?: "related" | "all";
   rencana?: string;
   consent_whatsapp?: boolean;
   consent_marketing?: boolean;
@@ -55,14 +56,19 @@ export const Route = createFileRoute("/api/result-session")({
         const leadInput = body?.lead;
         const namaPanggilan = clean(leadInput?.nama_panggilan, 80);
         const targetTahun = clean(leadInput?.target_tahun, 30);
+        const rawTargetFormationId = leadInput?.target_formation_id?.trim() ?? "";
         const targetFormationId = cleanUuid(leadInput?.target_formation_id);
+        const recommendationMode = leadInput?.recommendation_mode === "all" ? "all" : "related";
         const rencana = clean(leadInput?.rencana, 50);
+
+        if (rawTargetFormationId && !targetFormationId) {
+          return jsonResponse({ message: "ID target formasi tidak valid." }, 400);
+        }
 
         if (
           !scoreId ||
           !namaPanggilan ||
           !targetTahun ||
-          !targetFormationId ||
           !rencana ||
           leadInput?.consent_whatsapp !== true
         ) {
@@ -101,45 +107,62 @@ export const Route = createFileRoute("/api/result-session")({
           return jsonResponse({ message: "Batch SKD belum dipublikasikan." }, 404);
         }
 
-        const { data: targetFormation, error: targetError } = await sb
-          .from("skd_formations")
-          .select(
-            "id, batch_id, nama_instansi, jabatan, jenis_formasi, pendidikan_options, quality_status",
-          )
-          .eq("id", targetFormationId)
-          .maybeSingle();
-        if (targetError) return jsonResponse({ message: targetError.message }, 500);
+        let targetFormation: {
+          id: string;
+          batch_id: string;
+          nama_instansi: string;
+          jabatan: string;
+          jenis_formasi: string | null;
+          pendidikan_options: string[] | null;
+          quality_status: string;
+        } | null = null;
 
-        const participantEducation = score.pendidikan
-          ? normalizedEducation(score.pendidikan)
-          : null;
-        const acceptedEducations = Array.isArray(targetFormation?.pendidikan_options)
-          ? targetFormation.pendidikan_options.map((value: string) => normalizedEducation(value))
-          : [];
-        const targetIsValid =
-          targetFormation &&
-          targetFormation.id !== score.formation_id &&
-          targetFormation.quality_status === "verified" &&
-          normalizedEducation(targetFormation.jenis_formasi ?? "") === "UMUM" &&
-          participantEducation !== null &&
-          acceptedEducations.includes(participantEducation);
-        if (!targetIsValid) {
-          return jsonResponse(
-            { message: "Target harus berupa formasi UMUM yang menerima pendidikan peserta." },
-            400,
-          );
-        }
+        if (targetFormationId) {
+          const { data, error: targetError } = await sb
+            .from("skd_formations")
+            .select(
+              "id, batch_id, nama_instansi, jabatan, jenis_formasi, pendidikan_options, quality_status",
+            )
+            .eq("id", targetFormationId)
+            .maybeSingle();
+          if (targetError) return jsonResponse({ message: targetError.message }, 500);
+          targetFormation = data;
 
-        const [{ data: targetBatch }, { data: targetStats }] = await Promise.all([
-          sb.from("skd_batches").select("status").eq("id", targetFormation.batch_id).maybeSingle(),
-          sb
-            .from("skd_formation_stats")
-            .select("formation_id")
-            .eq("formation_id", targetFormation.id)
-            .maybeSingle(),
-        ]);
-        if (targetBatch?.status !== "published" || !targetStats) {
-          return jsonResponse({ message: "Data historis target belum siap dianalisis." }, 400);
+          const participantEducation = score.pendidikan
+            ? normalizedEducation(score.pendidikan)
+            : null;
+          const acceptedEducations = Array.isArray(targetFormation?.pendidikan_options)
+            ? targetFormation.pendidikan_options.map((value) => normalizedEducation(value))
+            : [];
+          const targetIsValid =
+            targetFormation &&
+            targetFormation.id !== score.formation_id &&
+            targetFormation.quality_status === "verified" &&
+            normalizedEducation(targetFormation.jenis_formasi ?? "") === "UMUM" &&
+            participantEducation !== null &&
+            acceptedEducations.includes(participantEducation);
+          if (!targetIsValid) {
+            return jsonResponse(
+              { message: "Target harus berupa formasi UMUM yang menerima pendidikan peserta." },
+              400,
+            );
+          }
+
+          const [{ data: targetBatch }, { data: targetStats }] = await Promise.all([
+            sb
+              .from("skd_batches")
+              .select("status")
+              .eq("id", targetFormation.batch_id)
+              .maybeSingle(),
+            sb
+              .from("skd_formation_stats")
+              .select("formation_id")
+              .eq("formation_id", targetFormation.id)
+              .maybeSingle(),
+          ]);
+          if (targetBatch?.status !== "published" || !targetStats) {
+            return jsonResponse({ message: "Data historis target belum siap dianalisis." }, 400);
+          }
         }
 
         const { data: lead, error: leadError } = await sb
@@ -149,9 +172,10 @@ export const Route = createFileRoute("/api/result-session")({
             nama_panggilan: namaPanggilan,
             whatsapp: null,
             target_tahun: targetTahun,
-            target_instansi: targetFormation.nama_instansi,
-            target_formasi: targetFormation.jabatan,
-            target_formation_id: targetFormation.id,
+            target_instansi: targetFormation?.nama_instansi ?? null,
+            target_formasi: targetFormation?.jabatan ?? null,
+            target_formation_id: targetFormation?.id ?? null,
+            recommendation_mode: recommendationMode,
             rencana,
             consent_whatsapp: true,
             consent_marketing: leadInput?.consent_marketing === true,
@@ -170,8 +194,10 @@ export const Route = createFileRoute("/api/result-session")({
           tkp: score.tkp,
           total: score.total,
           target_tahun: targetTahun,
-          target_instansi: targetFormation.nama_instansi,
-          target_formasi: targetFormation.jabatan,
+          target_instansi: targetFormation?.nama_instansi ?? "Rekomendasi otomatis",
+          target_formasi:
+            targetFormation?.jabatan ??
+            (recommendationMode === "related" ? "Jabatan sejenis" : "Semua sesuai pendidikan"),
           rencana,
         };
         const useQueue = asyncRationalizationEnabled();

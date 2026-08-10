@@ -5,6 +5,7 @@ export interface LeadFormInput {
   target_instansi?: string;
   target_formasi?: string;
   target_formation_id?: string;
+  recommendation_mode: "related" | "all";
   consent_whatsapp: boolean;
   consent_marketing: boolean;
 }

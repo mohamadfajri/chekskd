@@ -121,6 +121,7 @@ export interface Lead {
   target_instansi: string | null;
   target_formasi: string | null;
   target_formation_id: string | null;
+  recommendation_mode: "related" | "all";
   rencana: string | null;
   consent_whatsapp: boolean;
   consent_marketing: boolean;

@@ -294,7 +294,110 @@ function renderTargetComparisonCardSvg(snapshot: RationalizationSnapshot): strin
   </svg>`;
 }
 
+function renderTopRecommendationsCardSvg(snapshot: RationalizationSnapshot): string {
+  const recommendations = snapshot.target_recommendations ?? [];
+  const participant = snapshot.participant;
+  const original = snapshot.formation;
+  const originalPosition = snapshot.historical_position;
+  const originalStats = snapshot.historical_stats;
+  const summary = snapshot.recommendation_summary;
+  const nameLines = wrap(participant.name, 40, 2);
+  const originalRank = originalPosition.overall_rank
+    ? `${originalPosition.overall_rank}/${originalStats.attended}`
+    : "-";
+  const generated = new Intl.DateTimeFormat("id-ID", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: "Asia/Makassar",
+  }).format(new Date(snapshot.generated_at));
+
+  const scoreTile = (label: string, value: string, x: number, highlight = false) => `
+    <rect x="${x}" y="422" width="204" height="98" rx="10" fill="${highlight ? "#E7F2FC" : "#F3F6F9"}" stroke="${highlight ? "#B9D7F2" : "#DCE5ED"}"/>
+    <text x="${x + 18}" y="454" font-size="16" font-weight="700" fill="#667A8E">${label}</text>
+    <text x="${x + 18}" y="498" font-size="37" font-weight="800" fill="${highlight ? "#0D6CBD" : "#102A43"}">${value}</text>`;
+
+  const recommendationRow = (item: (typeof recommendations)[number], index: number) => {
+    const y = 728 + index * 162;
+    const style = targetVerdictStyle(item.verdict.code);
+    const positionLines = wrap(item.position, 55, 2);
+    const relation = item.is_preferred
+      ? "TARGET PILIHAN"
+      : item.is_mode_fallback
+        ? "LINTAS JABATAN"
+        : item.position_relation === "same_position"
+          ? "JABATAN SAMA"
+          : "JABATAN SEJENIS";
+    const rank = item.simulated_rank ? `${item.simulated_rank}/${item.attended}` : "-";
+    const confidence = item.confidence?.label ?? "Data terbatas";
+
+    return `
+      <rect x="84" y="${y}" width="876" height="146" rx="11" fill="#F8FAFC" stroke="#D7E3EC"/>
+      <circle cx="116" cy="${y + 30}" r="18" fill="#0D6CBD"/>
+      <text x="116" y="${y + 37}" text-anchor="middle" font-size="19" font-weight="800" fill="#FFFFFF">${index + 1}</text>
+      <rect x="146" y="${y + 12}" width="210" height="34" rx="7" fill="${style.fill}"/>
+      <text x="251" y="${y + 35}" text-anchor="middle" font-size="15" font-weight="800" fill="${style.color}">${escapeXml(item.verdict.label.toUpperCase())}</text>
+      <text x="374" y="${y + 35}" font-size="13" font-weight="700" fill="#718397">${relation} | ${escapeXml(confidence.toUpperCase())}</text>
+      <g font-family="${FONT_FAMILY}" font-weight="800">${textLines(positionLines, 146, y + 72, 18, 22)}</g>
+      <text x="146" y="${y + 126}" font-size="15" fill="#667A8E">${escapeXml(clip(item.institution, 68))}</text>
+      <text x="710" y="${y + 64}" font-size="15" font-weight="700" fill="#667A8E">POSISI</text>
+      <text x="936" y="${y + 64}" text-anchor="end" font-size="22" font-weight="800" fill="#102A43">${rank}</text>
+      <text x="710" y="${y + 92}" font-size="15" font-weight="700" fill="#667A8E">BATAS / SELISIH</text>
+      <text x="936" y="${y + 92}" text-anchor="end" font-size="19" font-weight="800" fill="#102A43">${score(item.cutoff.total)} / ${signedScore(item.score_gap_to_shortlist_cutoff)}</text>
+      <text x="710" y="${y + 120}" font-size="15" font-weight="700" fill="#667A8E">KUOTA / RASIO</text>
+      <text x="936" y="${y + 120}" text-anchor="end" font-size="18" font-weight="800" fill="#102A43">${item.quota} / ${item.competition_ratio === null ? "-" : `${item.competition_ratio}x`}</text>`;
+  };
+
+  const modeLabel = summary?.mode_label ?? "Rekomendasi otomatis";
+  const coverage = summary?.scope_note ?? "Cakupan mengikuti formasi terverifikasi dalam database.";
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+  <svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}">
+    <rect width="1080" height="1350" fill="#F4F7FA"/>
+    <rect width="1080" height="218" fill="#082D52"/>
+    <rect x="64" y="50" width="8" height="116" fill="#38A3E3"/>
+    <text x="94" y="78" font-family="${FONT_FAMILY}" font-size="24" font-weight="700" fill="#8ECBF0">CPNSGURU.ID / DATA SKD</text>
+    <text x="94" y="128" font-family="${FONT_FAMILY}" font-size="42" font-weight="800" fill="#FFFFFF">3 TARGET RASIONAL</text>
+    <text x="94" y="174" font-family="${FONT_FAMILY}" font-size="27" font-weight="700" fill="#D8E8F4">${escapeXml(modeLabel.toUpperCase())}</text>
+    <rect x="850" y="54" width="166" height="46" rx="8" fill="#FFFFFF" fill-opacity="0.12"/>
+    <text x="933" y="85" text-anchor="middle" font-family="${FONT_FAMILY}" font-size="21" font-weight="700" fill="#FFFFFF">DATA ${snapshot.dataset_year}</text>
+
+    <rect x="48" y="250" width="984" height="1052" rx="18" fill="#FFFFFF" stroke="#D9E3EC"/>
+    <text x="84" y="300" font-family="${FONT_FAMILY}" font-size="17" font-weight="700" fill="#718397">PESERTA</text>
+    <g font-family="${FONT_FAMILY}" font-weight="800">${textLines(nameLines, 84, 340, 31, 37)}</g>
+    <text x="84" y="400" font-family="${FONT_FAMILY}" font-size="16" fill="#667A8E">Pendidikan ${escapeXml(clip(participant.education, 45))} | No. ${escapeXml(maskNoPeserta(participant.participant_number))}</text>
+
+    <g font-family="${FONT_FAMILY}">
+      ${scoreTile("TWK", score(participant.twk), 84)}
+      ${scoreTile("TIU", score(participant.tiu), 308)}
+      ${scoreTile("TKP", score(participant.tkp), 532)}
+      ${scoreTile("TOTAL", score(participant.total), 756, true)}
+    </g>
+
+    <rect x="84" y="544" width="876" height="108" rx="11" fill="#F2F7FB" stroke="#D6E4EF"/>
+    <text x="108" y="578" font-family="${FONT_FAMILY}" font-size="15" font-weight="700" fill="#718397">POSISI HISTORIS FORMASI ASAL</text>
+    <text x="108" y="615" font-family="${FONT_FAMILY}" font-size="20" font-weight="800" fill="#17324D">${escapeXml(clip(original.position, 54))}</text>
+    <text x="108" y="640" font-family="${FONT_FAMILY}" font-size="15" fill="#667A8E">${escapeXml(clip(original.institution, 58))}</text>
+    <text x="936" y="594" text-anchor="end" font-family="${FONT_FAMILY}" font-size="18" font-weight="800" fill="#0D6CBD">POSISI ${originalRank}</text>
+    <text x="936" y="625" text-anchor="end" font-family="${FONT_FAMILY}" font-size="16" font-weight="700" fill="#667A8E">BATAS ${score(originalStats.cutoff.total)} | SELISIH ${signedScore(originalPosition.score_gap_to_shortlist_cutoff)}</text>
+
+    <text x="84" y="700" font-family="${FONT_FAMILY}" font-size="17" font-weight="800" fill="#0D6CBD">REKOMENDASI FORMASI UMUM / PENDIDIKAN COCOK</text>
+    <g font-family="${FONT_FAMILY}">
+      ${recommendations.slice(0, 3).map(recommendationRow).join("")}
+    </g>
+
+    <rect x="84" y="1222" width="876" height="64" rx="9" fill="#EEF6FC" stroke="#B9D7F2"/>
+    <text x="108" y="1248" font-family="${FONT_FAMILY}" font-size="14" font-weight="700" fill="#0D6CBD">CAKUPAN DATA</text>
+    <text x="108" y="1272" font-family="${FONT_FAMILY}" font-size="14" fill="#395A73">${escapeXml(clip(coverage, 105))}</text>
+
+    <rect x="0" y="1318" width="1080" height="32" fill="#082D52"/>
+    <text x="54" y="1340" font-family="${FONT_FAMILY}" font-size="14" fill="#D8E8F4">Simulasi historis; periksa kembali syarat resmi dan bukan jaminan kelulusan.</text>
+    <text x="1026" y="1340" text-anchor="end" font-family="${FONT_FAMILY}" font-size="14" fill="#D8E8F4">${escapeXml(generated)}</text>
+  </svg>`;
+}
+
 export function renderRationalizationCardSvg(snapshot: RationalizationSnapshot): string {
+  if (snapshot.target_recommendations?.length) return renderTopRecommendationsCardSvg(snapshot);
   if (snapshot.target_simulation) return renderTargetComparisonCardSvg(snapshot);
 
   const verdict = verdictStyle(snapshot.verdict.code);

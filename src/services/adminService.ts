@@ -289,6 +289,7 @@ export interface AdminResultSession {
     nama_panggilan: string | null;
     target_instansi: string | null;
     target_formasi: string | null;
+    recommendation_mode: "related" | "all";
     consent_marketing: boolean;
   } | null;
 }

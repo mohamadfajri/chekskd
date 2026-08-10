@@ -109,18 +109,17 @@ export const Route = createFileRoute("/api/wa-jobs")({
           ? await sb
               .from("leads")
               .select(
-                "nama_panggilan, target_tahun, target_instansi, target_formasi, target_formation_id, rencana",
+                "nama_panggilan, target_tahun, target_instansi, target_formasi, target_formation_id, recommendation_mode, rencana",
               )
               .eq("id", session.lead_id)
               .maybeSingle()
           : { data: null };
 
-        const rationalizationRequest = lead?.target_formation_id
-          ? await sb.rpc("get_skd_rationalization_v2", {
-              p_score_id: job.score_id,
-              p_target_formation_id: lead.target_formation_id,
-            })
-          : await sb.rpc("get_skd_rationalization", { p_score_id: job.score_id });
+        const rationalizationRequest = await sb.rpc("get_skd_rationalization_v3", {
+          p_score_id: job.score_id,
+          p_recommendation_mode: lead?.recommendation_mode === "all" ? "all" : "related",
+          p_preferred_target_formation_id: lead?.target_formation_id ?? null,
+        });
         const { data: rationalization, error: rationalizationError } = rationalizationRequest;
         if (rationalizationError || !rationalization) {
           await failJob(

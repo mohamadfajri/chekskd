@@ -51,6 +51,7 @@ function ResultPage() {
     target_instansi: "",
     target_formasi: "",
     target_formation_id: "",
+    recommendation_mode: "related",
     consent_whatsapp: false,
     consent_marketing: false,
   });
@@ -121,10 +122,6 @@ function ResultPage() {
     e.preventDefault();
     if (!form.consent_whatsapp) {
       toast.error("Silakan centang persetujuan WhatsApp.");
-      return;
-    }
-    if (!form.target_formation_id || !selectedTarget) {
-      toast.error("Pilih satu target formasi dari hasil pencarian.");
       return;
     }
     mutation.mutate();
@@ -281,7 +278,46 @@ function ResultPage() {
                   <option value="Belum yakin">Belum yakin</option>
                 </select>
               </SmallField>
-              <SmallField label="Bandingkan dengan target" required>
+              <fieldset>
+                <legend className="mb-1 block text-xs font-semibold">
+                  Jenis rekomendasi <span className="text-destructive">*</span>
+                </legend>
+                <div
+                  role="radiogroup"
+                  aria-label="Jenis rekomendasi formasi"
+                  className="grid grid-cols-2 rounded-lg border border-border bg-muted p-1"
+                >
+                  {[
+                    {
+                      value: "related" as const,
+                      label: "Jabatan sejenis",
+                      description: "Utamakan bidang jabatan yang mirip",
+                    },
+                    {
+                      value: "all" as const,
+                      label: "Semua sesuai",
+                      description: "Jelajahi semua jabatan yang menerima pendidikan",
+                    },
+                  ].map((mode) => (
+                    <button
+                      key={mode.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={form.recommendation_mode === mode.value}
+                      onClick={() => setForm({ ...form, recommendation_mode: mode.value })}
+                      className={`min-h-16 rounded-md px-2.5 py-2 text-left transition ${
+                        form.recommendation_mode === mode.value
+                          ? "bg-background text-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      <span className="block text-xs font-bold">{mode.label}</span>
+                      <span className="mt-0.5 block text-[10px] leading-4">{mode.description}</span>
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+              <SmallField label="Target tertentu (opsional)">
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                   <input
@@ -299,9 +335,8 @@ function ResultPage() {
                       }
                       setTargetSearch(event.target.value);
                     }}
-                    placeholder="Cari instansi atau jabatan"
+                    placeholder="Biarkan kosong untuk rekomendasi otomatis"
                     autoComplete="off"
-                    required
                   />
                   {targetQuery.isFetching ? (
                     <Loader2 className="absolute right-3 top-2.5 h-4 w-4 animate-spin text-muted-foreground" />
@@ -366,8 +401,8 @@ function ResultPage() {
                 </div>
               ) : (
                 <p className="px-1 text-[11px] text-muted-foreground">
-                  Hanya formasi UMUM terverifikasi yang menerima pendidikan{" "}
-                  {s.pendidikan ?? "peserta"}.
+                  Mesin akan memilih tiga formasi UMUM terverifikasi yang menerima pendidikan{" "}
+                  {s.pendidikan ?? "peserta"}. Target tertentu akan diprioritaskan jika dipilih.
                 </p>
               )}
 
