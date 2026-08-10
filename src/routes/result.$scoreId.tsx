@@ -1,10 +1,24 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useState } from "react";
-import { Loader2, AlertCircle, ArrowLeft, Image, MessageCircle } from "lucide-react";
+import { useDeferredValue, useState } from "react";
+import {
+  Loader2,
+  AlertCircle,
+  ArrowLeft,
+  CheckCircle2,
+  Image,
+  MessageCircle,
+  Search,
+  X,
+} from "lucide-react";
 import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
 import { getSkdScoreById } from "@/services/skdService";
-import { createLeadAndSession, type LeadFormInput } from "@/services/leadService";
+import {
+  createLeadAndSession,
+  searchRationalizationTargets,
+  type LeadFormInput,
+  type RationalizationTargetOption,
+} from "@/services/leadService";
 import { getZona, lolosPassingGrade, zonaLabel, zonaColor } from "@/lib/analysis";
 import { toast } from "sonner";
 
@@ -36,8 +50,19 @@ function ResultPage() {
     rencana: "Belum yakin",
     target_instansi: "",
     target_formasi: "",
+    target_formation_id: "",
     consent_whatsapp: false,
     consent_marketing: false,
+  });
+  const [targetSearch, setTargetSearch] = useState("");
+  const [selectedTarget, setSelectedTarget] = useState<RationalizationTargetOption | null>(null);
+  const deferredTargetSearch = useDeferredValue(targetSearch.trim());
+
+  const targetQuery = useQuery({
+    queryKey: ["rationalization-targets", scoreId, deferredTargetSearch],
+    queryFn: () => searchRationalizationTargets(scoreId, deferredTargetSearch),
+    enabled: !selectedTarget && deferredTargetSearch.length >= 2,
+    staleTime: 30_000,
   });
 
   const mutation = useMutation({
@@ -98,7 +123,28 @@ function ResultPage() {
       toast.error("Silakan centang persetujuan WhatsApp.");
       return;
     }
+    if (!form.target_formation_id || !selectedTarget) {
+      toast.error("Pilih satu target formasi dari hasil pencarian.");
+      return;
+    }
     mutation.mutate();
+  }
+
+  function chooseTarget(target: RationalizationTargetOption) {
+    setSelectedTarget(target);
+    setTargetSearch(`${target.institution} - ${target.position}`);
+    setForm({
+      ...form,
+      target_formation_id: target.id,
+      target_instansi: target.institution,
+      target_formasi: target.position,
+    });
+  }
+
+  function clearTarget() {
+    setSelectedTarget(null);
+    setTargetSearch("");
+    setForm({ ...form, target_formation_id: "", target_instansi: "", target_formasi: "" });
   }
 
   return (
@@ -235,20 +281,95 @@ function ResultPage() {
                   <option value="Belum yakin">Belum yakin</option>
                 </select>
               </SmallField>
-              <SmallField label="Target instansi (opsional)">
-                <input
-                  className="input-base"
-                  value={form.target_instansi}
-                  onChange={(e) => setForm({ ...form, target_instansi: e.target.value })}
-                />
+              <SmallField label="Bandingkan dengan target" required>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <input
+                    className="input-base target-input"
+                    value={targetSearch}
+                    onChange={(event) => {
+                      if (selectedTarget) {
+                        setSelectedTarget(null);
+                        setForm({
+                          ...form,
+                          target_formation_id: "",
+                          target_instansi: "",
+                          target_formasi: "",
+                        });
+                      }
+                      setTargetSearch(event.target.value);
+                    }}
+                    placeholder="Cari instansi atau jabatan"
+                    autoComplete="off"
+                    required
+                  />
+                  {targetQuery.isFetching ? (
+                    <Loader2 className="absolute right-3 top-2.5 h-4 w-4 animate-spin text-muted-foreground" />
+                  ) : targetSearch ? (
+                    <button
+                      type="button"
+                      onClick={clearTarget}
+                      className="absolute right-2 top-1.5 grid h-7 w-7 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                      title="Hapus target"
+                      aria-label="Hapus target"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  ) : null}
+
+                  {!selectedTarget && deferredTargetSearch.length >= 2 ? (
+                    <div className="absolute z-20 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-border bg-background shadow-lg">
+                      {targetQuery.isError ? (
+                        <p className="p-3 text-xs text-destructive">Target belum dapat dimuat.</p>
+                      ) : targetQuery.data?.length ? (
+                        targetQuery.data.map((target) => (
+                          <button
+                            key={target.id}
+                            type="button"
+                            onClick={() => chooseTarget(target)}
+                            className="block w-full border-b border-border px-3 py-3 text-left last:border-b-0 hover:bg-muted/70"
+                          >
+                            <span className="block text-xs font-bold text-foreground">
+                              {target.position}
+                            </span>
+                            <span className="mt-0.5 block text-xs text-muted-foreground">
+                              {target.institution}
+                            </span>
+                            <span className="mt-1 block text-[11px] text-muted-foreground">
+                              Kuota {target.quota} | Batas {target.cutoff_total ?? "-"} | Selisih{" "}
+                              {target.score_gap === null
+                                ? "-"
+                                : target.score_gap > 0
+                                  ? `+${target.score_gap}`
+                                  : target.score_gap}
+                            </span>
+                          </button>
+                        ))
+                      ) : !targetQuery.isFetching ? (
+                        <p className="p-3 text-xs text-muted-foreground">
+                          Tidak ada formasi UMUM yang cocok dengan pendidikan dan pencarian ini.
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
               </SmallField>
-              <SmallField label="Target formasi (opsional)">
-                <input
-                  className="input-base"
-                  value={form.target_formasi}
-                  onChange={(e) => setForm({ ...form, target_formasi: e.target.value })}
-                />
-              </SmallField>
+
+              {selectedTarget ? (
+                <div className="flex gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="font-bold">Target terpilih</p>
+                    <p className="mt-0.5 break-words">{selectedTarget.position}</p>
+                    <p className="mt-0.5 break-words opacity-80">{selectedTarget.institution}</p>
+                  </div>
+                </div>
+              ) : (
+                <p className="px-1 text-[11px] text-muted-foreground">
+                  Hanya formasi UMUM terverifikasi yang menerima pendidikan{" "}
+                  {s.pendidikan ?? "peserta"}.
+                </p>
+              )}
 
               <label className="mt-2 flex items-start gap-2 rounded-lg bg-muted/60 p-3 text-xs text-muted-foreground">
                 <input
@@ -289,6 +410,7 @@ function ResultPage() {
 
       <style>{`
         .input-base { width:100%; border-radius:.5rem; border:1px solid var(--color-border); background:var(--color-background); padding:.55rem .75rem; font-size:.875rem; outline:none; transition: box-shadow .15s, border-color .15s; }
+        .input-base.target-input { padding-left:2.25rem; padding-right:2.25rem; }
         .input-base:focus { border-color: var(--color-primary); box-shadow: 0 0 0 3px color-mix(in oklch, var(--color-primary) 20%, transparent); }
       `}</style>
     </PageShell>

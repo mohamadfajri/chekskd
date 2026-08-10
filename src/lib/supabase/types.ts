@@ -120,6 +120,7 @@ export interface Lead {
   target_tahun: string | null;
   target_instansi: string | null;
   target_formasi: string | null;
+  target_formation_id: string | null;
   rencana: string | null;
   consent_whatsapp: boolean;
   consent_marketing: boolean;

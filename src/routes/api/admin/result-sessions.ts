@@ -27,7 +27,7 @@ export const Route = createFileRoute("/api/admin/result-sessions")({
           sb
             .from("result_sessions")
             .select(
-              "id, token, status, sender_wa_id, used_count, created_at, updated_at, delivered_at, failure_message, leads(nama_panggilan, consent_marketing)",
+              "id, token, status, sender_wa_id, used_count, created_at, updated_at, delivered_at, failure_message, leads(nama_panggilan, target_instansi, target_formasi, consent_marketing)",
             )
             .order("created_at", { ascending: false })
             .limit(100),

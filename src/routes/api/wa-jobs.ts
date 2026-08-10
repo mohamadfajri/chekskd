@@ -94,21 +94,6 @@ export const Route = createFileRoute("/api/wa-jobs")({
         if (!claimed) return jsonResponse({ success: true, job: null });
 
         const job = claimed as unknown as ClaimedJob;
-        const { data: rationalization, error: rationalizationError } = await sb.rpc(
-          "get_skd_rationalization",
-          { p_score_id: job.score_id },
-        );
-        if (rationalizationError || !rationalization) {
-          await failJob(
-            sb,
-            job.job_id,
-            rationalizationError?.message ?? "rationalization_not_found",
-          );
-          return jsonResponse(
-            { success: false, message: "Rasionalisasi belum dapat dihitung." },
-            500,
-          );
-        }
 
         const { data: session, error: sessionError } = await sb
           .from("result_sessions")
@@ -123,10 +108,32 @@ export const Route = createFileRoute("/api/wa-jobs")({
         const { data: lead } = session.lead_id
           ? await sb
               .from("leads")
-              .select("nama_panggilan, target_tahun, target_instansi, target_formasi, rencana")
+              .select(
+                "nama_panggilan, target_tahun, target_instansi, target_formasi, target_formation_id, rencana",
+              )
               .eq("id", session.lead_id)
               .maybeSingle()
           : { data: null };
+
+        const rationalizationRequest = lead?.target_formation_id
+          ? await sb.rpc("get_skd_rationalization_v2", {
+              p_score_id: job.score_id,
+              p_target_formation_id: lead.target_formation_id,
+            })
+          : await sb.rpc("get_skd_rationalization", { p_score_id: job.score_id });
+        const { data: rationalization, error: rationalizationError } = rationalizationRequest;
+        if (rationalizationError || !rationalization) {
+          await failJob(
+            sb,
+            job.job_id,
+            rationalizationError?.message ?? "rationalization_not_found",
+          );
+          return jsonResponse(
+            { success: false, message: "Rasionalisasi target belum dapat dihitung." },
+            500,
+          );
+        }
+
         const snapshot = {
           ...(rationalization as Record<string, unknown>),
           kind: "skd_rationalization",

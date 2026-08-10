@@ -18,6 +18,7 @@ import { Route as ApiWaResultRouteImport } from './routes/api/wa-result'
 import { Route as ApiWaJobsRouteImport } from './routes/api/wa-jobs'
 import { Route as ApiResultSessionRouteImport } from './routes/api/result-session'
 import { Route as ApiResultCardRouteImport } from './routes/api/result-card'
+import { Route as ApiRationalizationTargetsRouteImport } from './routes/api/rationalization-targets'
 import { Route as ApiAdminSkdReviewRouteImport } from './routes/api/admin/skd-review'
 import { Route as ApiAdminSkdPdfRouteImport } from './routes/api/admin/skd-pdf'
 import { Route as ApiAdminSkdExplorerRouteImport } from './routes/api/admin/skd-explorer'
@@ -70,6 +71,12 @@ const ApiResultCardRoute = ApiResultCardRouteImport.update({
   path: '/api/result-card',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiRationalizationTargetsRoute =
+  ApiRationalizationTargetsRouteImport.update({
+    id: '/api/rationalization-targets',
+    path: '/api/rationalization-targets',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAdminSkdReviewRoute = ApiAdminSkdReviewRouteImport.update({
   id: '/api/admin/skd-review',
   path: '/api/admin/skd-review',
@@ -105,6 +112,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/search': typeof SearchRoute
+  '/api/rationalization-targets': typeof ApiRationalizationTargetsRoute
   '/api/result-card': typeof ApiResultCardRoute
   '/api/result-session': typeof ApiResultSessionRoute
   '/api/wa-jobs': typeof ApiWaJobsRoute
@@ -122,6 +130,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/search': typeof SearchRoute
+  '/api/rationalization-targets': typeof ApiRationalizationTargetsRoute
   '/api/result-card': typeof ApiResultCardRoute
   '/api/result-session': typeof ApiResultSessionRoute
   '/api/wa-jobs': typeof ApiWaJobsRoute
@@ -140,6 +149,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/search': typeof SearchRoute
+  '/api/rationalization-targets': typeof ApiRationalizationTargetsRoute
   '/api/result-card': typeof ApiResultCardRoute
   '/api/result-session': typeof ApiResultSessionRoute
   '/api/wa-jobs': typeof ApiWaJobsRoute
@@ -159,6 +169,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/search'
+    | '/api/rationalization-targets'
     | '/api/result-card'
     | '/api/result-session'
     | '/api/wa-jobs'
@@ -176,6 +187,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/search'
+    | '/api/rationalization-targets'
     | '/api/result-card'
     | '/api/result-session'
     | '/api/wa-jobs'
@@ -193,6 +205,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/search'
+    | '/api/rationalization-targets'
     | '/api/result-card'
     | '/api/result-session'
     | '/api/wa-jobs'
@@ -211,6 +224,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   SearchRoute: typeof SearchRoute
+  ApiRationalizationTargetsRoute: typeof ApiRationalizationTargetsRoute
   ApiResultCardRoute: typeof ApiResultCardRoute
   ApiResultSessionRoute: typeof ApiResultSessionRoute
   ApiWaJobsRoute: typeof ApiWaJobsRoute
@@ -290,6 +304,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiResultCardRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/rationalization-targets': {
+      id: '/api/rationalization-targets'
+      path: '/api/rationalization-targets'
+      fullPath: '/api/rationalization-targets'
+      preLoaderRoute: typeof ApiRationalizationTargetsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/skd-review': {
       id: '/api/admin/skd-review'
       path: '/api/admin/skd-review'
@@ -339,6 +360,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   SearchRoute: SearchRoute,
+  ApiRationalizationTargetsRoute: ApiRationalizationTargetsRoute,
   ApiResultCardRoute: ApiResultCardRoute,
   ApiResultSessionRoute: ApiResultSessionRoute,
   ApiWaJobsRoute: ApiWaJobsRoute,

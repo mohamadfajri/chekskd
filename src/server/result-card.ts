@@ -6,8 +6,10 @@ import type { AnalysisSnapshot, Zona } from "@/lib/analysis";
 import { maskNoPeserta } from "@/lib/analysis";
 import {
   rationalizationRecommendation,
+  targetSimulationRecommendation,
   type RationalizationSnapshot,
   type RationalizationVerdict,
+  type TargetSimulationVerdict,
 } from "@/lib/rationalization";
 
 const WIDTH = 1080;
@@ -193,7 +195,108 @@ function signedScore(value: number | null): string {
   return value > 0 ? `+${value}` : String(value);
 }
 
+function targetVerdictStyle(code: TargetSimulationVerdict): { fill: string; color: string } {
+  if (code === "very_competitive" || code === "competitive") {
+    return { fill: "#DDF4EA", color: "#167052" };
+  }
+  if (code === "close") return { fill: "#FFF0CF", color: "#925B08" };
+  return { fill: "#FBE2E3", color: "#A5363B" };
+}
+
+function renderTargetComparisonCardSvg(snapshot: RationalizationSnapshot): string {
+  const target = snapshot.target_simulation!;
+  const originalStyle = verdictStyle(snapshot.verdict.code);
+  const targetStyle = targetVerdictStyle(target.verdict.code);
+  const participant = snapshot.participant;
+  const original = snapshot.formation;
+  const originalPosition = snapshot.historical_position;
+  const originalStats = snapshot.historical_stats;
+  const nameLines = wrap(participant.name, 40, 2);
+  const originalFormationLines = wrap(original.position, 67, 2);
+  const originalInstitutionLines = wrap(original.institution, 75, 1);
+  const targetFormationLines = wrap(target.position, 67, 2);
+  const targetInstitutionLines = wrap(target.institution, 75, 1);
+  const recommendationLines = wrap(targetSimulationRecommendation(target.verdict.code), 82, 3);
+  const originalRank = originalPosition.overall_rank
+    ? `${originalPosition.overall_rank}/${originalStats.attended}`
+    : "-";
+  const targetRank = target.simulated_rank ? `${target.simulated_rank}/${target.attended}` : "-";
+  const generated = new Intl.DateTimeFormat("id-ID", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: "Asia/Makassar",
+  }).format(new Date(snapshot.generated_at));
+
+  const scoreTile = (label: string, value: string, x: number, highlight = false) => `
+    <rect x="${x}" y="438" width="204" height="104" rx="10" fill="${highlight ? "#E7F2FC" : "#F3F6F9"}" stroke="${highlight ? "#B9D7F2" : "#DCE5ED"}"/>
+    <text x="${x + 18}" y="471" font-size="17" font-weight="700" fill="#667A8E">${label}</text>
+    <text x="${x + 18}" y="519" font-size="40" font-weight="800" fill="${highlight ? "#0D6CBD" : "#102A43"}">${value}</text>`;
+  const targetMetric = (label: string, value: string, x: number) => `
+    <rect x="${x}" y="1070" width="194" height="82" rx="9" fill="#FFFFFF" stroke="#C9DBE9"/>
+    <text x="${x + 14}" y="1098" font-size="15" font-weight="700" fill="#667A8E">${label}</text>
+    <text x="${x + 14}" y="1134" font-size="29" font-weight="800" fill="#102A43">${value}</text>`;
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+  <svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}">
+    <rect width="1080" height="1350" fill="#F4F7FA"/>
+    <rect width="1080" height="218" fill="#082D52"/>
+    <rect x="64" y="50" width="8" height="116" fill="#38A3E3"/>
+    <text x="94" y="78" font-family="${FONT_FAMILY}" font-size="24" font-weight="700" fill="#8ECBF0">CPNSGURU.ID / DATA SKD</text>
+    <text x="94" y="128" font-family="${FONT_FAMILY}" font-size="42" font-weight="800" fill="#FFFFFF">SIMULASI TARGET SKD</text>
+    <text x="94" y="174" font-family="${FONT_FAMILY}" font-size="29" font-weight="700" fill="#D8E8F4">NILAI SAMA, FORMASI BERBEDA</text>
+    <rect x="850" y="54" width="166" height="46" rx="8" fill="#FFFFFF" fill-opacity="0.12"/>
+    <text x="933" y="85" text-anchor="middle" font-family="${FONT_FAMILY}" font-size="21" font-weight="700" fill="#FFFFFF">DATA ${snapshot.dataset_year}</text>
+
+    <rect x="48" y="250" width="984" height="1052" rx="18" fill="#FFFFFF" stroke="#D9E3EC"/>
+    <text x="84" y="300" font-family="${FONT_FAMILY}" font-size="17" font-weight="700" fill="#718397">PESERTA</text>
+    <g font-family="${FONT_FAMILY}" font-weight="800">${textLines(nameLines, 84, 340, 32, 38)}</g>
+    <text x="84" y="414" font-family="${FONT_FAMILY}" font-size="17" fill="#667A8E">Pendidikan ${escapeXml(clip(participant.education, 45))} | No. ${escapeXml(maskNoPeserta(participant.participant_number))}</text>
+
+    <g font-family="${FONT_FAMILY}">
+      ${scoreTile("TWK", score(participant.twk), 84)}
+      ${scoreTile("TIU", score(participant.tiu), 308)}
+      ${scoreTile("TKP", score(participant.tkp), 532)}
+      ${scoreTile("TOTAL", score(participant.total), 756, true)}
+    </g>
+
+    <rect x="84" y="570" width="876" height="228" rx="12" fill="#F7F9FB" stroke="#DCE5ED"/>
+    <text x="108" y="608" font-family="${FONT_FAMILY}" font-size="17" font-weight="700" fill="#718397">FORMASI ASAL</text>
+    <rect x="108" y="628" width="310" height="52" rx="9" fill="${originalStyle.fill}"/>
+    <text x="263" y="662" text-anchor="middle" font-family="${FONT_FAMILY}" font-size="21" font-weight="800" fill="${originalStyle.color}">${escapeXml(snapshot.verdict.label.toUpperCase())}</text>
+    <text x="446" y="649" font-family="${FONT_FAMILY}" font-size="16" font-weight="700" fill="#667A8E">POSISI ${originalRank}</text>
+    <text x="446" y="676" font-family="${FONT_FAMILY}" font-size="16" font-weight="700" fill="#667A8E">BATAS ${score(originalStats.cutoff.total)} | SELISIH ${signedScore(originalPosition.score_gap_to_shortlist_cutoff)}</text>
+    <g font-family="${FONT_FAMILY}" font-weight="700">${textLines(originalFormationLines, 108, 724, 21, 27)}</g>
+    <g font-family="${FONT_FAMILY}">${textLines(originalInstitutionLines, 108, 779, 17, 22)}</g>
+
+    <rect x="84" y="820" width="876" height="340" rx="12" fill="#EEF6FC" stroke="#B9D7F2"/>
+    <text x="108" y="858" font-family="${FONT_FAMILY}" font-size="17" font-weight="700" fill="#0D6CBD">TARGET PILIHAN / FORMASI UMUM</text>
+    <rect x="108" y="878" width="350" height="54" rx="9" fill="${targetStyle.fill}"/>
+    <text x="283" y="914" text-anchor="middle" font-family="${FONT_FAMILY}" font-size="22" font-weight="800" fill="${targetStyle.color}">${escapeXml(target.verdict.label.toUpperCase())}</text>
+    <text x="486" y="899" font-family="${FONT_FAMILY}" font-size="16" font-weight="700" fill="#0D6CBD">KUOTA ${target.quota} | KAPASITAS SKB ${target.shortlist_capacity}</text>
+    <text x="486" y="925" font-family="${FONT_FAMILY}" font-size="16" font-weight="700" fill="#0D6CBD">PENDIDIKAN COCOK / TERVERIFIKASI</text>
+    <g font-family="${FONT_FAMILY}" font-weight="800">${textLines(targetFormationLines, 108, 970, 21, 27)}</g>
+    <g font-family="${FONT_FAMILY}">${textLines(targetInstitutionLines, 108, 1042, 17, 22)}</g>
+    <g font-family="${FONT_FAMILY}">
+      ${targetMetric("POSISI SIMULASI", targetRank, 108)}
+      ${targetMetric("BATAS SKB", score(target.cutoff.total), 322)}
+      ${targetMetric("SELISIH", signedScore(target.score_gap_to_shortlist_cutoff), 536)}
+      ${targetMetric("RASIO / KURSI", target.competition_ratio === null ? "-" : `${target.competition_ratio}x`, 750)}
+    </g>
+
+    <rect x="84" y="1182" width="876" height="104" rx="10" fill="#F2F7FB" stroke="#D6E4EF"/>
+    <text x="108" y="1215" font-family="${FONT_FAMILY}" font-size="16" font-weight="700" fill="#0D6CBD">KESIMPULAN TARGET</text>
+    <g font-family="${FONT_FAMILY}">${textLines(recommendationLines, 108, 1245, 16, 21)}</g>
+
+    <rect x="0" y="1318" width="1080" height="32" fill="#082D52"/>
+    <text x="54" y="1340" font-family="${FONT_FAMILY}" font-size="14" fill="#D8E8F4">Simulasi data resmi ${snapshot.dataset_year}; bukan prediksi atau jaminan kelulusan.</text>
+    <text x="1026" y="1340" text-anchor="end" font-family="${FONT_FAMILY}" font-size="14" fill="#D8E8F4">${escapeXml(generated)}</text>
+  </svg>`;
+}
+
 export function renderRationalizationCardSvg(snapshot: RationalizationSnapshot): string {
+  if (snapshot.target_simulation) return renderTargetComparisonCardSvg(snapshot);
+
   const verdict = verdictStyle(snapshot.verdict.code);
   const participant = snapshot.participant;
   const formation = snapshot.formation;

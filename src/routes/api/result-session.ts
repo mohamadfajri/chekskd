@@ -12,6 +12,7 @@ interface LeadInput {
   target_tahun?: string;
   target_instansi?: string;
   target_formasi?: string;
+  target_formation_id?: string;
   rencana?: string;
   consent_whatsapp?: boolean;
   consent_marketing?: boolean;
@@ -29,6 +30,18 @@ function clean(value: unknown, maxLength: number): string | null {
   return result;
 }
 
+function cleanUuid(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const cleaned = value.trim();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(cleaned)
+    ? cleaned
+    : null;
+}
+
+function normalizedEducation(value: string): string {
+  return value.trim().replace(/\s+/g, " ").toUpperCase();
+}
+
 function asyncRationalizationEnabled(): boolean {
   return process.env.ASYNC_RATIONALIZATION_ENABLED?.trim().toLowerCase() === "true";
 }
@@ -42,12 +55,14 @@ export const Route = createFileRoute("/api/result-session")({
         const leadInput = body?.lead;
         const namaPanggilan = clean(leadInput?.nama_panggilan, 80);
         const targetTahun = clean(leadInput?.target_tahun, 30);
+        const targetFormationId = cleanUuid(leadInput?.target_formation_id);
         const rencana = clean(leadInput?.rencana, 50);
 
         if (
           !scoreId ||
           !namaPanggilan ||
           !targetTahun ||
+          !targetFormationId ||
           !rencana ||
           leadInput?.consent_whatsapp !== true
         ) {
@@ -64,7 +79,9 @@ export const Route = createFileRoute("/api/result-session")({
 
         const { data: score, error: scoreError } = await sb
           .from("skd_scores")
-          .select("id, batch_id, formation_id, nama, twk, tiu, tkp, total, quality_status")
+          .select(
+            "id, batch_id, formation_id, nama, pendidikan, twk, tiu, tkp, total, quality_status",
+          )
           .eq("id", scoreId)
           .maybeSingle();
         if (scoreError) return jsonResponse({ message: scoreError.message }, 500);
@@ -84,6 +101,47 @@ export const Route = createFileRoute("/api/result-session")({
           return jsonResponse({ message: "Batch SKD belum dipublikasikan." }, 404);
         }
 
+        const { data: targetFormation, error: targetError } = await sb
+          .from("skd_formations")
+          .select(
+            "id, batch_id, nama_instansi, jabatan, jenis_formasi, pendidikan_options, quality_status",
+          )
+          .eq("id", targetFormationId)
+          .maybeSingle();
+        if (targetError) return jsonResponse({ message: targetError.message }, 500);
+
+        const participantEducation = score.pendidikan
+          ? normalizedEducation(score.pendidikan)
+          : null;
+        const acceptedEducations = Array.isArray(targetFormation?.pendidikan_options)
+          ? targetFormation.pendidikan_options.map((value: string) => normalizedEducation(value))
+          : [];
+        const targetIsValid =
+          targetFormation &&
+          targetFormation.id !== score.formation_id &&
+          targetFormation.quality_status === "verified" &&
+          normalizedEducation(targetFormation.jenis_formasi ?? "") === "UMUM" &&
+          participantEducation !== null &&
+          acceptedEducations.includes(participantEducation);
+        if (!targetIsValid) {
+          return jsonResponse(
+            { message: "Target harus berupa formasi UMUM yang menerima pendidikan peserta." },
+            400,
+          );
+        }
+
+        const [{ data: targetBatch }, { data: targetStats }] = await Promise.all([
+          sb.from("skd_batches").select("status").eq("id", targetFormation.batch_id).maybeSingle(),
+          sb
+            .from("skd_formation_stats")
+            .select("formation_id")
+            .eq("formation_id", targetFormation.id)
+            .maybeSingle(),
+        ]);
+        if (targetBatch?.status !== "published" || !targetStats) {
+          return jsonResponse({ message: "Data historis target belum siap dianalisis." }, 400);
+        }
+
         const { data: lead, error: leadError } = await sb
           .from("leads")
           .insert({
@@ -91,8 +149,9 @@ export const Route = createFileRoute("/api/result-session")({
             nama_panggilan: namaPanggilan,
             whatsapp: null,
             target_tahun: targetTahun,
-            target_instansi: clean(leadInput?.target_instansi, 160),
-            target_formasi: clean(leadInput?.target_formasi, 200),
+            target_instansi: targetFormation.nama_instansi,
+            target_formasi: targetFormation.jabatan,
+            target_formation_id: targetFormation.id,
             rencana,
             consent_whatsapp: true,
             consent_marketing: leadInput?.consent_marketing === true,
@@ -111,8 +170,8 @@ export const Route = createFileRoute("/api/result-session")({
           tkp: score.tkp,
           total: score.total,
           target_tahun: targetTahun,
-          target_instansi: clean(leadInput?.target_instansi, 160),
-          target_formasi: clean(leadInput?.target_formasi, 200),
+          target_instansi: targetFormation.nama_instansi,
+          target_formasi: targetFormation.jabatan,
           rencana,
         };
         const useQueue = asyncRationalizationEnabled();

@@ -1856,6 +1856,7 @@ function RationalizationWorkspace({ adminPassword }: { adminPassword: string }) 
                   <TableHead>Kode</TableHead>
                   <TableHead>WhatsApp</TableHead>
                   <TableHead>Nama</TableHead>
+                  <TableHead>Target pilihan</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Dibuat</TableHead>
                   <TableHead>Marketing</TableHead>
@@ -1869,6 +1870,16 @@ function RationalizationWorkspace({ adminPassword }: { adminPassword: string }) 
                       {session.sender_wa_id ? `+${session.sender_wa_id}` : "-"}
                     </td>
                     <td className="px-3 py-3">{session.leads?.nama_panggilan ?? "-"}</td>
+                    <td className="max-w-72 px-3 py-3">
+                      <span className="block font-medium">
+                        {session.leads?.target_formasi ?? "-"}
+                      </span>
+                      {session.leads?.target_instansi ? (
+                        <span className="mt-0.5 block text-[11px] text-[#718196]">
+                          {session.leads.target_instansi}
+                        </span>
+                      ) : null}
+                    </td>
                     <td className="px-3 py-3">
                       <ResultStatus status={session.status} />
                     </td>

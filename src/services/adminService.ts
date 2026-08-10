@@ -285,7 +285,12 @@ export interface AdminResultSession {
   updated_at: string;
   delivered_at: string | null;
   failure_message: string | null;
-  leads: { nama_panggilan: string | null; consent_marketing: boolean } | null;
+  leads: {
+    nama_panggilan: string | null;
+    target_instansi: string | null;
+    target_formasi: string | null;
+    consent_marketing: boolean;
+  } | null;
 }
 
 export interface AdminResultSessionData {
