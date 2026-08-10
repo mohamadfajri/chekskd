@@ -1,7 +1,10 @@
 name: skd-result
-version: "1.0.0"
-description: Fetch a verified SKD result card from chekskd for WhatsApp delivery.
+version: "2.0.0"
+description: Process SKD result codes directly without invoking an LLM.
 requires_env:
   - name: SKD_APP_URL
     description: Public HTTPS origin of the chekskd application.
     secret: false
+  - name: HERMES_API_SECRET
+    description: Shared secret for authenticated SKD job endpoints.
+    secret: true

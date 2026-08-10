@@ -16,6 +16,7 @@ export interface CreateSessionInput {
 export interface CreateSessionResult {
   token: string;
   expired_at: string;
+  status: "waiting" | "ready";
 }
 
 export async function createLeadAndSession(

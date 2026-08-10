@@ -272,6 +272,40 @@ export async function getSkdBatches(adminPassword: string): Promise<SkdBatchSumm
   return body.batches;
 }
 
+export type ResultSessionStatus =
+  "waiting" | "queued" | "processing" | "ready" | "delivered" | "failed" | "expired";
+
+export interface AdminResultSession {
+  id: string;
+  token: string;
+  status: ResultSessionStatus;
+  sender_wa_id: string | null;
+  used_count: number;
+  created_at: string;
+  updated_at: string;
+  delivered_at: string | null;
+  failure_message: string | null;
+  leads: { nama_panggilan: string | null; consent_marketing: boolean } | null;
+}
+
+export interface AdminResultSessionData {
+  summary: {
+    by_status: Record<ResultSessionStatus, number>;
+    phone_bound: number;
+    marketing_consented: number;
+  };
+  sessions: AdminResultSession[];
+}
+
+export async function getAdminResultSessions(
+  adminPassword: string,
+): Promise<AdminResultSessionData> {
+  const response = await fetch("/api/admin/result-sessions", {
+    headers: { "x-admin-password": adminPassword },
+  });
+  return readAdminJson<AdminResultSessionData>(response);
+}
+
 export interface SkdReviewRow {
   id: string;
   field_name: string;

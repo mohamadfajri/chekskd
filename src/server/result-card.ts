@@ -3,6 +3,12 @@ import { writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type { AnalysisSnapshot, Zona } from "@/lib/analysis";
+import { maskNoPeserta } from "@/lib/analysis";
+import {
+  rationalizationRecommendation,
+  type RationalizationSnapshot,
+  type RationalizationVerdict,
+} from "@/lib/rationalization";
 
 const WIDTH = 1080;
 const HEIGHT = 1350;
@@ -161,6 +167,119 @@ export function renderResultCardSvg(snapshot: AnalysisSnapshot): string {
 
 export function renderResultCard(snapshot: AnalysisSnapshot, fontPath: string): Uint8Array {
   const renderer = new Resvg(renderResultCardSvg(snapshot), {
+    fitTo: { mode: "width", value: WIDTH },
+    font: {
+      loadSystemFonts: false,
+      fontFiles: [fontPath],
+      defaultFontFamily: FONT_FAMILY,
+      sansSerifFamily: FONT_FAMILY,
+    },
+  });
+  return renderer.render().asPng();
+}
+
+function verdictStyle(code: RationalizationVerdict): { fill: string; color: string } {
+  if (code === "strong" || code === "rational") {
+    return { fill: "#DDF4EA", color: "#167052" };
+  }
+  if (code === "borderline" || code === "less_rational") {
+    return { fill: "#FFF0CF", color: "#925B08" };
+  }
+  return { fill: "#FBE2E3", color: "#A5363B" };
+}
+
+function signedScore(value: number | null): string {
+  if (value === null) return "-";
+  return value > 0 ? `+${value}` : String(value);
+}
+
+export function renderRationalizationCardSvg(snapshot: RationalizationSnapshot): string {
+  const verdict = verdictStyle(snapshot.verdict.code);
+  const participant = snapshot.participant;
+  const formation = snapshot.formation;
+  const position = snapshot.historical_position;
+  const stats = snapshot.historical_stats;
+  const nameLines = wrap(participant.name, 39, 2);
+  const formationLines = wrap(formation.position, 54, 2);
+  const institutionLines = wrap(formation.institution, 55, 2);
+  const recommendationLines = wrap(rationalizationRecommendation(snapshot.verdict.code), 76, 3);
+  const rank = position.overall_rank ? `${position.overall_rank} / ${stats.attended}` : "-";
+  const topPercent = position.top_percent === null ? "-" : `${position.top_percent}%`;
+  const ratio = stats.competition_ratio === null ? "-" : `${stats.competition_ratio}x`;
+  const generated = new Intl.DateTimeFormat("id-ID", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: "Asia/Makassar",
+  }).format(new Date(snapshot.generated_at));
+
+  const scoreMetric = (label: string, value: string, x: number, highlight = false) => `
+    <rect x="${x}" y="430" width="204" height="116" rx="10" fill="${highlight ? "#E7F2FC" : "#F3F6F9"}" stroke="${highlight ? "#B9D7F2" : "#DCE5ED"}"/>
+    <text x="${x + 20}" y="466" font-size="18" font-weight="700" fill="#667A8E">${label}</text>
+    <text x="${x + 20}" y="522" font-size="46" font-weight="800" fill="${highlight ? "#0D6CBD" : "#102A43"}">${value}</text>`;
+  const historyMetric = (label: string, value: string, x: number) => `
+    <rect x="${x}" y="720" width="204" height="112" rx="10" fill="#F3F6F9" stroke="#DCE5ED"/>
+    <text x="${x + 18}" y="756" font-size="17" font-weight="700" fill="#667A8E">${label}</text>
+    <text x="${x + 18}" y="806" font-size="35" font-weight="800" fill="#102A43">${value}</text>`;
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+  <svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}">
+    <rect width="1080" height="1350" fill="#F4F7FA"/>
+    <rect width="1080" height="218" fill="#082D52"/>
+    <rect x="64" y="50" width="8" height="116" fill="#38A3E3"/>
+    <text x="94" y="78" font-family="${FONT_FAMILY}" font-size="24" font-weight="700" fill="#8ECBF0">CPNSGURU.ID / DATA SKD</text>
+    <text x="94" y="128" font-family="${FONT_FAMILY}" font-size="44" font-weight="800" fill="#FFFFFF">HASIL RASIONALISASI</text>
+    <text x="94" y="174" font-family="${FONT_FAMILY}" font-size="31" font-weight="700" fill="#D8E8F4">POSISI HISTORIS FORMASI</text>
+    <rect x="850" y="54" width="166" height="46" rx="8" fill="#FFFFFF" fill-opacity="0.12"/>
+    <text x="933" y="85" text-anchor="middle" font-family="${FONT_FAMILY}" font-size="21" font-weight="700" fill="#FFFFFF">DATA ${snapshot.dataset_year}</text>
+
+    <rect x="48" y="250" width="984" height="1052" rx="18" fill="#FFFFFF" stroke="#D9E3EC"/>
+    <text x="84" y="304" font-family="${FONT_FAMILY}" font-size="18" font-weight="700" fill="#718397">PESERTA</text>
+    <g font-family="${FONT_FAMILY}" font-weight="800">${textLines(nameLines, 84, 348, 34, 40)}</g>
+    <text x="84" y="405" font-family="${FONT_FAMILY}" font-size="18" fill="#667A8E">No. ${escapeXml(maskNoPeserta(participant.participant_number))} | Status resmi ${escapeXml(participant.official_status)}</text>
+
+    <g font-family="${FONT_FAMILY}">
+      ${scoreMetric("TWK", score(participant.twk), 84)}
+      ${scoreMetric("TIU", score(participant.tiu), 308)}
+      ${scoreMetric("TKP", score(participant.tkp), 532)}
+      ${scoreMetric("TOTAL", score(participant.total), 756, true)}
+    </g>
+
+    <rect x="84" y="578" width="876" height="110" rx="12" fill="${verdict.fill}"/>
+    <text x="112" y="616" font-family="${FONT_FAMILY}" font-size="18" font-weight="700" fill="#667A8E">HASIL RASIONALISASI</text>
+    <text x="112" y="662" font-family="${FONT_FAMILY}" font-size="34" font-weight="800" fill="${verdict.color}">${escapeXml(snapshot.verdict.label.toUpperCase())}</text>
+
+    <g font-family="${FONT_FAMILY}">
+      ${historyMetric("PERINGKAT", rank, 84)}
+      ${historyMetric("TOP PESERTA", topPercent, 308)}
+      ${historyMetric("SELISIH BATAS", signedScore(position.score_gap_to_shortlist_cutoff), 532)}
+      ${historyMetric("RASIO / KURSI", ratio, 756)}
+    </g>
+
+    <text x="84" y="882" font-family="${FONT_FAMILY}" font-size="18" font-weight="700" fill="#718397">ACUAN HISTORIS FORMASI</text>
+    <text x="84" y="925" font-family="${FONT_FAMILY}" font-size="23" font-weight="700" fill="#17324D">Kuota ${formation.quota}  |  Peserta ${stats.participants}  |  Hadir ${stats.attended}  |  Lolos PG ${stats.passing_grade}</text>
+    <text x="84" y="962" font-family="${FONT_FAMILY}" font-size="23" fill="#17324D">Batas peserta SKB: ${score(stats.cutoff.total)}  |  Median: ${score(stats.median_total)}  |  Tertinggi: ${score(stats.maximum_total)}</text>
+
+    <line x1="84" y1="994" x2="960" y2="994" stroke="#DCE5ED"/>
+    <text x="84" y="1034" font-family="${FONT_FAMILY}" font-size="18" font-weight="700" fill="#718397">FORMASI ACUAN</text>
+    <g font-family="${FONT_FAMILY}" font-weight="700">${textLines(formationLines, 84, 1071, 23, 29)}</g>
+    <g font-family="${FONT_FAMILY}">${textLines(institutionLines, 84, 1134, 20, 26)}</g>
+
+    <rect x="84" y="1182" width="876" height="92" rx="10" fill="#F2F7FB" stroke="#D6E4EF"/>
+    <text x="108" y="1215" font-family="${FONT_FAMILY}" font-size="17" font-weight="700" fill="#0D6CBD">SARAN BERIKUTNYA</text>
+    <g font-family="${FONT_FAMILY}">${textLines(recommendationLines, 108, 1247, 17, 22)}</g>
+
+    <rect x="0" y="1318" width="1080" height="32" fill="#082D52"/>
+    <text x="54" y="1340" font-family="${FONT_FAMILY}" font-size="14" fill="#D8E8F4">Acuan hasil resmi ${snapshot.dataset_year}; bukan prediksi atau jaminan kelulusan.</text>
+    <text x="1026" y="1340" text-anchor="end" font-family="${FONT_FAMILY}" font-size="14" fill="#D8E8F4">${escapeXml(generated)}</text>
+  </svg>`;
+}
+
+export function renderRationalizationCard(
+  snapshot: RationalizationSnapshot,
+  fontPath: string,
+): Uint8Array {
+  const renderer = new Resvg(renderRationalizationCardSvg(snapshot), {
     fitTo: { mode: "width", value: WIDTH },
     font: {
       loadSystemFonts: false,

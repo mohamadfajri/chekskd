@@ -29,6 +29,10 @@ function clean(value: unknown, maxLength: number): string | null {
   return result;
 }
 
+function asyncRationalizationEnabled(): boolean {
+  return process.env.ASYNC_RATIONALIZATION_ENABLED?.trim().toLowerCase() === "true";
+}
+
 export const Route = createFileRoute("/api/result-session")({
   server: {
     handlers: {
@@ -111,8 +115,9 @@ export const Route = createFileRoute("/api/result-session")({
           target_formasi: clean(leadInput?.target_formasi, 200),
           rencana,
         };
-        const { text, zona } = buildAnalysisText(context);
-        const snapshot = buildAnalysisSnapshot(context);
+        const useQueue = asyncRationalizationEnabled();
+        const legacyAnalysis = useQueue ? null : buildAnalysisText(context);
+        const snapshot = useQueue ? {} : buildAnalysisSnapshot(context);
 
         let token = generateToken();
         for (let attempt = 0; attempt < 5; attempt += 1) {
@@ -138,9 +143,13 @@ export const Route = createFileRoute("/api/result-session")({
             tiu: context.tiu,
             tkp: context.tkp,
             total: context.total,
-            zona,
-            analysis_text: text,
+            zona: legacyAnalysis?.zona ?? "menunggu",
+            analysis_text:
+              legacyAnalysis?.text ??
+              "Rasionalisasi akan diproses setelah kode dikirim melalui WhatsApp.",
             analysis_snapshot: snapshot,
+            status: useQueue ? "waiting" : "ready",
+            ready_at: useQueue ? null : new Date().toISOString(),
             expired_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
           })
           .select("*")
@@ -150,7 +159,10 @@ export const Route = createFileRoute("/api/result-session")({
           return jsonResponse({ message: sessionError.message }, 500);
         }
 
-        return jsonResponse({ token, expired_at: session.expired_at }, 201);
+        return jsonResponse(
+          { token, expired_at: session.expired_at, status: useQueue ? "waiting" : "ready" },
+          201,
+        );
       },
     },
   },

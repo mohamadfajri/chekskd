@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { buildHermesCaption, extractResultToken, type AnalysisSnapshot } from "@/lib/analysis";
+import { buildRationalizationCaption, isRationalizationSnapshot } from "@/lib/rationalization";
 import { getServerSupabase, jsonResponse } from "@/lib/supabase/server";
 
 interface HermesRequest {
@@ -18,6 +19,24 @@ interface HermesSessionRow {
   used_count: number;
   sender_wa_id: string | null;
   last_inbound_message_id: string | null;
+  status: "waiting" | "queued" | "processing" | "ready" | "delivered" | "failed" | "expired";
+  rationalization_snapshot: Record<string, unknown>;
+}
+
+interface ClaimResult {
+  outcome?:
+    | "invalid"
+    | "not_found"
+    | "expired"
+    | "sender_conflict"
+    | "duplicate_message"
+    | "pending"
+    | "ready"
+    | "failed";
+  session_id?: string;
+  job_id?: string;
+  status?: string;
+  is_new_message?: boolean;
 }
 
 function normalizeSender(value: unknown): string | null {
@@ -30,6 +49,10 @@ function cleanMessageId(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const result = value.trim();
   return result && result.length <= 200 ? result : null;
+}
+
+function asyncRationalizationEnabled(): boolean {
+  return process.env.ASYNC_RATIONALIZATION_ENABLED?.trim().toLowerCase() === "true";
 }
 
 function requireHermes(request: Request): Response | null {
@@ -66,7 +89,7 @@ async function fetchSession(token: string) {
   const { data, error } = await sb
     .from("result_sessions")
     .select(
-      "id, lead_id, token, analysis_text, analysis_snapshot, expired_at, used_count, sender_wa_id, last_inbound_message_id",
+      "id, lead_id, token, analysis_text, analysis_snapshot, rationalization_snapshot, status, expired_at, used_count, sender_wa_id, last_inbound_message_id",
     )
     .eq("token", token)
     .maybeSingle();
@@ -98,6 +121,19 @@ async function fetchSession(token: string) {
 }
 
 function resultPayload(request: Request, session: HermesSessionRow) {
+  if (isRationalizationSnapshot(session.rationalization_snapshot)) {
+    const imageUrl = `${publicOrigin(request)}/api/result-card?token=${encodeURIComponent(session.token)}`;
+    return jsonResponse({
+      success: true,
+      contract_version: 2,
+      reply_type: "image",
+      caption: buildRationalizationCaption(session.rationalization_snapshot),
+      image_url: imageUrl,
+      expires_at: session.expired_at,
+      session_id: session.id,
+    });
+  }
+
   const snapshot = session.analysis_snapshot as AnalysisSnapshot;
   if (snapshot?.version !== 1) {
     return jsonResponse({ success: false, message: "Snapshot analisis belum tersedia." }, 409);
@@ -137,6 +173,84 @@ export const Route = createFileRoute("/api/wa-result")({
             { success: false, message: "token, sender, dan message_id Hermes wajib diisi." },
             400,
           );
+        }
+
+        if (asyncRationalizationEnabled()) {
+          const { client: sb, error: configError } = getServerSupabase();
+          if (!sb) {
+            return jsonResponse(
+              { success: false, message: `Supabase belum siap: ${configError}` },
+              503,
+            );
+          }
+
+          const { data, error } = await sb.rpc("claim_skd_result_session", {
+            p_token: token,
+            p_sender: sender,
+            p_message_id: messageId,
+          });
+          if (error) {
+            return jsonResponse(
+              { success: false, message: "Permintaan rasionalisasi belum dapat dimasukkan." },
+              500,
+            );
+          }
+
+          const claim = (data ?? {}) as ClaimResult;
+          if (claim.outcome === "not_found") {
+            return jsonResponse({ success: false, message: "Kode hasil tidak ditemukan." }, 404);
+          }
+          if (claim.outcome === "expired") {
+            return jsonResponse(
+              {
+                success: false,
+                message: "Kode hasil sudah kedaluwarsa. Buat kode baru dari website.",
+              },
+              410,
+            );
+          }
+          if (claim.outcome === "sender_conflict") {
+            return jsonResponse(
+              { success: false, message: "Kode ini sudah digunakan oleh akun WhatsApp lain." },
+              409,
+            );
+          }
+          if (claim.outcome === "duplicate_message") {
+            return jsonResponse(
+              { success: false, message: "Pesan WhatsApp ini sudah diproses untuk kode lain." },
+              409,
+            );
+          }
+          if (claim.outcome === "failed") {
+            return jsonResponse(
+              {
+                success: false,
+                message: "Rasionalisasi belum berhasil diproses. Silakan kirim ulang kode.",
+              },
+              503,
+            );
+          }
+          if (claim.outcome === "invalid") {
+            return jsonResponse({ success: false, message: "Data permintaan tidak valid." }, 400);
+          }
+
+          if (claim.outcome === "ready") {
+            const { session, response } = await fetchSession(token);
+            if (response || !session) return response!;
+            return resultPayload(request, session as HermesSessionRow);
+          }
+
+          return jsonResponse({
+            success: true,
+            contract_version: 2,
+            reply_type: "processing",
+            message:
+              "Data kamu sudah diterima. Rasionalisasi sedang diproses dan hasil akan dikirim maksimal 10 menit.",
+            session_id: claim.session_id,
+            job_id: claim.job_id,
+            status: claim.status,
+            is_new_message: claim.is_new_message,
+          });
         }
 
         const { sb, session, response } = await fetchSession(token);

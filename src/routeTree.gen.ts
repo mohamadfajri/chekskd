@@ -15,12 +15,14 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as WaTokenRouteImport } from './routes/wa.$token'
 import { Route as ResultScoreIdRouteImport } from './routes/result.$scoreId'
 import { Route as ApiWaResultRouteImport } from './routes/api/wa-result'
+import { Route as ApiWaJobsRouteImport } from './routes/api/wa-jobs'
 import { Route as ApiResultSessionRouteImport } from './routes/api/result-session'
 import { Route as ApiResultCardRouteImport } from './routes/api/result-card'
 import { Route as ApiAdminSkdReviewRouteImport } from './routes/api/admin/skd-review'
 import { Route as ApiAdminSkdPdfRouteImport } from './routes/api/admin/skd-pdf'
 import { Route as ApiAdminSkdExplorerRouteImport } from './routes/api/admin/skd-explorer'
 import { Route as ApiAdminSkdBatchesRouteImport } from './routes/api/admin/skd-batches'
+import { Route as ApiAdminResultSessionsRouteImport } from './routes/api/admin/result-sessions'
 import { Route as ApiAdminPdfSourcesRouteImport } from './routes/api/admin/pdf-sources'
 
 const SearchRoute = SearchRouteImport.update({
@@ -53,6 +55,11 @@ const ApiWaResultRoute = ApiWaResultRouteImport.update({
   path: '/api/wa-result',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiWaJobsRoute = ApiWaJobsRouteImport.update({
+  id: '/api/wa-jobs',
+  path: '/api/wa-jobs',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiResultSessionRoute = ApiResultSessionRouteImport.update({
   id: '/api/result-session',
   path: '/api/result-session',
@@ -83,6 +90,11 @@ const ApiAdminSkdBatchesRoute = ApiAdminSkdBatchesRouteImport.update({
   path: '/api/admin/skd-batches',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminResultSessionsRoute = ApiAdminResultSessionsRouteImport.update({
+  id: '/api/admin/result-sessions',
+  path: '/api/admin/result-sessions',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminPdfSourcesRoute = ApiAdminPdfSourcesRouteImport.update({
   id: '/api/admin/pdf-sources',
   path: '/api/admin/pdf-sources',
@@ -95,10 +107,12 @@ export interface FileRoutesByFullPath {
   '/search': typeof SearchRoute
   '/api/result-card': typeof ApiResultCardRoute
   '/api/result-session': typeof ApiResultSessionRoute
+  '/api/wa-jobs': typeof ApiWaJobsRoute
   '/api/wa-result': typeof ApiWaResultRoute
   '/result/$scoreId': typeof ResultScoreIdRoute
   '/wa/$token': typeof WaTokenRoute
   '/api/admin/pdf-sources': typeof ApiAdminPdfSourcesRoute
+  '/api/admin/result-sessions': typeof ApiAdminResultSessionsRoute
   '/api/admin/skd-batches': typeof ApiAdminSkdBatchesRoute
   '/api/admin/skd-explorer': typeof ApiAdminSkdExplorerRoute
   '/api/admin/skd-pdf': typeof ApiAdminSkdPdfRoute
@@ -110,10 +124,12 @@ export interface FileRoutesByTo {
   '/search': typeof SearchRoute
   '/api/result-card': typeof ApiResultCardRoute
   '/api/result-session': typeof ApiResultSessionRoute
+  '/api/wa-jobs': typeof ApiWaJobsRoute
   '/api/wa-result': typeof ApiWaResultRoute
   '/result/$scoreId': typeof ResultScoreIdRoute
   '/wa/$token': typeof WaTokenRoute
   '/api/admin/pdf-sources': typeof ApiAdminPdfSourcesRoute
+  '/api/admin/result-sessions': typeof ApiAdminResultSessionsRoute
   '/api/admin/skd-batches': typeof ApiAdminSkdBatchesRoute
   '/api/admin/skd-explorer': typeof ApiAdminSkdExplorerRoute
   '/api/admin/skd-pdf': typeof ApiAdminSkdPdfRoute
@@ -126,10 +142,12 @@ export interface FileRoutesById {
   '/search': typeof SearchRoute
   '/api/result-card': typeof ApiResultCardRoute
   '/api/result-session': typeof ApiResultSessionRoute
+  '/api/wa-jobs': typeof ApiWaJobsRoute
   '/api/wa-result': typeof ApiWaResultRoute
   '/result/$scoreId': typeof ResultScoreIdRoute
   '/wa/$token': typeof WaTokenRoute
   '/api/admin/pdf-sources': typeof ApiAdminPdfSourcesRoute
+  '/api/admin/result-sessions': typeof ApiAdminResultSessionsRoute
   '/api/admin/skd-batches': typeof ApiAdminSkdBatchesRoute
   '/api/admin/skd-explorer': typeof ApiAdminSkdExplorerRoute
   '/api/admin/skd-pdf': typeof ApiAdminSkdPdfRoute
@@ -143,10 +161,12 @@ export interface FileRouteTypes {
     | '/search'
     | '/api/result-card'
     | '/api/result-session'
+    | '/api/wa-jobs'
     | '/api/wa-result'
     | '/result/$scoreId'
     | '/wa/$token'
     | '/api/admin/pdf-sources'
+    | '/api/admin/result-sessions'
     | '/api/admin/skd-batches'
     | '/api/admin/skd-explorer'
     | '/api/admin/skd-pdf'
@@ -158,10 +178,12 @@ export interface FileRouteTypes {
     | '/search'
     | '/api/result-card'
     | '/api/result-session'
+    | '/api/wa-jobs'
     | '/api/wa-result'
     | '/result/$scoreId'
     | '/wa/$token'
     | '/api/admin/pdf-sources'
+    | '/api/admin/result-sessions'
     | '/api/admin/skd-batches'
     | '/api/admin/skd-explorer'
     | '/api/admin/skd-pdf'
@@ -173,10 +195,12 @@ export interface FileRouteTypes {
     | '/search'
     | '/api/result-card'
     | '/api/result-session'
+    | '/api/wa-jobs'
     | '/api/wa-result'
     | '/result/$scoreId'
     | '/wa/$token'
     | '/api/admin/pdf-sources'
+    | '/api/admin/result-sessions'
     | '/api/admin/skd-batches'
     | '/api/admin/skd-explorer'
     | '/api/admin/skd-pdf'
@@ -189,10 +213,12 @@ export interface RootRouteChildren {
   SearchRoute: typeof SearchRoute
   ApiResultCardRoute: typeof ApiResultCardRoute
   ApiResultSessionRoute: typeof ApiResultSessionRoute
+  ApiWaJobsRoute: typeof ApiWaJobsRoute
   ApiWaResultRoute: typeof ApiWaResultRoute
   ResultScoreIdRoute: typeof ResultScoreIdRoute
   WaTokenRoute: typeof WaTokenRoute
   ApiAdminPdfSourcesRoute: typeof ApiAdminPdfSourcesRoute
+  ApiAdminResultSessionsRoute: typeof ApiAdminResultSessionsRoute
   ApiAdminSkdBatchesRoute: typeof ApiAdminSkdBatchesRoute
   ApiAdminSkdExplorerRoute: typeof ApiAdminSkdExplorerRoute
   ApiAdminSkdPdfRoute: typeof ApiAdminSkdPdfRoute
@@ -243,6 +269,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWaResultRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/wa-jobs': {
+      id: '/api/wa-jobs'
+      path: '/api/wa-jobs'
+      fullPath: '/api/wa-jobs'
+      preLoaderRoute: typeof ApiWaJobsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/result-session': {
       id: '/api/result-session'
       path: '/api/result-session'
@@ -285,6 +318,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminSkdBatchesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/result-sessions': {
+      id: '/api/admin/result-sessions'
+      path: '/api/admin/result-sessions'
+      fullPath: '/api/admin/result-sessions'
+      preLoaderRoute: typeof ApiAdminResultSessionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/pdf-sources': {
       id: '/api/admin/pdf-sources'
       path: '/api/admin/pdf-sources'
@@ -301,10 +341,12 @@ const rootRouteChildren: RootRouteChildren = {
   SearchRoute: SearchRoute,
   ApiResultCardRoute: ApiResultCardRoute,
   ApiResultSessionRoute: ApiResultSessionRoute,
+  ApiWaJobsRoute: ApiWaJobsRoute,
   ApiWaResultRoute: ApiWaResultRoute,
   ResultScoreIdRoute: ResultScoreIdRoute,
   WaTokenRoute: WaTokenRoute,
   ApiAdminPdfSourcesRoute: ApiAdminPdfSourcesRoute,
+  ApiAdminResultSessionsRoute: ApiAdminResultSessionsRoute,
   ApiAdminSkdBatchesRoute: ApiAdminSkdBatchesRoute,
   ApiAdminSkdExplorerRoute: ApiAdminSkdExplorerRoute,
   ApiAdminSkdPdfRoute: ApiAdminSkdPdfRoute,

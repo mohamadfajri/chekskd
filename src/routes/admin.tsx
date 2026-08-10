@@ -16,6 +16,7 @@ import {
   Globe2,
   Layers3,
   Loader2,
+  MessageSquareText,
   RefreshCw,
   Search,
   ShieldCheck,
@@ -25,6 +26,7 @@ import {
 import { toast } from "sonner";
 import {
   bulkVerifySkdBatch,
+  getAdminResultSessions,
   getSkdBatches,
   getSkdExplorerOverview,
   getSkdExplorerRows,
@@ -37,6 +39,7 @@ import {
   type CsvRow,
   type ImportProgress,
   type RowValidationIssue,
+  type ResultSessionStatus,
   type SkdBatchSummary,
   type SkdExplorerRow,
   type SkdReviewRow,
@@ -52,7 +55,7 @@ export const Route = createFileRoute("/admin")({
   component: AdminPage,
 });
 
-type AdminView = "explorer" | "review" | "import" | "published";
+type AdminView = "explorer" | "review" | "import" | "published" | "results";
 
 const NAV_ITEMS: Array<{
   id: AdminView;
@@ -63,6 +66,7 @@ const NAV_ITEMS: Array<{
   { id: "review", label: "Review data", icon: FileCheck2 },
   { id: "import", label: "Import batch", icon: Upload },
   { id: "published", label: "Data published", icon: Database },
+  { id: "results", label: "Rasionalisasi", icon: MessageSquareText },
 ];
 
 function AdminPage() {
@@ -298,6 +302,7 @@ function AdminWorkspace({ adminPassword }: { adminPassword: string }) {
             <ImportWorkspace adminPassword={adminPassword} onImported={() => batches.refetch()} />
           )}
           {activeView === "published" && <PublishedWorkspace />}
+          {activeView === "results" && <RationalizationWorkspace adminPassword={adminPassword} />}
         </main>
       </div>
       <DeskStyle />
@@ -1792,6 +1797,134 @@ function PublishedWorkspace() {
         )}
       </div>
     </div>
+  );
+}
+
+function RationalizationWorkspace({ adminPassword }: { adminPassword: string }) {
+  const sessions = useQuery({
+    queryKey: ["admin-result-sessions", adminPassword],
+    queryFn: () => getAdminResultSessions(adminPassword),
+    refetchInterval: 30_000,
+  });
+  const byStatus = sessions.data?.summary.by_status;
+  const active = (byStatus?.waiting ?? 0) + (byStatus?.queued ?? 0) + (byStatus?.processing ?? 0);
+
+  return (
+    <div className="max-w-6xl">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="font-mono text-[11px] font-semibold uppercase text-[#0d6cbd]">
+            WhatsApp result queue
+          </p>
+          <h1 className="mt-1 text-2xl font-semibold">Rasionalisasi</h1>
+        </div>
+        <button
+          type="button"
+          onClick={() => sessions.refetch()}
+          className="desk-icon-button"
+          title="Muat ulang antrean"
+          aria-label="Muat ulang antrean"
+        >
+          <RefreshCw className={`h-4 w-4 ${sessions.isFetching ? "animate-spin" : ""}`} />
+        </button>
+      </div>
+
+      <div className="mt-5 grid overflow-hidden rounded-lg border border-[#d8e1ec] bg-white sm:grid-cols-4">
+        <ResultMetric label="Antrean aktif" value={active} tone={active ? "warning" : "normal"} />
+        <ResultMetric label="Sudah dikirim" value={byStatus?.delivered ?? 0} tone="success" />
+        <ResultMetric label="Nomor terikat" value={sessions.data?.summary.phone_bound ?? 0} />
+        <ResultMetric
+          label="Izin marketing"
+          value={sessions.data?.summary.marketing_consented ?? 0}
+        />
+      </div>
+
+      <div className="mt-5 overflow-hidden rounded-lg border border-[#d8e1ec] bg-white shadow-sm">
+        <div className="flex items-center justify-between border-b border-[#e2e8f0] px-4 py-3">
+          <h2 className="text-sm font-semibold">100 kode terbaru</h2>
+          <span className="text-xs text-[#718196]">
+            Gagal {byStatus?.failed ?? 0} · Kedaluwarsa {byStatus?.expired ?? 0}
+          </span>
+        </div>
+        {sessions.isLoading ? (
+          <LoadingRows />
+        ) : sessions.data?.sessions.length ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-xs">
+              <thead className="bg-[#f7f9fc] text-[#536579]">
+                <tr>
+                  <TableHead>Kode</TableHead>
+                  <TableHead>WhatsApp</TableHead>
+                  <TableHead>Nama</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Dibuat</TableHead>
+                  <TableHead>Marketing</TableHead>
+                </tr>
+              </thead>
+              <tbody>
+                {sessions.data.sessions.map((session) => (
+                  <tr key={session.id} className="border-t border-[#edf1f5]">
+                    <td className="px-3 py-3 font-mono font-semibold">{session.token}</td>
+                    <td className="px-3 py-3 font-mono">
+                      {session.sender_wa_id ? `+${session.sender_wa_id}` : "-"}
+                    </td>
+                    <td className="px-3 py-3">{session.leads?.nama_panggilan ?? "-"}</td>
+                    <td className="px-3 py-3">
+                      <ResultStatus status={session.status} />
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-3 text-[#536579]">
+                      {new Intl.DateTimeFormat("id-ID", {
+                        day: "2-digit",
+                        month: "short",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      }).format(new Date(session.created_at))}
+                    </td>
+                    <td className="px-3 py-3">
+                      {session.leads?.consent_marketing ? "Diizinkan" : "Tidak"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="p-10 text-center text-sm text-[#718196]">
+            Belum ada kode hasil yang dibuat.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ResultMetric({
+  label,
+  value,
+  tone = "normal",
+}: {
+  label: string;
+  value: number;
+  tone?: "normal" | "warning" | "success";
+}) {
+  const color = tone === "warning" ? "text-[#a46608]" : tone === "success" ? "text-[#20795d]" : "";
+  return (
+    <div className="border-b border-[#e2e8f0] px-4 py-4 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0">
+      <p className="text-[10px] uppercase text-[#718196]">{label}</p>
+      <p className={`mt-1 text-2xl font-semibold ${color}`}>{value.toLocaleString("id-ID")}</p>
+    </div>
+  );
+}
+
+function ResultStatus({ status }: { status: ResultSessionStatus }) {
+  const style =
+    status === "delivered" || status === "ready"
+      ? "bg-[#e8f7f1] text-[#20795d]"
+      : status === "failed" || status === "expired"
+        ? "bg-[#fbe7e8] text-[#a5363b]"
+        : "bg-[#fff1d6] text-[#965d05]";
+  return (
+    <span className={`rounded-sm px-2 py-1 text-[10px] font-semibold ${style}`}>{status}</span>
   );
 }
 

@@ -144,13 +144,36 @@ export interface ResultSession {
   zona: string | null;
   analysis_text: string;
   analysis_snapshot: Record<string, unknown>;
+  rationalization_snapshot: Record<string, unknown>;
+  status: "waiting" | "queued" | "processing" | "ready" | "delivered" | "failed" | "expired";
   created_at: string;
+  updated_at: string;
   expired_at: string;
   used_count: number;
   sender_wa_id: string | null;
   last_inbound_message_id: string | null;
   delivered_at: string | null;
   card_rendered_at: string | null;
+  queued_at: string | null;
+  processing_started_at: string | null;
+  ready_at: string | null;
+  failed_at: string | null;
+  failure_message: string | null;
+}
+
+export interface SkdAnalysisJob {
+  id: string;
+  session_id: string;
+  score_id: string;
+  status: "queued" | "processing" | "completed" | "failed";
+  attempts: number;
+  available_at: string;
+  claimed_at: string | null;
+  completed_at: string | null;
+  worker_id: string | null;
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 type Table<Row> = {
@@ -169,6 +192,7 @@ export interface Database {
       skd_review_issues: Table<SkdReviewIssue>;
       leads: Table<Lead>;
       result_sessions: Table<ResultSession>;
+      skd_analysis_jobs: Table<SkdAnalysisJob>;
       lead_events: Table<Record<string, unknown>>;
     };
   };

@@ -110,9 +110,16 @@ export async function getSkdScoreById(id: string): Promise<SkdScoreWithFormation
 
 export async function countStats(): Promise<{ scores: number; formations: number }> {
   const sb = requireSupabase();
-  const [s, f] = await Promise.all([
-    sb.from("skd_scores").select("id", { count: "exact", head: true }),
-    sb.from("skd_formations").select("id", { count: "exact", head: true }),
-  ]);
-  return { scores: s.count ?? 0, formations: f.count ?? 0 };
+  const { data, error } = await sb
+    .from("skd_batches")
+    .select("participant_count, formation_count")
+    .eq("status", "published");
+  if (error) throw error;
+  return (data ?? []).reduce(
+    (totals, batch) => ({
+      scores: totals.scores + Number(batch.participant_count ?? 0),
+      formations: totals.formations + Number(batch.formation_count ?? 0),
+    }),
+    { scores: 0, formations: 0 },
+  );
 }

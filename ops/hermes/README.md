@@ -25,9 +25,13 @@ sudo docker compose run --rm hermes whatsapp
 Scan the displayed QR in WhatsApp Business under **Linked Devices**. Then start
 the service with `sudo docker compose up -d`.
 
-The current inference provider is the named `custom:sumopod` OpenAI-compatible
-endpoint using the `deepseek-v4-flash` model. Store its secret only in
-`data/.env`:
+Messages matching `CEK RSKD-...` are handled directly by the `skd-result`
+plugin. They are persisted and processed through the application API without
+calling an LLM. `HERMES_API_SECRET` must match the server-only Vercel value.
+
+Other conversations can still use the named `custom:sumopod`
+OpenAI-compatible endpoint with the `deepseek-v4-flash` model. Store its
+secret only in `data/.env`:
 
 ```dotenv
 OPENAI_BASE_URL=https://ai.sumopod.com/v1
