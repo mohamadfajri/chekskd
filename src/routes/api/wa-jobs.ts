@@ -1,5 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { buildRationalizationCaption, isRationalizationSnapshot } from "@/lib/rationalization";
+import {
+  buildRationalizationCaption,
+  isRationalizationSnapshot,
+  rationalizationMarketingSegment,
+} from "@/lib/rationalization";
 import { getServerSupabase, jsonResponse } from "@/lib/supabase/server";
 
 interface WorkerRequest {
@@ -68,11 +72,23 @@ export const Route = createFileRoute("/api/wa-jobs")({
           if (!body.session_id || !/^[0-9a-f-]{36}$/i.test(body.session_id)) {
             return jsonResponse({ success: false, message: "session_id tidak valid." }, 400);
           }
+          const { data: sessionBefore } = await sb
+            .from("result_sessions")
+            .select("lead_id, delivered_at")
+            .eq("id", body.session_id)
+            .maybeSingle();
           const { data, error } = await sb.rpc("mark_skd_result_delivered", {
             p_session_id: body.session_id,
           });
           if (error || data !== true) {
             return jsonResponse({ success: false, message: "Status kirim belum tersimpan." }, 409);
+          }
+          if (sessionBefore?.lead_id && !sessionBefore.delivered_at) {
+            await sb.from("lead_events").insert({
+              lead_id: sessionBefore.lead_id,
+              event_type: "result_delivered",
+              metadata: { provider: "hermes", session_id: body.session_id },
+            });
           }
           return jsonResponse({ success: true, delivered: true });
         }
@@ -115,7 +131,7 @@ export const Route = createFileRoute("/api/wa-jobs")({
               .maybeSingle()
           : { data: null };
 
-        const rationalizationRequest = await sb.rpc("get_skd_rationalization_v3", {
+        const rationalizationRequest = await sb.rpc("get_skd_rationalization_v4", {
           p_score_id: job.score_id,
           p_recommendation_mode: lead?.recommendation_mode === "all" ? "all" : "related",
           p_preferred_target_formation_id: lead?.target_formation_id ?? null,
@@ -161,6 +177,29 @@ export const Route = createFileRoute("/api/wa-jobs")({
           return jsonResponse({ success: false, message: "Hasil belum dapat disimpan." }, 500);
         }
 
+        if (hermesSessionLeadId(session.lead_id)) {
+          const recommendations = snapshot.target_recommendations ?? [];
+          await Promise.all([
+            sb
+              .from("leads")
+              .update({ segment: rationalizationMarketingSegment(snapshot) })
+              .eq("id", session.lead_id),
+            sb.from("lead_events").insert({
+              lead_id: session.lead_id,
+              event_type: "rationalization_completed",
+              metadata: {
+                model: snapshot.methodology?.model ?? `v${snapshot.version}`,
+                verdict: snapshot.verdict.code,
+                priority_subtest: snapshot.score_profile?.priority_subtest ?? null,
+                recommendation_mode: snapshot.recommendation_mode ?? "related",
+                recommendation_count: recommendations.length,
+                top_institutions: recommendations.slice(0, 3).map((item) => item.institution),
+                best_recommendation_score: recommendations[0]?.recommendation_score ?? null,
+              },
+            }),
+          ]);
+        }
+
         return jsonResponse({
           success: true,
           job: {
@@ -176,3 +215,7 @@ export const Route = createFileRoute("/api/wa-jobs")({
     },
   },
 });
+
+function hermesSessionLeadId(value: unknown): value is string {
+  return typeof value === "string" && /^[0-9a-f-]{36}$/i.test(value);
+}

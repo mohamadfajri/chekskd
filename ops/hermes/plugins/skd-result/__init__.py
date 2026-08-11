@@ -16,6 +16,7 @@ from urllib.request import Request, urlopen
 TOKEN_RE = re.compile(r"^RSKD-[A-HJ-NP-Z2-9]{5,8}$")
 MESSAGE_RE = re.compile(r"^\s*CEK\s+(RSKD-[A-HJ-NP-Z2-9]{5,8})\s*$", re.IGNORECASE)
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
+MAX_AI_NOTE_CHARS = 320
 WORKER_ID = "hermes-cpnsguru-v1"
 logger = logging.getLogger(__name__)
 _worker_task: asyncio.Task | None = None
@@ -133,6 +134,78 @@ def _api_request(path: str, payload: dict) -> dict:
         return {"success": False, "message": "Layanan hasil SKD sedang tidak dapat dihubungi."}
 
 
+def _enhance_caption(caption: str, enabled: bool = True) -> str:
+    if not enabled or os.environ.get("SKD_AI_EXPLANATION_ENABLED", "").lower() != "true":
+        return caption
+
+    base_url = os.environ.get("OPENAI_BASE_URL", "").strip().rstrip("/")
+    api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+    model = os.environ.get("SKD_AI_MODEL", "deepseek-v4-flash").strip()
+    parsed = urlparse(base_url)
+    if parsed.scheme != "https" or not parsed.netloc or not api_key or not model:
+        return caption
+
+    prompt = {
+        "model": model,
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "Kamu adalah coach belajar SKD. Buat tepat satu atau dua kalimat singkat "
+                    "dalam bahasa Indonesia berdasarkan hasil mesin. Jangan menulis angka, nama "
+                    "instansi, nama formasi, prediksi kelulusan, atau fakta baru. Fokus pada langkah "
+                    "latihan yang realistis dan jangan mengajukan pertanyaan."
+                ),
+            },
+            {"role": "user", "content": caption[:4000]},
+        ],
+        "max_tokens": 400,
+        "temperature": 0.2,
+        "stream": False,
+    }
+    request = Request(
+        f"{base_url}/chat/completions",
+        data=json.dumps(prompt).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "User-Agent": "cpnsguru-hermes-ai/1.0",
+        },
+        method="POST",
+    )
+
+    try:
+        with urlopen(request, timeout=20) as response:
+            payload = json.loads(response.read(128 * 1024).decode("utf-8"))
+        note = str(payload["choices"][0]["message"]["content"]).strip()
+    except (HTTPError, URLError, TimeoutError, KeyError, IndexError, TypeError, ValueError):
+        logger.warning("SKD AI coaching note failed; deterministic caption retained")
+        return caption
+
+    note = re.sub(r"\s+", " ", note).strip()
+    note = re.sub(r"^\d+[.)]\s*", "", note)
+    source_numbers = set(re.findall(r"\d+(?:[.,]\d+)?", caption))
+    note_numbers = set(re.findall(r"\d+(?:[.,]\d+)?", note))
+    blocked = ("pasti lulus", "dijamin lulus", "jaminan kelulusan")
+    rejection_reasons = []
+    if not note:
+        rejection_reasons.append("empty")
+    if len(note) > MAX_AI_NOTE_CHARS:
+        rejection_reasons.append("too_long")
+    if not note_numbers.issubset(source_numbers):
+        rejection_reasons.append("new_numbers")
+    if any(term in note.lower() for term in blocked):
+        rejection_reasons.append("strong_claim")
+    if rejection_reasons:
+        logger.warning(
+            "SKD AI coaching note rejected by output guard: %s",
+            ",".join(rejection_reasons),
+        )
+        return caption
+
+    return f"{caption}\n\nCatatan latihan:\n{note}"
+
+
 def _sender_number(event) -> str:
     source = getattr(event, "source", None)
     raw_ids = [
@@ -177,10 +250,14 @@ async def _mark_delivered(session_id: str) -> None:
 
 
 async def _send_job(adapter, job: dict) -> None:
+    caption = await asyncio.to_thread(
+        _enhance_caption,
+        str(job.get("caption") or "Hasil rasionalisasi SKD sudah siap."),
+    )
     result = await adapter.send_image(
         chat_id=str(job.get("sender") or ""),
         image_url=str(job.get("image_url") or ""),
-        caption=str(job.get("caption") or "Hasil rasionalisasi SKD sudah siap."),
+        caption=caption,
     )
     if result.success and job.get("session_id"):
         await _mark_delivered(str(job["session_id"]))
@@ -248,10 +325,15 @@ async def _handle_code(event, gateway, token: str) -> None:
         return
 
     if payload.get("reply_type") == "image":
+        caption = await asyncio.to_thread(
+            _enhance_caption,
+            str(payload.get("caption") or "Hasil rasionalisasi SKD sudah siap."),
+            payload.get("ai_enhance") is not False,
+        )
         result = await adapter.send_image(
             chat_id=chat_id,
             image_url=str(payload.get("image_url") or ""),
-            caption=str(payload.get("caption") or "Hasil rasionalisasi SKD sudah siap."),
+            caption=caption,
             reply_to=message_id,
         )
         if result.success and payload.get("session_id"):

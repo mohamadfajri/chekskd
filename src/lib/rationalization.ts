@@ -18,12 +18,15 @@ export interface RationalizationTargetSimulation {
   education_requirement: string | null;
   education_match: "exact";
   position_relation?: "same_position" | "related_position" | "cross_position";
+  position_similarity?: number;
   is_mode_fallback?: boolean;
   is_preferred?: boolean;
   quota: number;
   participants: number;
   attended: number;
   passing_grade: number;
+  eligible_pool?: number;
+  shortlisted_historical?: number;
   shortlist_capacity: number;
   competition_ratio: number | null;
   minimum_total: number | null;
@@ -32,7 +35,15 @@ export interface RationalizationTargetSimulation {
   simulated_rank: number | null;
   simulated_tied_count: number;
   score_gap_to_shortlist_cutoff: number | null;
+  score_needed_to_historical_cutoff?: number;
+  recommended_total?: number | null;
+  score_needed_to_recommended_total?: number | null;
+  eligible_percentile?: number | null;
   above_historical_cutoff: boolean;
+  recommendation_score?: number;
+  strategy?: string;
+  reason?: string;
+  risk_flags?: string[];
   cutoff: {
     total: number | null;
     tkp: number | null;
@@ -50,6 +61,7 @@ export interface RationalizationTargetSimulation {
   };
   data_quality: {
     basis: string;
+    ranking_pool?: "passing_grade_only";
     capacity_consistent: boolean;
     stats_calculated_at: string;
   };
@@ -57,7 +69,7 @@ export interface RationalizationTargetSimulation {
 
 export interface RationalizationSnapshot {
   kind: "skd_rationalization";
-  version: 1 | 2 | 3;
+  version: 1 | 2 | 3 | 4;
   generated_at: string;
   score_id: string;
   formation_id: string;
@@ -124,6 +136,21 @@ export interface RationalizationSnapshot {
     stats_calculated_at: string;
   };
   target_simulation?: RationalizationTargetSimulation;
+  score_profile?: {
+    eligible_for_simulation: boolean;
+    passing_thresholds: { twk: number; tiu: number; tkp: number };
+    threshold_buffers: { twk: number | null; tiu: number | null; tkp: number | null };
+    priority_subtest: "TWK" | "TIU" | "TKP" | null;
+    minimum_recommended_total: number | null;
+    minimum_score_increase: number | null;
+  };
+  methodology?: {
+    model: string;
+    ranking_pool: "passing_grade_only";
+    excluded_statuses: string[];
+    score_order: string[];
+    uses_final_skb_result: boolean;
+  };
   recommendation_mode?: RecommendationMode;
   recommendation_summary?: {
     mode: RecommendationMode;
@@ -146,7 +173,10 @@ export function isRationalizationSnapshot(value: unknown): value is Rationalizat
   const snapshot = value as Partial<RationalizationSnapshot>;
   return (
     snapshot.kind === "skd_rationalization" &&
-    (snapshot.version === 1 || snapshot.version === 2 || snapshot.version === 3) &&
+    (snapshot.version === 1 ||
+      snapshot.version === 2 ||
+      snapshot.version === 3 ||
+      snapshot.version === 4) &&
     typeof snapshot.participant?.name === "string" &&
     typeof snapshot.formation?.institution === "string" &&
     typeof snapshot.verdict?.code === "string"
@@ -195,18 +225,29 @@ export function buildRationalizationCaption(snapshot: RationalizationSnapshot): 
   const targetRank = target?.simulated_rank;
   const recommendations = snapshot.target_recommendations ?? [];
   if (recommendations.length) {
+    const priority = snapshot.score_profile?.priority_subtest;
     return [
       `Hasil rasionalisasi SKD ${snapshot.participant.name} sudah siap.`,
       `${snapshot.verdict.label} | Total ${snapshot.participant.total ?? "-"}`,
+      priority ? `Prioritas latihan: ${priority}, karena buffer terhadap PG paling tipis.` : null,
       ...recommendations.map((item, index) => {
-        const gap = item.score_gap_to_shortlist_cutoff;
         const relation = item.is_mode_fallback ? " | lintas jabatan" : "";
-        return `${index + 1}. ${item.verdict.label}: ${item.position} - ${item.institution} | posisi ${item.simulated_rank ?? "-"}/${item.attended} | selisih ${
-          gap === null ? "-" : gap > 0 ? `+${gap}` : gap
-        }${relation}`;
+        const pool = item.eligible_pool ?? item.passing_grade;
+        const targetScore = item.recommended_total ?? item.cutoff.total;
+        const needed = item.score_needed_to_recommended_total;
+        const targetText =
+          targetScore === null
+            ? "target nilai -"
+            : needed && needed > 0
+              ? `target ${targetScore} (+${needed})`
+              : `target ${targetScore} (sudah terlampaui)`;
+        const recommendationScore = item.recommendation_score
+          ? ` | skor kecocokan ${item.recommendation_score}/100`
+          : "";
+        return `${index + 1}. ${item.strategy ?? item.verdict.label}: ${item.position} - ${item.institution} | posisi ${item.simulated_rank ?? "-"}/${pool} peserta lolos PG | ${targetText} | ${item.confidence?.label ?? "Data terbatas"}${recommendationScore}${relation}`;
       }),
       snapshot.recommendation_summary?.scope_note ?? null,
-      `Acuan data resmi SKD ${snapshot.dataset_year}; bukan jaminan hasil seleksi berikutnya.`,
+      `Model ${snapshot.methodology?.model ?? `historis-v${snapshot.version}`}; tidak memakai hasil akhir SKB dan bukan jaminan seleksi berikutnya.`,
     ]
       .filter(Boolean)
       .join("\n");
@@ -226,4 +267,17 @@ export function buildRationalizationCaption(snapshot: RationalizationSnapshot): 
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+export function rationalizationMarketingSegment(snapshot: RationalizationSnapshot): string {
+  if (snapshot.verdict.code === "ineligible") return "needs_passing_grade";
+  const best = snapshot.target_recommendations?.[0] ?? snapshot.target_simulation;
+  if (!best) return "analysis_limited";
+  if (best.recommendation_tier === "most_rational" && (best.recommendation_score ?? 0) >= 80) {
+    return "competitive_ready";
+  }
+  if (best.recommendation_tier === "competitive" || best.verdict.code === "competitive") {
+    return "competitive_growth";
+  }
+  return "score_improvement";
 }

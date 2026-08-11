@@ -244,6 +244,17 @@ export const Route = createFileRoute("/api/result-session")({
           return jsonResponse({ message: sessionError.message }, 500);
         }
 
+        await sb.from("lead_events").insert({
+          lead_id: lead.id,
+          event_type: "result_code_created",
+          metadata: {
+            session_id: session.id,
+            recommendation_mode: recommendationMode,
+            has_preferred_target: Boolean(targetFormation?.id),
+            target_year: targetTahun,
+          },
+        });
+
         return jsonResponse(
           { token, expired_at: session.expired_at, status: useQueue ? "waiting" : "ready" },
           201,

@@ -25,6 +25,7 @@ import { Route as ApiAdminSkdExplorerRouteImport } from './routes/api/admin/skd-
 import { Route as ApiAdminSkdBatchesRouteImport } from './routes/api/admin/skd-batches'
 import { Route as ApiAdminResultSessionsRouteImport } from './routes/api/admin/result-sessions'
 import { Route as ApiAdminPdfSourcesRouteImport } from './routes/api/admin/pdf-sources'
+import { Route as ApiAdminMarketingInsightsRouteImport } from './routes/api/admin/marketing-insights'
 
 const SearchRoute = SearchRouteImport.update({
   id: '/search',
@@ -107,6 +108,12 @@ const ApiAdminPdfSourcesRoute = ApiAdminPdfSourcesRouteImport.update({
   path: '/api/admin/pdf-sources',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminMarketingInsightsRoute =
+  ApiAdminMarketingInsightsRouteImport.update({
+    id: '/api/admin/marketing-insights',
+    path: '/api/admin/marketing-insights',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -119,6 +126,7 @@ export interface FileRoutesByFullPath {
   '/api/wa-result': typeof ApiWaResultRoute
   '/result/$scoreId': typeof ResultScoreIdRoute
   '/wa/$token': typeof WaTokenRoute
+  '/api/admin/marketing-insights': typeof ApiAdminMarketingInsightsRoute
   '/api/admin/pdf-sources': typeof ApiAdminPdfSourcesRoute
   '/api/admin/result-sessions': typeof ApiAdminResultSessionsRoute
   '/api/admin/skd-batches': typeof ApiAdminSkdBatchesRoute
@@ -137,6 +145,7 @@ export interface FileRoutesByTo {
   '/api/wa-result': typeof ApiWaResultRoute
   '/result/$scoreId': typeof ResultScoreIdRoute
   '/wa/$token': typeof WaTokenRoute
+  '/api/admin/marketing-insights': typeof ApiAdminMarketingInsightsRoute
   '/api/admin/pdf-sources': typeof ApiAdminPdfSourcesRoute
   '/api/admin/result-sessions': typeof ApiAdminResultSessionsRoute
   '/api/admin/skd-batches': typeof ApiAdminSkdBatchesRoute
@@ -156,6 +165,7 @@ export interface FileRoutesById {
   '/api/wa-result': typeof ApiWaResultRoute
   '/result/$scoreId': typeof ResultScoreIdRoute
   '/wa/$token': typeof WaTokenRoute
+  '/api/admin/marketing-insights': typeof ApiAdminMarketingInsightsRoute
   '/api/admin/pdf-sources': typeof ApiAdminPdfSourcesRoute
   '/api/admin/result-sessions': typeof ApiAdminResultSessionsRoute
   '/api/admin/skd-batches': typeof ApiAdminSkdBatchesRoute
@@ -176,6 +186,7 @@ export interface FileRouteTypes {
     | '/api/wa-result'
     | '/result/$scoreId'
     | '/wa/$token'
+    | '/api/admin/marketing-insights'
     | '/api/admin/pdf-sources'
     | '/api/admin/result-sessions'
     | '/api/admin/skd-batches'
@@ -194,6 +205,7 @@ export interface FileRouteTypes {
     | '/api/wa-result'
     | '/result/$scoreId'
     | '/wa/$token'
+    | '/api/admin/marketing-insights'
     | '/api/admin/pdf-sources'
     | '/api/admin/result-sessions'
     | '/api/admin/skd-batches'
@@ -212,6 +224,7 @@ export interface FileRouteTypes {
     | '/api/wa-result'
     | '/result/$scoreId'
     | '/wa/$token'
+    | '/api/admin/marketing-insights'
     | '/api/admin/pdf-sources'
     | '/api/admin/result-sessions'
     | '/api/admin/skd-batches'
@@ -231,6 +244,7 @@ export interface RootRouteChildren {
   ApiWaResultRoute: typeof ApiWaResultRoute
   ResultScoreIdRoute: typeof ResultScoreIdRoute
   WaTokenRoute: typeof WaTokenRoute
+  ApiAdminMarketingInsightsRoute: typeof ApiAdminMarketingInsightsRoute
   ApiAdminPdfSourcesRoute: typeof ApiAdminPdfSourcesRoute
   ApiAdminResultSessionsRoute: typeof ApiAdminResultSessionsRoute
   ApiAdminSkdBatchesRoute: typeof ApiAdminSkdBatchesRoute
@@ -353,6 +367,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminPdfSourcesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/marketing-insights': {
+      id: '/api/admin/marketing-insights'
+      path: '/api/admin/marketing-insights'
+      fullPath: '/api/admin/marketing-insights'
+      preLoaderRoute: typeof ApiAdminMarketingInsightsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -367,6 +388,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWaResultRoute: ApiWaResultRoute,
   ResultScoreIdRoute: ResultScoreIdRoute,
   WaTokenRoute: WaTokenRoute,
+  ApiAdminMarketingInsightsRoute: ApiAdminMarketingInsightsRoute,
   ApiAdminPdfSourcesRoute: ApiAdminPdfSourcesRoute,
   ApiAdminResultSessionsRoute: ApiAdminResultSessionsRoute,
   ApiAdminSkdBatchesRoute: ApiAdminSkdBatchesRoute,

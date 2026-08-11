@@ -16,6 +16,7 @@ interface HermesSessionRow {
   analysis_text: string;
   analysis_snapshot: Record<string, unknown>;
   expired_at: string;
+  delivered_at: string | null;
   used_count: number;
   sender_wa_id: string | null;
   last_inbound_message_id: string | null;
@@ -89,7 +90,7 @@ async function fetchSession(token: string) {
   const { data, error } = await sb
     .from("result_sessions")
     .select(
-      "id, lead_id, token, analysis_text, analysis_snapshot, rationalization_snapshot, status, expired_at, used_count, sender_wa_id, last_inbound_message_id",
+      "id, lead_id, token, analysis_text, analysis_snapshot, rationalization_snapshot, status, expired_at, delivered_at, used_count, sender_wa_id, last_inbound_message_id",
     )
     .eq("token", token)
     .maybeSingle();
@@ -131,6 +132,7 @@ function resultPayload(request: Request, session: HermesSessionRow) {
       image_url: imageUrl,
       expires_at: session.expired_at,
       session_id: session.id,
+      ai_enhance: session.delivered_at === null,
     });
   }
 
@@ -147,6 +149,7 @@ function resultPayload(request: Request, session: HermesSessionRow) {
     image_url: imageUrl,
     fallback_message: session.analysis_text,
     expires_at: session.expired_at,
+    ai_enhance: session.delivered_at === null,
   });
 }
 

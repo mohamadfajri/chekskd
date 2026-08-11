@@ -26,8 +26,11 @@ Scan the displayed QR in WhatsApp Business under **Linked Devices**. Then start
 the service with `sudo docker compose up -d`.
 
 Messages matching `CEK RSKD-...` are handled directly by the `skd-result`
-plugin. They are persisted and processed through the application API without
-calling an LLM. `HERMES_API_SECRET` must match the server-only Vercel value.
+plugin. The score, ranking, recommendation, and PNG are always produced by the
+deterministic application engine. When `SKD_AI_EXPLANATION_ENABLED=true`, one
+short coaching note is appended to the same image caption. If the provider is
+unavailable or its output fails the guard, Hermes sends the deterministic
+caption unchanged. `HERMES_API_SECRET` must match the server-only Vercel value.
 
 Other conversations can still use the named `custom:sumopod`
 OpenAI-compatible endpoint with the `deepseek-v4-flash` model. Store its
@@ -36,6 +39,8 @@ secret only in `data/.env`:
 ```dotenv
 OPENAI_BASE_URL=https://ai.sumopod.com/v1
 OPENAI_API_KEY=replace-with-sumopod-api-key
+SKD_AI_EXPLANATION_ENABLED=true
+SKD_AI_MODEL=deepseek-v4-flash
 ```
 
 Only the custom `skd_result` toolset should be enabled for WhatsApp. Do not
