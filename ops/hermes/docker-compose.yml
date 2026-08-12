@@ -11,7 +11,11 @@ services:
     environment:
       HERMES_UID: "1000"
       HERMES_GID: "1000"
-      HERMES_DASHBOARD: "0"
+      HERMES_DASHBOARD: "1"
+      HERMES_DASHBOARD_HOST: "0.0.0.0"
+      HERMES_DASHBOARD_PORT: "9119"
+    ports:
+      - "127.0.0.1:9119:9119"
     mem_limit: 1g
     cpus: 1.0
     pids_limit: 256

@@ -11,6 +11,16 @@ The container is isolated from TeamSMT:
 - CPU limit: 1 core
 - persistent data: `/opt/hermes-cpnsguru/data`
 
+The dashboard is bound to VPS loopback only. From the owner's Windows laptop,
+open an SSH tunnel and keep that terminal running:
+
+```powershell
+ssh -N -L 9119:127.0.0.1:9119 -i "$HOME\.ssh\smt.pem" ubuntu@43.157.212.126
+```
+
+Then open `http://127.0.0.1:9119`. Dashboard credentials stay only in
+`data/.env` on the VPS.
+
 WhatsApp uses the Business app through Linked Devices (QR/Baileys). It does
 not need a Meta application or a public webhook. Keep the paired session under
 `data/whatsapp/session` private because it grants access to the bot account.
@@ -46,6 +56,18 @@ SKD_AI_MODEL=deepseek-v4-flash
 Only the custom `skd_result` toolset should be enabled for WhatsApp. Do not
 enable the default `hermes-whatsapp` toolset for this public bot because it
 includes terminal, file, browser, and other general-purpose tools.
+
+Telegram is reserved for the owner. Configure the BotFather token and numeric
+owner ID only in the VPS `data/.env`, set the same ID as the home channel, and
+keep `TELEGRAM_ALLOW_ALL_USERS=false`. After restarting the gateway, open the
+bot in Telegram and send `/start`. The allowlist prevents other Telegram
+accounts from using the agent. Apply `TELEGRAM_OWNER_PROMPT.md` as the owner's
+Telegram `channel_prompts` entry so this channel behaves as an operations
+console instead of inheriting the public SKD assistant behavior. Keep its
+toolsets limited to `terminal`, `file`, `web`, `session_search`, `cronjob`,
+`memory`, `todo`, and `clarify`; explicitly mark `skd_result` as known but
+disabled for Telegram. Hide Telegram tool progress and interim messages so the
+owner receives only the final operational result.
 
 To replace an expired SumoPod key without putting it in shell history, run from
 the repository root on Windows:
