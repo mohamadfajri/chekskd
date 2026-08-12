@@ -44,7 +44,7 @@ function suggestedActions(insights: MarketingInsights): string[] {
   }
   if ((insights.segments.unclassified ?? 0) > 0) {
     actions.push(
-      "Segmentasi akan terisi otomatis pada analisis v4 berikutnya; hasil lama masih belum terklasifikasi.",
+      "Segmentasi akan terisi otomatis pada analisis v5 berikutnya; hasil lama masih belum terklasifikasi.",
     );
   }
 

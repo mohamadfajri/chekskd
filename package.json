@@ -7,6 +7,7 @@
     "dev": "vite dev",
     "build": "vite build",
     "build:dev": "vite build --mode development",
+    "skd:evaluate-rationalization": "node --env-file=.env tools/skd/evaluate_rationalization.mjs",
     "skd:upload-pdfs": "node --env-file=.env tools/skd/upload_source_pdfs.mjs",
     "preview": "vite preview",
     "lint": "eslint .",

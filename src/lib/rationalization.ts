@@ -69,7 +69,7 @@ export interface RationalizationTargetSimulation {
 
 export interface RationalizationSnapshot {
   kind: "skd_rationalization";
-  version: 1 | 2 | 3 | 4;
+  version: 1 | 2 | 3 | 4 | 5;
   generated_at: string;
   score_id: string;
   formation_id: string;
@@ -150,6 +150,12 @@ export interface RationalizationSnapshot {
     excluded_statuses: string[];
     score_order: string[];
     uses_final_skb_result: boolean;
+    quality_guardrails?: {
+      minimum_passing_pool: number;
+      minimum_historical_shortlist: number;
+      maximum_limited_confidence: number;
+      maximum_cross_position_fallback: number;
+    };
   };
   recommendation_mode?: RecommendationMode;
   recommendation_summary?: {
@@ -176,7 +182,8 @@ export function isRationalizationSnapshot(value: unknown): value is Rationalizat
     (snapshot.version === 1 ||
       snapshot.version === 2 ||
       snapshot.version === 3 ||
-      snapshot.version === 4) &&
+      snapshot.version === 4 ||
+      snapshot.version === 5) &&
     typeof snapshot.participant?.name === "string" &&
     typeof snapshot.formation?.institution === "string" &&
     typeof snapshot.verdict?.code === "string"

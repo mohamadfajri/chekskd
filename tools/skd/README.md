@@ -117,6 +117,29 @@ node tools/skd/import_staging_csv.mjs data/staging/kemenhub-2024-v3-staging.csv
 
 Batch `review` dan seluruh row non-`verified` tidak dapat dibaca pengguna publik.
 
+## Evaluasi mesin rasionalisasi
+
+Jalankan benchmark read-only setelah data atau formula rasionalisasi berubah:
+
+```powershell
+npm run skd:evaluate-rationalization
+```
+
+Evaluator mengambil sampel kecil lintas instansi dan status `P/L`, `P`, `TL`,
+`TH`, `TMS`, serta `DIS`. Statistik formasi, peringkat, tie-break, verdict, dan
+kontrak rekomendasi v5 dihitung ulang secara independen. Nomor peserta disamarkan
+di laporan dan tidak ada data yang diubah.
+
+Laporan JSON dan Markdown tersimpan di `output/` (diabaikan Git). Untuk cakupan
+lebih besar atau batas audit formasi berbeda:
+
+```powershell
+npm run skd:evaluate-rationalization -- --sample-size 36 --max-formation-rows 30000
+```
+
+Script mengembalikan exit code `1` jika ada error logika. Warning seperti sampel
+historis terbatas tetap dilaporkan tetapi tidak menggagalkan command.
+
 ## Test
 
 ```powershell

@@ -131,7 +131,7 @@ export const Route = createFileRoute("/api/wa-jobs")({
               .maybeSingle()
           : { data: null };
 
-        const rationalizationRequest = await sb.rpc("get_skd_rationalization_v4", {
+        const rationalizationRequest = await sb.rpc("get_skd_rationalization_v5", {
           p_score_id: job.score_id,
           p_recommendation_mode: lead?.recommendation_mode === "all" ? "all" : "related",
           p_preferred_target_formation_id: lead?.target_formation_id ?? null,
