@@ -26,9 +26,71 @@ function demoSnapshot(): AnalysisSnapshot {
 }
 
 function demoRationalizationSnapshot(): RationalizationSnapshot {
+  const calculatedAt = new Date().toISOString();
+  const recommendation = (
+    id: string,
+    institution: string,
+    position: string,
+    location: string,
+    quota: number,
+    attended: number,
+    rank: number,
+    minimum: number,
+    median: number,
+    maximum: number,
+    verdict: "competitive" | "close" | "below",
+    label: string,
+  ): NonNullable<RationalizationSnapshot["target_recommendations"]>[number] => ({
+    formation_id: id,
+    dataset_year: 2024,
+    institution,
+    position,
+    location,
+    formation_type: "UMUM",
+    education_requirement: "S-1 HUKUM",
+    education_match: "exact",
+    position_relation: "same_position",
+    quota,
+    participants: attended + 6,
+    attended,
+    passing_grade: attended,
+    eligible_pool: attended,
+    shortlisted_historical: Math.min(attended, quota * 3),
+    shortlist_capacity: quota * 3,
+    competition_ratio: Number((attended / quota).toFixed(2)),
+    minimum_total: minimum,
+    median_total: median,
+    maximum_total: maximum,
+    simulated_rank: rank,
+    simulated_tied_count: 1,
+    score_gap_to_shortlist_cutoff: verdict === "below" ? -8 : 11,
+    score_needed_to_historical_cutoff: verdict === "below" ? 8 : 0,
+    recommended_total: verdict === "below" ? 410 : 400,
+    score_needed_to_recommended_total: verdict === "below" ? 20 : 10,
+    eligible_percentile: Number((((attended - rank) / attended) * 100).toFixed(1)),
+    above_historical_cutoff: verdict !== "below",
+    recommendation_score: verdict === "competitive" ? 88 : verdict === "close" ? 72 : 48,
+    strategy: label,
+    cutoff: { total: verdict === "below" ? 398 : 379, tkp: 170, tiu: 120, twk: 89 },
+    verdict: { code: verdict, label },
+    recommendation_tier:
+      verdict === "competitive"
+        ? "most_rational"
+        : verdict === "close"
+          ? "competitive"
+          : "ambitious",
+    confidence: { code: "strong", label: "Data kuat" },
+    data_quality: {
+      basis: "official_2024_result",
+      ranking_pool: "passing_grade_only",
+      capacity_consistent: true,
+      stats_calculated_at: calculatedAt,
+    },
+  });
+
   return {
     kind: "skd_rationalization",
-    version: 1,
+    version: 5,
     generated_at: new Date().toISOString(),
     score_id: "demo-score",
     formation_id: "demo-formation",
@@ -83,8 +145,67 @@ function demoRationalizationSnapshot(): RationalizationSnapshot {
     data_quality: {
       basis: "official_2024_result",
       capacity_consistent: true,
-      stats_calculated_at: new Date().toISOString(),
+      stats_calculated_at: calculatedAt,
     },
+    recommendation_mode: "related",
+    recommendation_summary: {
+      mode: "related",
+      mode_label: "Jabatan sama dan sejenis",
+      returned_count: 3,
+      eligible_formations: 42,
+      eligible_institutions: 18,
+      related_formations: 42,
+      dataset_formations: 6068,
+      dataset_institutions: 69,
+      education_match: "exact",
+      formation_type: "UMUM",
+      scope_note:
+        "Membandingkan 42 formasi umum dengan pendidikan S-1 Hukum pada 18 instansi yang memiliki data layak analisis.",
+    },
+    target_recommendations: [
+      recommendation(
+        "demo-target-1",
+        "Kementerian Hukum dan HAM",
+        "ANALIS HUKUM AHLI PERTAMA",
+        "Jawa Tengah",
+        8,
+        74,
+        19,
+        354,
+        381,
+        432,
+        "competitive",
+        "Cukup rasional",
+      ),
+      recommendation(
+        "demo-target-2",
+        "Kementerian Agama",
+        "ANALIS HUKUM AHLI PERTAMA",
+        "Sulawesi Selatan",
+        5,
+        48,
+        13,
+        362,
+        386,
+        421,
+        "competitive",
+        "Cukup rasional",
+      ),
+      recommendation(
+        "demo-target-3",
+        "Kejaksaan Republik Indonesia",
+        "ANALIS PERKARA PERADILAN",
+        "Jakarta",
+        2,
+        186,
+        112,
+        378,
+        411,
+        464,
+        "below",
+        "Kurang rasional",
+      ),
+    ],
   };
 }
 
@@ -94,13 +215,18 @@ export const Route = createFileRoute("/api/result-card")({
       GET: async ({ request }: { request: Request }) => {
         const url = new URL(request.url);
         let snapshot: AnalysisSnapshot | RationalizationSnapshot;
+        let resultToken: string | null = null;
 
         if (url.searchParams.has("demo") && process.env.NODE_ENV !== "production") {
+          resultToken = "RSKD-DEMO2026";
           snapshot =
-            url.searchParams.get("demo") === "v2" ? demoRationalizationSnapshot() : demoSnapshot();
+            url.searchParams.get("demo") === "v2" || url.searchParams.get("demo") === "v5"
+              ? demoRationalizationSnapshot()
+              : demoSnapshot();
         } else {
           const token = extractResultToken(url.searchParams.get("token") ?? "");
           if (!token) return jsonResponse({ message: "Token hasil tidak valid." }, 400);
+          resultToken = token;
 
           const { client: sb, error: configError } = getServerSupabase();
           if (!sb) return jsonResponse({ message: `Supabase belum siap: ${configError}` }, 503);
@@ -125,7 +251,7 @@ export const Route = createFileRoute("/api/result-card")({
 
         const fontPath = await prepareResultCardFont();
         const png = isRationalizationSnapshot(snapshot)
-          ? renderRationalizationCard(snapshot, fontPath)
+          ? renderRationalizationCard(snapshot, fontPath, resultToken)
           : renderResultCard(snapshot, fontPath);
         return new Response(new Blob([png], { type: "image/png" }), {
           status: 200,

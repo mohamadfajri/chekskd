@@ -294,7 +294,7 @@ function renderTargetComparisonCardSvg(snapshot: RationalizationSnapshot): strin
   </svg>`;
 }
 
-function renderTopRecommendationsCardSvg(snapshot: RationalizationSnapshot): string {
+function renderTopRecommendationsCardSvgLegacy(snapshot: RationalizationSnapshot): string {
   const recommendations = snapshot.target_recommendations ?? [];
   const participant = snapshot.participant;
   const original = snapshot.formation;
@@ -396,8 +396,186 @@ function renderTopRecommendationsCardSvg(snapshot: RationalizationSnapshot): str
   </svg>`;
 }
 
-export function renderRationalizationCardSvg(snapshot: RationalizationSnapshot): string {
-  if (snapshot.target_recommendations?.length) return renderTopRecommendationsCardSvg(snapshot);
+function renderTopRecommendationsCardSvg(
+  snapshot: RationalizationSnapshot,
+  resultToken?: string | null,
+): string {
+  const recommendations = snapshot.target_recommendations ?? [];
+  const participant = snapshot.participant;
+  const original = snapshot.formation;
+  const originalPosition = snapshot.historical_position;
+  const originalStats = snapshot.historical_stats;
+  const summary = snapshot.recommendation_summary;
+  const originalRank = originalPosition.overall_rank ? String(originalPosition.overall_rank) : "-";
+  const percentile =
+    originalPosition.top_percent === null
+      ? "-"
+      : `${Math.max(0, Math.round(100 - originalPosition.top_percent))}%`;
+  const originalPositionLines = wrap(original.position, 37, 2);
+  const originalInstitutionLines = wrap(original.institution, 42, 2);
+  const generated = new Intl.DateTimeFormat("id-ID", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: "Asia/Makassar",
+  }).format(new Date(snapshot.generated_at));
+
+  const recommendationColumn = (item: (typeof recommendations)[number], index: number) => {
+    const x = 54 + index * 324;
+    const style = targetVerdictStyle(item.verdict.code);
+    const institutionLines = wrap(item.institution, 25, 2);
+    const positionLines = wrap(item.position, 31, 2);
+    const location = clip(item.location || "Lokasi tidak dirinci", 30);
+    const rank = item.simulated_rank ? String(item.simulated_rank) : "-";
+    const pool = item.eligible_pool ?? item.passing_grade ?? item.attended;
+
+    return `
+      <g transform="translate(${x} 0)">
+        <circle cx="24" cy="682" r="20" fill="${index === 2 ? "#F04418" : "#159455"}"/>
+        <text x="24" y="690" text-anchor="middle" font-size="21" font-weight="800" fill="#FFFFFF">${index + 1}</text>
+        <g font-family="${FONT_FAMILY}" font-weight="800">${textLines(institutionLines, 58, 676, 18, 22)}</g>
+        <text x="58" y="727" font-size="14" fill="#516581">${escapeXml(location)}</text>
+        <rect x="58" y="744" width="174" height="34" rx="7" fill="${style.fill}"/>
+        <text x="145" y="767" text-anchor="middle" font-size="13" font-weight="800" fill="${style.color}">${escapeXml(item.verdict.label.toUpperCase())}</text>
+        <g font-family="${FONT_FAMILY}" font-weight="700">${textLines(positionLines, 58, 801, 13, 17)}</g>
+
+        <rect x="0" y="840" width="96" height="76" rx="7" fill="#F7F9FC" stroke="#E2E8F0"/>
+        <text x="48" y="866" text-anchor="middle" font-size="13" fill="#61708A">Posisiku</text>
+        <text x="48" y="894" text-anchor="middle" font-size="25" font-weight="800" fill="#071B36">${rank}</text>
+        <text x="48" y="910" text-anchor="middle" font-size="11" fill="#61708A">dari ${pool}</text>
+        <rect x="102" y="840" width="96" height="76" rx="7" fill="#F7F9FC" stroke="#E2E8F0"/>
+        <text x="150" y="866" text-anchor="middle" font-size="13" fill="#61708A">Kuota</text>
+        <text x="150" y="899" text-anchor="middle" font-size="25" font-weight="800" fill="#071B36">${item.quota}</text>
+        <rect x="204" y="840" width="96" height="76" rx="7" fill="#F7F9FC" stroke="#E2E8F0"/>
+        <text x="252" y="866" text-anchor="middle" font-size="13" fill="#61708A">Peserta</text>
+        <text x="252" y="899" text-anchor="middle" font-size="25" font-weight="800" fill="#071B36">${item.attended}</text>
+
+        <line x1="0" y1="934" x2="300" y2="934" stroke="#E2E8F0"/>
+        <text x="45" y="960" text-anchor="middle" font-size="13" fill="#61708A">Min</text>
+        <text x="45" y="988" text-anchor="middle" font-size="22" font-weight="800" fill="#071B36">${score(item.minimum_total)}</text>
+        <text x="150" y="960" text-anchor="middle" font-size="13" fill="#61708A">Median</text>
+        <text x="150" y="988" text-anchor="middle" font-size="22" font-weight="800" fill="#071B36">${score(item.median_total)}</text>
+        <text x="255" y="960" text-anchor="middle" font-size="13" fill="#61708A">Maks</text>
+        <text x="255" y="988" text-anchor="middle" font-size="22" font-weight="800" fill="#071B36">${score(item.maximum_total)}</text>
+      </g>`;
+  };
+
+  const modeLabel = summary?.mode_label ?? "Rekomendasi otomatis";
+  const coverage = summary?.scope_note ?? "Cakupan mengikuti formasi terverifikasi dalam database.";
+  const best = recommendations[0];
+  const recommendationText = best
+    ? `Nilai ${score(participant.total)} paling rasional diarahkan ke ${best.institution}. Posisi simulasi ${best.simulated_rank ?? "-"} dari ${best.eligible_pool ?? best.passing_grade ?? best.attended} peserta dengan kuota ${best.quota}. Tetap cek syarat pendidikan dan pengumuman resmi saat formasi dibuka.`
+    : "Belum ada target yang cukup kuat untuk direkomendasikan dari data terverifikasi.";
+  const recommendationLines = wrap(recommendationText, 61, 4);
+  const coverageLines = wrap(coverage, 50, 4);
+  const education = clip(participant.education, 32);
+  const participantLabel = `${clip(participant.name, 28)} | ${maskNoPeserta(participant.participant_number)}`;
+  const tokenLabel = clip(resultToken || "RSKD-XXXXXXXX", 18);
+  const originalVerdict = verdictStyle(snapshot.verdict.code);
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+  <svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}">
+    <defs>
+      <linearGradient id="frame" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#071B56"/>
+        <stop offset="1" stop-color="#0872D9"/>
+      </linearGradient>
+      <linearGradient id="rank" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#123EA5"/>
+        <stop offset="1" stop-color="#075EC4"/>
+      </linearGradient>
+    </defs>
+    <rect width="1080" height="1350" fill="url(#frame)"/>
+    <circle cx="1040" cy="-20" r="180" fill="#0C79E8" fill-opacity="0.38"/>
+    <rect x="18" y="18" width="1044" height="1314" rx="20" fill="#FFFFFF"/>
+
+    <g font-family="${FONT_FAMILY}">
+      <rect x="54" y="42" width="58" height="58" rx="15" fill="#071B36"/>
+      <path d="M69 87 L82 57 Q84 53 87 57 L101 87" fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M87 58 L101 87" fill="none" stroke="#2F6BFF" stroke-width="7" stroke-linecap="round"/>
+      <circle cx="94" cy="77" r="4" fill="#39D4D8"/>
+      <text x="124" y="75" font-size="31" font-weight="800" fill="#071B36">Analisa<tspan fill="#2F6BFF">CPNS</tspan></text>
+      <text x="126" y="94" font-size="10" font-weight="700" fill="#61758D">by <tspan fill="#697FE4">Mimin</tspan><tspan fill="#704F9E"> CPNS</tspan></text>
+      <text x="1024" y="68" text-anchor="end" font-size="20" font-weight="800" fill="#071B56">CEK RASIONALISASI SKD</text>
+      <text x="1024" y="94" text-anchor="end" font-size="15" font-weight="700" fill="#536681">#PilihFormasiDenganData</text>
+      <line x1="18" y1="118" x2="1062" y2="118" stroke="#E8EDF4"/>
+
+      <text x="62" y="169" font-size="37" font-weight="800" fill="#071B56">HASIL RASIONALISASI SKD-KU</text>
+      <text x="62" y="203" font-size="17" fill="#536681">Berdasarkan data pengumuman CPNS ${snapshot.dataset_year} yang telah terindeks</text>
+      <text x="1018" y="202" text-anchor="end" font-size="13" font-weight="700" fill="#718096">${escapeXml(participantLabel)}</text>
+
+      <rect x="62" y="230" width="220" height="320" rx="14" fill="#FFFFFF" stroke="#DDE5EF" stroke-width="2"/>
+      <text x="92" y="288" font-size="17" font-weight="800" fill="#071B56">NILAI SKD TOTAL</text>
+      <text x="92" y="420" font-size="88" font-weight="800" fill="#1059C8">${score(participant.total)}</text>
+      <path d="M112 455 Q154 433 202 446" fill="none" stroke="#FFC62C" stroke-width="8" stroke-linecap="round"/>
+      <text x="92" y="502" font-size="13" font-weight="700" fill="#61708A">TWK ${score(participant.twk)}  ·  TIU ${score(participant.tiu)}  ·  TKP ${score(participant.tkp)}</text>
+
+      <rect x="296" y="230" width="370" height="320" rx="14" fill="#FFFFFF" stroke="#DDE5EF" stroke-width="2"/>
+      <circle cx="334" cy="278" r="24" fill="#EAF2FF"/>
+      <rect x="324" y="270" width="20" height="15" rx="2" fill="#1763C6"/>
+      <path d="M329 270 V265 H339 V270" fill="none" stroke="#1763C6" stroke-width="2"/>
+      <text x="374" y="267" font-size="13" font-weight="700" fill="#61708A">JABATAN ACUAN</text>
+      <g font-weight="800">${textLines(originalPositionLines, 374, 291, 17, 20)}</g>
+      <line x1="322" y1="330" x2="640" y2="330" stroke="#E3E9F1"/>
+      <circle cx="334" cy="371" r="24" fill="#EAF2FF"/>
+      <path d="M321 368 L334 361 L347 368 L334 375 Z" fill="#1763C6"/>
+      <text x="374" y="363" font-size="13" font-weight="700" fill="#61708A">PENDIDIKAN</text>
+      <text x="374" y="388" font-size="17" font-weight="800" fill="#071B36">${escapeXml(education)}</text>
+      <line x1="322" y1="414" x2="640" y2="414" stroke="#E3E9F1"/>
+      <circle cx="334" cy="455" r="24" fill="#EAF2FF"/>
+      <path d="M322 465 V450 L334 442 L346 450 V465 M327 465 V454 M334 465 V454 M341 465 V454" fill="none" stroke="#1763C6" stroke-width="3"/>
+      <text x="374" y="447" font-size="13" font-weight="700" fill="#61708A">FORMASI ACUAN DARI</text>
+      <g font-weight="800">${textLines(originalInstitutionLines, 374, 472, 15, 19)}</g>
+      <text x="374" y="523" font-size="13" font-weight="700" fill="#1763C6">${escapeXml(modeLabel.toUpperCase())}</text>
+
+      <rect x="682" y="230" width="336" height="320" rx="15" fill="url(#rank)"/>
+      <text x="850" y="274" text-anchor="middle" font-size="16" fill="#FFFFFF">POSISI DALAM DATA TERINDEKS</text>
+      <circle cx="748" cy="343" r="43" fill="#FFFFFF" fill-opacity="0.10"/>
+      <path d="M727 323 H769 V337 Q769 356 748 365 Q727 356 727 337 Z M736 365 H760 M741 374 H755" fill="none" stroke="#FFD044" stroke-width="7" stroke-linecap="round"/>
+      <text x="866" y="356" text-anchor="middle" font-size="60" font-weight="800" fill="#FFFFFF">${originalRank}</text>
+      <text x="866" y="385" text-anchor="middle" font-size="17" fill="#FFFFFF">dari ${originalStats.attended} peserta</text>
+      <line x1="710" y1="413" x2="990" y2="413" stroke="#FFFFFF" stroke-opacity="0.35"/>
+      <text x="850" y="446" text-anchor="middle" font-size="15" fill="#FFFFFF">PERSENTIL</text>
+      <text x="850" y="493" text-anchor="middle" font-size="45" font-weight="800" fill="#FFD044">${percentile}</text>
+      <rect x="729" y="509" width="242" height="36" rx="18" fill="${originalVerdict.fill}"/>
+      <text x="850" y="533" text-anchor="middle" font-size="15" font-weight="800" fill="${originalVerdict.color}">ZONA: ${escapeXml(snapshot.verdict.label.toUpperCase())}</text>
+
+      <line x1="62" y1="594" x2="1018" y2="594" stroke="#E4EAF2"/>
+      <text x="62" y="632" font-size="24" font-weight="800" fill="#071B56">3 FORMASI PALING <tspan fill="#159455">RASIONAL</tspan> UNTUK NILAI SKD-MU</text>
+      <rect x="46" y="650" width="988" height="358" rx="14" fill="#FFFFFF" stroke="#DDE5EF" stroke-width="2"/>
+      <line x1="370" y1="666" x2="370" y2="992" stroke="#E4EAF2"/>
+      <line x1="694" y1="666" x2="694" y2="992" stroke="#E4EAF2"/>
+      ${recommendations.slice(0, 3).map(recommendationColumn).join("")}
+
+      <rect x="62" y="1030" width="956" height="174" rx="14" fill="#FFFFFF" stroke="#DDE5EF" stroke-width="2"/>
+      <circle cx="112" cy="1082" r="31" fill="#1059C8"/>
+      <circle cx="112" cy="1082" r="17" fill="none" stroke="#FFFFFF" stroke-width="4"/>
+      <path d="M112 1082 L128 1066 M121 1066 H128 V1073" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="160" y="1068" font-size="17" font-weight="800" fill="#1059C8">REKOMENDASI</text>
+      <g>${textLines(recommendationLines, 160, 1098, 14, 21)}</g>
+      <line x1="650" y1="1052" x2="650" y2="1182" stroke="#CAD7E8"/>
+      <text x="674" y="1068" font-size="15" font-weight="800" fill="#071B56">CAKUPAN ANALISIS</text>
+      <g>${textLines(coverageLines, 674, 1098, 13, 19)}</g>
+      <text x="674" y="1180" font-size="13" font-weight="700" fill="#1763C6">Data ${snapshot.dataset_year} · dibuat ${escapeXml(generated)}</text>
+
+      <path d="M18 1228 Q18 1210 36 1210 H1044 Q1062 1210 1062 1228 V1312 Q1062 1332 1042 1332 H38 Q18 1332 18 1312 Z" fill="url(#rank)"/>
+      <circle cx="70" cy="1268" r="20" fill="#FFFFFF" fill-opacity="0.16"/>
+      <path d="M61 1268 L68 1275 L81 1260" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="104" y="1262" font-size="14" fill="#FFFFFF">Data berasal dari pengumuman resmi yang telah terindeks.</text>
+      <text x="104" y="1287" font-size="14" fill="#FFFFFF">Bukan peringkat resmi instansi dan bukan jaminan kelulusan.</text>
+      <text x="1022" y="1248" text-anchor="end" font-size="12" font-weight="700" fill="#CFE3FF">KODE HASIL KAMU</text>
+      <rect x="806" y="1258" width="216" height="48" rx="10" fill="#FFFFFF" fill-opacity="0.08" stroke="#FFFFFF" stroke-opacity="0.55"/>
+      <text x="914" y="1290" text-anchor="middle" font-size="19" font-weight="800" fill="#FFFFFF">${escapeXml(tokenLabel)}</text>
+    </g>
+  </svg>`;
+}
+
+export function renderRationalizationCardSvg(
+  snapshot: RationalizationSnapshot,
+  resultToken?: string | null,
+): string {
+  if (snapshot.target_recommendations?.length)
+    return renderTopRecommendationsCardSvg(snapshot, resultToken);
   if (snapshot.target_simulation) return renderTargetComparisonCardSvg(snapshot);
 
   const verdict = verdictStyle(snapshot.verdict.code);
@@ -484,8 +662,9 @@ export function renderRationalizationCardSvg(snapshot: RationalizationSnapshot):
 export function renderRationalizationCard(
   snapshot: RationalizationSnapshot,
   fontPath: string,
+  resultToken?: string | null,
 ): Uint8Array {
-  const renderer = new Resvg(renderRationalizationCardSvg(snapshot), {
+  const renderer = new Resvg(renderRationalizationCardSvg(snapshot, resultToken), {
     fitTo: { mode: "width", value: WIDTH },
     font: {
       loadSystemFonts: false,
