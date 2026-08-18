@@ -195,6 +195,13 @@ export const Route = createFileRoute("/api/wa-jobs")({
                 recommendation_count: recommendations.length,
                 top_institutions: recommendations.slice(0, 3).map((item) => item.institution),
                 best_recommendation_score: recommendations[0]?.recommendation_score ?? null,
+                limited_confidence_count: recommendations.filter(
+                  (item) => item.confidence?.code === "limited",
+                ).length,
+                fallback_count: recommendations.filter((item) => item.is_mode_fallback).length,
+                cross_position_count: recommendations.filter(
+                  (item) => item.position_relation === "cross_position",
+                ).length,
               },
             }),
           ]);

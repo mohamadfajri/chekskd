@@ -4,11 +4,13 @@ import Papa from "papaparse";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
+  Activity,
   BarChart3,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Cloud,
+  Clock3,
   Database,
   ExternalLink,
   FileCheck2,
@@ -17,15 +19,21 @@ import {
   Layers3,
   Loader2,
   MessageSquareText,
+  MousePointerClick,
   RefreshCw,
   Search,
   ShieldCheck,
+  Send,
+  Target,
+  TrendingUp,
   Upload,
+  UserRoundCheck,
   Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
   bulkVerifySkdBatch,
+  getAdminMarketingInsights,
   getAdminResultSessions,
   getSkdBatches,
   getSkdExplorerOverview,
@@ -38,6 +46,7 @@ import {
   validateCsvRows,
   type CsvRow,
   type ImportProgress,
+  type AdminMarketingInsights,
   type RowValidationIssue,
   type ResultSessionStatus,
   type SkdBatchSummary,
@@ -1800,7 +1809,7 @@ function PublishedWorkspace() {
   );
 }
 
-function RationalizationWorkspace({ adminPassword }: { adminPassword: string }) {
+function RationalizationWorkspaceLegacy({ adminPassword }: { adminPassword: string }) {
   const sessions = useQuery({
     queryKey: ["admin-result-sessions", adminPassword],
     queryFn: () => getAdminResultSessions(adminPassword),
@@ -1912,6 +1921,593 @@ function RationalizationWorkspace({ adminPassword }: { adminPassword: string }) 
       </div>
     </div>
   );
+}
+
+function RationalizationWorkspace({ adminPassword }: { adminPassword: string }) {
+  const sessions = useQuery({
+    queryKey: ["admin-result-sessions", adminPassword],
+    queryFn: () => getAdminResultSessions(adminPassword),
+    refetchInterval: 30_000,
+  });
+  const insights = useQuery({
+    queryKey: ["admin-marketing-insights", adminPassword],
+    queryFn: () => getAdminMarketingInsights(adminPassword),
+    refetchInterval: 60_000,
+  });
+  const byStatus = sessions.data?.summary.by_status;
+  const active = (byStatus?.waiting ?? 0) + (byStatus?.queued ?? 0) + (byStatus?.processing ?? 0);
+  const funnel = insights.data?.funnel;
+  const operational = insights.data?.operational;
+  const quality = insights.data?.quality;
+
+  const refresh = () => {
+    void Promise.all([sessions.refetch(), insights.refetch()]);
+  };
+
+  return (
+    <div className="max-w-[1400px]">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="font-mono text-[11px] font-semibold uppercase text-[#0d6cbd]">
+            Owner intelligence / WhatsApp
+          </p>
+          <h1 className="mt-1 text-2xl font-semibold">Kinerja Rasionalisasi</h1>
+          <p className="mt-1 max-w-2xl text-sm text-[#65768a]">
+            Pantau perjalanan pengguna dari kode dibuat sampai hasil diterima, sekaligus kualitas
+            rekomendasi yang dihasilkan mesin v5.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={refresh}
+          className="desk-icon-button"
+          title="Muat ulang dashboard"
+          aria-label="Muat ulang dashboard"
+        >
+          <RefreshCw
+            className={`h-4 w-4 ${sessions.isFetching || insights.isFetching ? "animate-spin" : ""}`}
+          />
+        </button>
+      </div>
+
+      {(sessions.error || insights.error) && (
+        <div className="mt-5 border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          {sessions.error instanceof Error
+            ? sessions.error.message
+            : insights.error instanceof Error
+              ? insights.error.message
+              : "Dashboard owner belum dapat dimuat."}
+        </div>
+      )}
+
+      <div className="mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-[#d8e1ec] bg-[#d8e1ec] xl:grid-cols-6">
+        <OwnerMetric
+          icon={MousePointerClick}
+          label="Kode dibuat"
+          value={funnel?.codes_created ?? 0}
+          detail={`${funnel?.leads ?? 0} lead tercatat`}
+        />
+        <OwnerMetric
+          icon={MessageSquareText}
+          label="Masuk WhatsApp"
+          value={funnel?.requested_on_whatsapp ?? 0}
+          detail={`${funnel?.code_to_whatsapp_rate ?? 0}% dari kode`}
+          tone="blue"
+        />
+        <OwnerMetric
+          icon={Activity}
+          label="Analisis selesai"
+          value={funnel?.analyses_completed ?? 0}
+          detail={`${active} masih aktif`}
+        />
+        <OwnerMetric
+          icon={Send}
+          label="Hasil terkirim"
+          value={funnel?.results_delivered ?? 0}
+          detail={`${funnel?.delivery_rate ?? 0}% delivery`}
+          tone="green"
+        />
+        <OwnerMetric
+          icon={Users}
+          label="User WhatsApp"
+          value={operational?.unique_whatsapp_users ?? 0}
+          detail={`${operational?.repeat_whatsapp_users ?? 0} kembali memakai`}
+        />
+        <OwnerMetric
+          icon={UserRoundCheck}
+          label="Siap marketing"
+          value={funnel?.marketing_ready ?? 0}
+          detail="Sudah izin dan belum opt-out"
+          tone="amber"
+        />
+      </div>
+
+      <div className="mt-5 grid overflow-hidden rounded-lg border border-[#d8e1ec] bg-white md:grid-cols-4">
+        <FunnelStep index="01" label="Buat kode" value={funnel?.codes_created ?? 0} rate={100} />
+        <FunnelStep
+          index="02"
+          label="Kirim ke WA"
+          value={funnel?.requested_on_whatsapp ?? 0}
+          rate={funnel?.code_to_whatsapp_rate ?? 0}
+        />
+        <FunnelStep
+          index="03"
+          label="Diproses v5"
+          value={funnel?.analyses_completed ?? 0}
+          rate={
+            funnel?.requested_on_whatsapp
+              ? Math.round((funnel.analyses_completed / funnel.requested_on_whatsapp) * 100)
+              : 0
+          }
+        />
+        <FunnelStep
+          index="04"
+          label="Diterima user"
+          value={funnel?.results_delivered ?? 0}
+          rate={funnel?.delivery_rate ?? 0}
+          last
+        />
+      </div>
+
+      <div className="mt-5 grid gap-5 xl:grid-cols-[1.6fr_0.8fr]">
+        <section className="overflow-hidden rounded-lg border border-[#d8e1ec] bg-white">
+          <div className="flex items-center justify-between border-b border-[#e2e8f0] px-4 py-3">
+            <div>
+              <h2 className="text-sm font-semibold">Aktivitas 14 hari terakhir</h2>
+              <p className="mt-0.5 text-xs text-[#718196]">
+                Kode, permintaan WhatsApp, dan delivery.
+              </p>
+            </div>
+            <TrendingUp className="h-4 w-4 text-[#0d6cbd]" />
+          </div>
+          <DailyActivityChart rows={insights.data?.recent_daily ?? []} />
+        </section>
+
+        <section className="rounded-lg border border-[#d8e1ec] bg-[#0d2747] text-white">
+          <div className="border-b border-white/10 px-4 py-3">
+            <p className="font-mono text-[10px] uppercase text-[#73d9b6]">Worker health</p>
+            <h2 className="mt-1 text-sm font-semibold">Kecepatan dan antrean</h2>
+          </div>
+          <div className="grid grid-cols-2 border-b border-white/10">
+            <OperationalMetric
+              label="Median proses"
+              value={formatDuration(operational?.median_processing_seconds ?? 0)}
+            />
+            <OperationalMetric
+              label="P95 proses"
+              value={formatDuration(operational?.p95_processing_seconds ?? 0)}
+              warning={(operational?.p95_processing_seconds ?? 0) > 120}
+            />
+            <OperationalMetric
+              label="Median antre"
+              value={formatDuration(operational?.median_queue_seconds ?? 0)}
+            />
+            <OperationalMetric
+              label="Job retry"
+              value={(operational?.retried_jobs ?? 0).toLocaleString("id-ID")}
+              warning={(operational?.retried_jobs ?? 0) > 0}
+            />
+          </div>
+          <div className="space-y-3 px-4 py-4 text-xs">
+            <StatusLine label="Antrean aktif" value={active} tone={active ? "warning" : "normal"} />
+            <StatusLine
+              label="Job gagal"
+              value={operational?.by_status.failed ?? 0}
+              tone={(operational?.by_status.failed ?? 0) > 0 ? "danger" : "normal"}
+            />
+            <StatusLine label="Sampel job" value={operational?.jobs_observed ?? 0} tone="muted" />
+          </div>
+        </section>
+      </div>
+
+      <section className="mt-5 overflow-hidden rounded-lg border border-[#d8e1ec] bg-white">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#e2e8f0] px-4 py-3">
+          <div>
+            <h2 className="text-sm font-semibold">Quality monitor v5</h2>
+            <p className="mt-0.5 text-xs text-[#718196]">
+              Sinyal untuk menentukan data atau formula mana yang perlu diaudit lebih dahulu.
+            </p>
+          </div>
+          <span className="font-mono text-[10px] uppercase text-[#718196]">
+            {quality?.analyses_observed ?? 0} analisis terlacak
+          </span>
+        </div>
+        <div className="grid sm:grid-cols-2 xl:grid-cols-5">
+          <QualityMetric
+            icon={Target}
+            label="Rata-rata rekomendasi"
+            value={quality?.average_recommendation_count ?? 0}
+            suffix=" target"
+          />
+          <QualityMetric
+            icon={AlertTriangle}
+            label="Rekomendasi kosong"
+            value={quality?.recommendations_empty ?? 0}
+            warning={(quality?.recommendations_empty ?? 0) > 0}
+          />
+          <QualityMetric
+            icon={ShieldCheck}
+            label="Confidence terbatas"
+            value={quality?.limited_confidence ?? 0}
+            warning={(quality?.limited_confidence ?? 0) > 0}
+          />
+          <QualityMetric
+            icon={Layers3}
+            label="Fallback dipakai"
+            value={quality?.fallback_used ?? 0}
+            warning={(quality?.fallback_used ?? 0) > 0}
+          />
+          <QualityMetric
+            icon={ExternalLink}
+            label="Lintas jabatan"
+            value={quality?.cross_position_used ?? 0}
+            warning={(quality?.cross_position_used ?? 0) > 0}
+          />
+        </div>
+        {(quality?.quality_signals_observed ?? 0) === 0 && (
+          <p className="border-t border-[#edf1f5] bg-[#f7f9fc] px-4 py-2.5 text-xs text-[#65768a]">
+            Sinyal confidence dan fallback mulai tercatat untuk analisis baru setelah versi
+            dashboard ini dipasang.
+          </p>
+        )}
+      </section>
+
+      <div className="mt-5 grid gap-5 lg:grid-cols-2">
+        <section className="overflow-hidden rounded-lg border border-[#d8e1ec] bg-white">
+          <div className="border-b border-[#e2e8f0] px-4 py-3">
+            <h2 className="text-sm font-semibold">Segmentasi kebutuhan user</h2>
+          </div>
+          <DistributionList
+            rows={Object.entries(insights.data?.segments ?? {}).map(([key, value]) => ({
+              label: segmentLabel(key),
+              value,
+            }))}
+            empty="Segmentasi belum tersedia."
+          />
+        </section>
+        <section className="overflow-hidden rounded-lg border border-[#d8e1ec] bg-white">
+          <div className="border-b border-[#e2e8f0] px-4 py-3">
+            <h2 className="text-sm font-semibold">Instansi paling sering direkomendasikan</h2>
+          </div>
+          <DistributionList
+            rows={(insights.data?.top_recommended_institutions ?? []).slice(0, 6).map((row) => ({
+              label: row.institution,
+              value: row.mentions,
+            }))}
+            empty="Belum ada rekomendasi instansi."
+          />
+        </section>
+      </div>
+
+      {(insights.data?.suggested_actions.length ?? 0) > 0 && (
+        <section className="mt-5 border-l-4 border-[#0d6cbd] bg-[#eef6fc] px-4 py-3">
+          <p className="text-xs font-semibold uppercase text-[#0d5f9f]">Prioritas owner</p>
+          <div className="mt-2 grid gap-2 lg:grid-cols-2">
+            {insights.data?.suggested_actions.map((action) => (
+              <p key={action} className="text-sm leading-5 text-[#294c68]">
+                {action}
+              </p>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <div className="mt-5 overflow-hidden rounded-lg border border-[#d8e1ec] bg-white shadow-sm">
+        <div className="flex items-center justify-between border-b border-[#e2e8f0] px-4 py-3">
+          <h2 className="text-sm font-semibold">100 kode terbaru</h2>
+          <span className="text-xs text-[#718196]">
+            Gagal {byStatus?.failed ?? 0} · Kedaluwarsa {byStatus?.expired ?? 0}
+          </span>
+        </div>
+        {sessions.isLoading ? (
+          <LoadingRows />
+        ) : sessions.data?.sessions.length ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-xs">
+              <thead className="bg-[#f7f9fc] text-[#536579]">
+                <tr>
+                  <TableHead>Kode</TableHead>
+                  <TableHead>WhatsApp</TableHead>
+                  <TableHead>Nama</TableHead>
+                  <TableHead>Mode / target</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Dibuat</TableHead>
+                  <TableHead>Marketing</TableHead>
+                </tr>
+              </thead>
+              <tbody>
+                {sessions.data.sessions.map((session) => (
+                  <tr key={session.id} className="border-t border-[#edf1f5]">
+                    <td className="px-3 py-3 font-mono font-semibold">{session.token}</td>
+                    <td className="px-3 py-3 font-mono">
+                      {session.sender_wa_id ? `+${session.sender_wa_id}` : "-"}
+                    </td>
+                    <td className="px-3 py-3">{session.leads?.nama_panggilan ?? "-"}</td>
+                    <td className="max-w-72 px-3 py-3">
+                      <span className="block font-medium">
+                        {session.leads?.recommendation_mode === "all"
+                          ? "Semua sesuai pendidikan"
+                          : "Jabatan sejenis"}
+                      </span>
+                      {session.leads?.target_formasi ? (
+                        <span className="mt-0.5 block text-[11px] text-[#718196]">
+                          Prioritas: {session.leads.target_formasi}
+                          {session.leads.target_instansi
+                            ? ` - ${session.leads.target_instansi}`
+                            : ""}
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="px-3 py-3">
+                      <ResultStatus status={session.status} />
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-3 text-[#536579]">
+                      {new Intl.DateTimeFormat("id-ID", {
+                        day: "2-digit",
+                        month: "short",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      }).format(new Date(session.created_at))}
+                    </td>
+                    <td className="px-3 py-3">
+                      {session.leads?.consent_marketing ? "Diizinkan" : "Tidak"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="p-10 text-center text-sm text-[#718196]">
+            Belum ada kode hasil yang dibuat.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function OwnerMetric({
+  icon: Icon,
+  label,
+  value,
+  detail,
+  tone = "neutral",
+}: {
+  icon: typeof Activity;
+  label: string;
+  value: number;
+  detail: string;
+  tone?: "neutral" | "blue" | "green" | "amber";
+}) {
+  const toneClass =
+    tone === "green"
+      ? "text-[#20795d]"
+      : tone === "amber"
+        ? "text-[#a46608]"
+        : tone === "blue"
+          ? "text-[#0d6cbd]"
+          : "text-[#172638]";
+  return (
+    <div className="min-w-0 bg-white px-4 py-4">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[10px] font-semibold uppercase text-[#718196]">{label}</p>
+        <Icon className={`h-4 w-4 ${toneClass}`} />
+      </div>
+      <p className={`mt-2 text-2xl font-semibold ${toneClass}`}>{value.toLocaleString("id-ID")}</p>
+      <p className="mt-1 min-h-8 text-[11px] leading-4 text-[#718196]" title={detail}>
+        {detail}
+      </p>
+    </div>
+  );
+}
+
+function FunnelStep({
+  index,
+  label,
+  value,
+  rate,
+  last = false,
+}: {
+  index: string;
+  label: string;
+  value: number;
+  rate: number;
+  last?: boolean;
+}) {
+  return (
+    <div
+      className={`relative px-4 py-4 ${last ? "" : "border-b md:border-b-0 md:border-r"} border-[#e2e8f0]`}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <span className="font-mono text-[10px] text-[#8291a3]">{index}</span>
+        <span className="rounded-sm bg-[#edf4fa] px-2 py-0.5 text-[10px] font-semibold text-[#0d5f9f]">
+          {Math.min(100, Math.max(0, rate))}%
+        </span>
+      </div>
+      <p className="mt-2 text-sm font-semibold">{label}</p>
+      <p className="mt-0.5 text-xs text-[#65768a]">{value.toLocaleString("id-ID")} pengguna</p>
+    </div>
+  );
+}
+
+function DailyActivityChart({ rows }: { rows: AdminMarketingInsights["recent_daily"] }) {
+  const visibleRows = rows.slice(-14);
+  const maximum = Math.max(
+    1,
+    ...visibleRows.flatMap((row) => [row.codes_created, row.whatsapp_requests, row.delivered]),
+  );
+  if (!visibleRows.length)
+    return <div className="p-10 text-center text-sm text-[#718196]">Aktivitas belum tersedia.</div>;
+  return (
+    <div className="overflow-x-auto px-4 pb-4 pt-5">
+      <div className="mb-4 flex items-center gap-4 text-[10px] text-[#65768a]">
+        <ChartLegend color="#9fb1c5" label="Kode" />
+        <ChartLegend color="#2f83c5" label="Masuk WA" />
+        <ChartLegend color="#28a87d" label="Terkirim" />
+      </div>
+      <div className="flex h-48 min-w-[680px] items-end gap-3 border-b border-[#dfe6ee]">
+        {visibleRows.map((row) => (
+          <div key={row.date} className="flex h-full min-w-0 flex-1 flex-col justify-end">
+            <div className="flex h-40 items-end justify-center gap-1">
+              <ChartBar value={row.codes_created} maximum={maximum} color="#9fb1c5" />
+              <ChartBar value={row.whatsapp_requests} maximum={maximum} color="#2f83c5" />
+              <ChartBar value={row.delivered} maximum={maximum} color="#28a87d" />
+            </div>
+            <p className="mt-2 text-center font-mono text-[9px] text-[#8291a3]">
+              {new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short" }).format(
+                new Date(`${row.date}T00:00:00`),
+              )}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ChartBar({ value, maximum, color }: { value: number; maximum: number; color: string }) {
+  return (
+    <div
+      className="w-2.5 min-h-[2px] rounded-t-sm"
+      style={{ height: `${Math.max(2, (value / maximum) * 100)}%`, backgroundColor: color }}
+      title={value.toLocaleString("id-ID")}
+    />
+  );
+}
+
+function ChartLegend({ color, label }: { color: string; label: string }) {
+  return (
+    <span className="flex items-center gap-1.5">
+      <span className="h-2 w-2 rounded-sm" style={{ backgroundColor: color }} />
+      {label}
+    </span>
+  );
+}
+
+function OperationalMetric({
+  label,
+  value,
+  warning = false,
+}: {
+  label: string;
+  value: string;
+  warning?: boolean;
+}) {
+  return (
+    <div className="border-b border-r border-white/10 px-4 py-4 even:border-r-0">
+      <p className="text-[10px] uppercase text-blue-100/60">{label}</p>
+      <p className={`mt-1 text-xl font-semibold ${warning ? "text-[#ffd170]" : "text-white"}`}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function StatusLine({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: "normal" | "warning" | "danger" | "muted";
+}) {
+  const dot =
+    tone === "danger"
+      ? "bg-[#ff7c75]"
+      : tone === "warning"
+        ? "bg-[#ffd170]"
+        : tone === "muted"
+          ? "bg-[#7892ae]"
+          : "bg-[#73d9b6]";
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="flex items-center gap-2 text-blue-100/70">
+        <span className={`h-2 w-2 rounded-full ${dot}`} />
+        {label}
+      </span>
+      <strong>{value.toLocaleString("id-ID")}</strong>
+    </div>
+  );
+}
+
+function QualityMetric({
+  icon: Icon,
+  label,
+  value,
+  suffix = "",
+  warning = false,
+}: {
+  icon: typeof Target;
+  label: string;
+  value: number;
+  suffix?: string;
+  warning?: boolean;
+}) {
+  return (
+    <div className="border-b border-[#edf1f5] px-4 py-4 last:border-b-0 sm:border-r xl:border-b-0 xl:last:border-r-0">
+      <div className="flex items-center gap-2 text-[#65768a]">
+        <Icon className={`h-4 w-4 ${warning ? "text-[#c47909]" : "text-[#0d6cbd]"}`} />
+        <p className="text-[10px] font-semibold uppercase">{label}</p>
+      </div>
+      <p className={`mt-2 text-xl font-semibold ${warning ? "text-[#a46608]" : "text-[#172638]"}`}>
+        {value.toLocaleString("id-ID")}
+        <span className="text-xs font-normal text-[#718196]">{suffix}</span>
+      </p>
+    </div>
+  );
+}
+
+function DistributionList({
+  rows,
+  empty,
+}: {
+  rows: Array<{ label: string; value: number }>;
+  empty: string;
+}) {
+  const maximum = Math.max(1, ...rows.map((row) => row.value));
+  if (!rows.length) return <p className="p-8 text-center text-sm text-[#718196]">{empty}</p>;
+  return (
+    <div className="space-y-4 px-4 py-4">
+      {rows.slice(0, 6).map((row) => (
+        <div key={row.label}>
+          <div className="flex items-center justify-between gap-4 text-xs">
+            <span className="min-w-0 truncate font-medium" title={row.label}>
+              {row.label}
+            </span>
+            <strong>{row.value.toLocaleString("id-ID")}</strong>
+          </div>
+          <div className="mt-1.5 h-1.5 bg-[#edf1f5]">
+            <div
+              className="h-full bg-[#2f83c5]"
+              style={{ width: `${Math.max(3, (row.value / maximum) * 100)}%` }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function formatDuration(seconds: number): string {
+  if (!seconds) return "-";
+  if (seconds < 60) return `${seconds} dtk`;
+  const minutes = Math.floor(seconds / 60);
+  const remaining = seconds % 60;
+  return remaining ? `${minutes}m ${remaining}d` : `${minutes} menit`;
+}
+
+function segmentLabel(segment: string): string {
+  const labels: Record<string, string> = {
+    competitive_ready: "Siap kompetitif",
+    competitive_growth: "Kompetitif, masih bertumbuh",
+    score_improvement: "Butuh peningkatan nilai",
+    needs_passing_grade: "Belum melewati passing grade",
+    analysis_limited: "Data analisis terbatas",
+    unclassified: "Belum terklasifikasi",
+  };
+  return labels[segment] ?? segment.replaceAll("_", " ");
 }
 
 function ResultMetric({

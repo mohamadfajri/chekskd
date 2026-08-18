@@ -312,6 +312,66 @@ export async function getAdminResultSessions(
   return readAdminJson<AdminResultSessionData>(response);
 }
 
+export interface AdminMarketingInsights {
+  generated_at: string;
+  funnel: {
+    leads: number;
+    codes_created: number;
+    requested_on_whatsapp: number;
+    analyses_completed: number;
+    results_delivered: number;
+    marketing_ready: number;
+    code_to_whatsapp_rate: number;
+    delivery_rate: number;
+  };
+  segments: Record<string, number>;
+  recommendation_modes: Record<string, number>;
+  priority_subtests: Record<string, number>;
+  top_recommended_institutions: Array<{ institution: string; mentions: number }>;
+  recent_daily: Array<{
+    date: string;
+    codes_created: number;
+    whatsapp_requests: number;
+    delivered: number;
+  }>;
+  operational: {
+    jobs_observed: number;
+    by_status: {
+      queued: number;
+      processing: number;
+      completed: number;
+      failed: number;
+    };
+    retried_jobs: number;
+    average_processing_seconds: number;
+    median_processing_seconds: number;
+    p95_processing_seconds: number;
+    median_queue_seconds: number;
+    unique_whatsapp_users: number;
+    repeat_whatsapp_users: number;
+  };
+  quality: {
+    analyses_observed: number;
+    quality_signals_observed: number;
+    recommendations_empty: number;
+    limited_confidence: number;
+    fallback_used: number;
+    cross_position_used: number;
+    average_recommendation_count: number;
+  };
+  top_failures: Array<{ message: string; count: number }>;
+  suggested_actions: string[];
+}
+
+export async function getAdminMarketingInsights(
+  adminPassword: string,
+): Promise<AdminMarketingInsights> {
+  const response = await fetch("/api/admin/marketing-insights", {
+    headers: { "x-admin-password": adminPassword },
+  });
+  return readAdminJson<AdminMarketingInsights>(response);
+}
+
 export interface SkdReviewRow {
   id: string;
   field_name: string;
