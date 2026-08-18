@@ -24,6 +24,7 @@ import { Route as ApiAdminSkdPdfRouteImport } from './routes/api/admin/skd-pdf'
 import { Route as ApiAdminSkdExplorerRouteImport } from './routes/api/admin/skd-explorer'
 import { Route as ApiAdminSkdBatchesRouteImport } from './routes/api/admin/skd-batches'
 import { Route as ApiAdminResultSessionsRouteImport } from './routes/api/admin/result-sessions'
+import { Route as ApiAdminPublishedDataRouteImport } from './routes/api/admin/published-data'
 import { Route as ApiAdminPdfSourcesRouteImport } from './routes/api/admin/pdf-sources'
 import { Route as ApiAdminMarketingInsightsRouteImport } from './routes/api/admin/marketing-insights'
 
@@ -103,6 +104,11 @@ const ApiAdminResultSessionsRoute = ApiAdminResultSessionsRouteImport.update({
   path: '/api/admin/result-sessions',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminPublishedDataRoute = ApiAdminPublishedDataRouteImport.update({
+  id: '/api/admin/published-data',
+  path: '/api/admin/published-data',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminPdfSourcesRoute = ApiAdminPdfSourcesRouteImport.update({
   id: '/api/admin/pdf-sources',
   path: '/api/admin/pdf-sources',
@@ -128,6 +134,7 @@ export interface FileRoutesByFullPath {
   '/wa/$token': typeof WaTokenRoute
   '/api/admin/marketing-insights': typeof ApiAdminMarketingInsightsRoute
   '/api/admin/pdf-sources': typeof ApiAdminPdfSourcesRoute
+  '/api/admin/published-data': typeof ApiAdminPublishedDataRoute
   '/api/admin/result-sessions': typeof ApiAdminResultSessionsRoute
   '/api/admin/skd-batches': typeof ApiAdminSkdBatchesRoute
   '/api/admin/skd-explorer': typeof ApiAdminSkdExplorerRoute
@@ -147,6 +154,7 @@ export interface FileRoutesByTo {
   '/wa/$token': typeof WaTokenRoute
   '/api/admin/marketing-insights': typeof ApiAdminMarketingInsightsRoute
   '/api/admin/pdf-sources': typeof ApiAdminPdfSourcesRoute
+  '/api/admin/published-data': typeof ApiAdminPublishedDataRoute
   '/api/admin/result-sessions': typeof ApiAdminResultSessionsRoute
   '/api/admin/skd-batches': typeof ApiAdminSkdBatchesRoute
   '/api/admin/skd-explorer': typeof ApiAdminSkdExplorerRoute
@@ -167,6 +175,7 @@ export interface FileRoutesById {
   '/wa/$token': typeof WaTokenRoute
   '/api/admin/marketing-insights': typeof ApiAdminMarketingInsightsRoute
   '/api/admin/pdf-sources': typeof ApiAdminPdfSourcesRoute
+  '/api/admin/published-data': typeof ApiAdminPublishedDataRoute
   '/api/admin/result-sessions': typeof ApiAdminResultSessionsRoute
   '/api/admin/skd-batches': typeof ApiAdminSkdBatchesRoute
   '/api/admin/skd-explorer': typeof ApiAdminSkdExplorerRoute
@@ -188,6 +197,7 @@ export interface FileRouteTypes {
     | '/wa/$token'
     | '/api/admin/marketing-insights'
     | '/api/admin/pdf-sources'
+    | '/api/admin/published-data'
     | '/api/admin/result-sessions'
     | '/api/admin/skd-batches'
     | '/api/admin/skd-explorer'
@@ -207,6 +217,7 @@ export interface FileRouteTypes {
     | '/wa/$token'
     | '/api/admin/marketing-insights'
     | '/api/admin/pdf-sources'
+    | '/api/admin/published-data'
     | '/api/admin/result-sessions'
     | '/api/admin/skd-batches'
     | '/api/admin/skd-explorer'
@@ -226,6 +237,7 @@ export interface FileRouteTypes {
     | '/wa/$token'
     | '/api/admin/marketing-insights'
     | '/api/admin/pdf-sources'
+    | '/api/admin/published-data'
     | '/api/admin/result-sessions'
     | '/api/admin/skd-batches'
     | '/api/admin/skd-explorer'
@@ -246,6 +258,7 @@ export interface RootRouteChildren {
   WaTokenRoute: typeof WaTokenRoute
   ApiAdminMarketingInsightsRoute: typeof ApiAdminMarketingInsightsRoute
   ApiAdminPdfSourcesRoute: typeof ApiAdminPdfSourcesRoute
+  ApiAdminPublishedDataRoute: typeof ApiAdminPublishedDataRoute
   ApiAdminResultSessionsRoute: typeof ApiAdminResultSessionsRoute
   ApiAdminSkdBatchesRoute: typeof ApiAdminSkdBatchesRoute
   ApiAdminSkdExplorerRoute: typeof ApiAdminSkdExplorerRoute
@@ -360,6 +373,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminResultSessionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/published-data': {
+      id: '/api/admin/published-data'
+      path: '/api/admin/published-data'
+      fullPath: '/api/admin/published-data'
+      preLoaderRoute: typeof ApiAdminPublishedDataRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/pdf-sources': {
       id: '/api/admin/pdf-sources'
       path: '/api/admin/pdf-sources'
@@ -390,6 +410,7 @@ const rootRouteChildren: RootRouteChildren = {
   WaTokenRoute: WaTokenRoute,
   ApiAdminMarketingInsightsRoute: ApiAdminMarketingInsightsRoute,
   ApiAdminPdfSourcesRoute: ApiAdminPdfSourcesRoute,
+  ApiAdminPublishedDataRoute: ApiAdminPublishedDataRoute,
   ApiAdminResultSessionsRoute: ApiAdminResultSessionsRoute,
   ApiAdminSkdBatchesRoute: ApiAdminSkdBatchesRoute,
   ApiAdminSkdExplorerRoute: ApiAdminSkdExplorerRoute,

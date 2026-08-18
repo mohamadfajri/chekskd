@@ -35,6 +35,8 @@ import {
   bulkVerifySkdBatch,
   getAdminMarketingInsights,
   getAdminResultSessions,
+  getPublishedDataOverview,
+  getPublishedFormations,
   getSkdBatches,
   getSkdExplorerOverview,
   getSkdExplorerRows,
@@ -310,7 +312,7 @@ function AdminWorkspace({ adminPassword }: { adminPassword: string }) {
           {activeView === "import" && (
             <ImportWorkspace adminPassword={adminPassword} onImported={() => batches.refetch()} />
           )}
-          {activeView === "published" && <PublishedWorkspace />}
+          {activeView === "published" && <PublishedWorkspace adminPassword={adminPassword} />}
           {activeView === "results" && <RationalizationWorkspace adminPassword={adminPassword} />}
         </main>
       </div>
@@ -1742,69 +1744,393 @@ function ImportWorkspace({
   );
 }
 
-function PublishedWorkspace() {
-  const [searchTerm, setSearchTerm] = useState("");
-  const searchMutation = useMutation({
-    mutationFn: () => searchSkdScores({ nama: searchTerm, limit: 25 }),
+function PublishedWorkspace({ adminPassword }: { adminPassword: string }) {
+  const [view, setView] = useState<"institutions" | "formations" | "participants">("institutions");
+  const [batchId, setBatchId] = useState("");
+  const [formationSearchInput, setFormationSearchInput] = useState("");
+  const [formationSearch, setFormationSearch] = useState("");
+  const [formationSort, setFormationSort] = useState("quota_desc");
+  const [formationPage, setFormationPage] = useState(1);
+  const [participantSearch, setParticipantSearch] = useState("");
+  const participantMutation = useMutation({
+    mutationFn: () => searchSkdScores({ nama: participantSearch, limit: 25 }),
+  });
+  const overview = useQuery({
+    queryKey: ["admin-published-overview", adminPassword],
+    queryFn: () => getPublishedDataOverview(adminPassword),
+  });
+  const formations = useQuery({
+    queryKey: [
+      "admin-published-formations",
+      adminPassword,
+      batchId,
+      formationSearch,
+      formationSort,
+      formationPage,
+    ],
+    queryFn: () =>
+      getPublishedFormations(adminPassword, {
+        batchId,
+        search: formationSearch,
+        sort: formationSort,
+        page: formationPage,
+        pageSize: 25,
+      }),
+    enabled: view === "formations",
+    placeholderData: (previous) => previous,
   });
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setFormationSearch(formationSearchInput.trim());
+      setFormationPage(1);
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [formationSearchInput]);
+
+  const summary = overview.data?.summary;
+
   return (
-    <div className="max-w-6xl">
-      <p className="font-mono text-[11px] font-semibold uppercase text-[#0d6cbd]">Public index</p>
-      <h1 className="mt-1 text-2xl font-semibold">Data published</h1>
-      <div className="mt-5 overflow-hidden rounded-lg border border-[#d8e1ec] bg-white shadow-sm">
-        <form
-          className="flex gap-2 border-b border-[#e2e8f0] p-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (isSupabaseConfigured && searchTerm.trim()) searchMutation.mutate();
-          }}
-        >
-          <div className="relative min-w-0 flex-1">
-            <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-[#8a99aa]" />
-            <input
-              className="desk-input h-9 pl-9"
-              placeholder="Cari nama peserta"
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-            />
-          </div>
-          <button className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#0d6cbd] px-4 text-sm font-semibold text-white">
-            {searchMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-            Cari
-          </button>
-        </form>
-        {searchMutation.data?.length ? (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-xs">
-              <thead className="bg-[#f7f9fc] text-[#536579]">
-                <tr>
-                  <TableHead>Nama</TableHead>
-                  <TableHead>No. peserta</TableHead>
-                  <TableHead>Instansi</TableHead>
-                  <TableHead>Formasi</TableHead>
-                  <TableHead align="right">Total</TableHead>
-                </tr>
-              </thead>
-              <tbody>
-                {searchMutation.data.map((row) => (
-                  <tr key={row.id} className="border-t border-[#edf1f5]">
-                    <td className="px-3 py-3 font-semibold">{row.nama}</td>
-                    <td className="px-3 py-3 font-mono">{maskNoPeserta(row.no_peserta)}</td>
-                    <td className="px-3 py-3">{row.skd_formations?.nama_instansi ?? "-"}</td>
-                    <td className="px-3 py-3">{row.skd_formations?.jabatan ?? "-"}</td>
-                    <td className="px-3 py-3 text-right font-semibold">{row.total ?? "-"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="p-10 text-center text-sm text-[#718196]">
-            {searchMutation.data ? "Data tidak ditemukan." : "Masukkan nama peserta untuk mencari."}
-          </div>
-        )}
+    <div className="max-w-[1400px]">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="font-mono text-[11px] font-semibold uppercase text-[#0d6cbd]">
+            Public data control
+          </p>
+          <h1 className="mt-1 text-2xl font-semibold">Data published</h1>
+          <p className="mt-1 text-sm text-[#65768a]">
+            Lihat cakupan data yang sudah aktif berdasarkan instansi, formasi, atau peserta.
+          </p>
+        </div>
+        <div className="inline-flex overflow-hidden rounded-md border border-[#cfd9e5] bg-white p-0.5">
+          <PublishedViewButton
+            active={view === "institutions"}
+            onClick={() => setView("institutions")}
+          >
+            Instansi
+          </PublishedViewButton>
+          <PublishedViewButton active={view === "formations"} onClick={() => setView("formations")}>
+            Formasi
+          </PublishedViewButton>
+          <PublishedViewButton
+            active={view === "participants"}
+            onClick={() => setView("participants")}
+          >
+            Peserta
+          </PublishedViewButton>
+        </div>
       </div>
+
+      <div className="mt-5 grid gap-px overflow-hidden rounded-lg border border-[#d8e1ec] bg-[#d8e1ec] grid-cols-2 lg:grid-cols-5">
+        <PublishedMetric label="Instansi" value={summary?.institutions ?? 0} />
+        <PublishedMetric label="Formasi" value={summary?.formations ?? 0} />
+        <PublishedMetric label="Peserta" value={summary?.participants ?? 0} />
+        <PublishedMetric label="Dokumen" value={summary?.sources ?? 0} />
+        <PublishedMetric label="Halaman sumber" value={summary?.pages ?? 0} />
+      </div>
+
+      {overview.error && (
+        <div className="mt-5 border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          {overview.error instanceof Error
+            ? overview.error.message
+            : "Data published gagal dimuat."}
+        </div>
+      )}
+
+      {view === "institutions" && (
+        <section className="mt-5 overflow-hidden rounded-lg border border-[#d8e1ec] bg-white">
+          <div className="border-b border-[#e2e8f0] px-4 py-3">
+            <h2 className="text-sm font-semibold">Instansi aktif di pencarian publik</h2>
+          </div>
+          {overview.isLoading ? (
+            <LoadingRows />
+          ) : overview.data?.institutions.length ? (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-xs">
+                <thead className="bg-[#f7f9fc] text-[#536579]">
+                  <tr>
+                    <TableHead>Instansi</TableHead>
+                    <TableHead align="right">Formasi</TableHead>
+                    <TableHead align="right">Peserta</TableHead>
+                    <TableHead align="right">Dokumen</TableHead>
+                    <TableHead align="right">Halaman</TableHead>
+                    <TableHead>Published</TableHead>
+                    <TableHead>Aksi</TableHead>
+                  </tr>
+                </thead>
+                <tbody>
+                  {overview.data.institutions.map((institution) => (
+                    <tr key={institution.id} className="border-t border-[#edf1f5]">
+                      <td className="max-w-md px-3 py-3">
+                        <p className="font-semibold">{institution.institution_name}</p>
+                        <p className="mt-0.5 font-mono text-[10px] text-[#718196]">
+                          {institution.institution_code ?? "Tanpa kode"} ·{" "}
+                          {institution.selection_year}
+                        </p>
+                      </td>
+                      <td className="px-3 py-3 text-right font-semibold">
+                        {institution.formation_count.toLocaleString("id-ID")}
+                      </td>
+                      <td className="px-3 py-3 text-right font-semibold">
+                        {institution.participant_count.toLocaleString("id-ID")}
+                      </td>
+                      <td className="px-3 py-3 text-right">{institution.source_count}</td>
+                      <td className="px-3 py-3 text-right">
+                        {institution.source_page_count.toLocaleString("id-ID")}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-3 text-[#536579]">
+                        {institution.published_at ? formatAdminDate(institution.published_at) : "-"}
+                      </td>
+                      <td className="px-3 py-3">
+                        <button
+                          type="button"
+                          className="text-xs font-semibold text-[#0d6cbd] hover:underline"
+                          onClick={() => {
+                            setBatchId(institution.id);
+                            setFormationPage(1);
+                            setView("formations");
+                          }}
+                        >
+                          Lihat formasi
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="p-10 text-center text-sm text-[#718196]">Belum ada instansi published.</p>
+          )}
+        </section>
+      )}
+
+      {view === "formations" && (
+        <section className="mt-5 overflow-hidden rounded-lg border border-[#d8e1ec] bg-white">
+          <div className="grid gap-3 border-b border-[#e2e8f0] p-4 md:grid-cols-[1fr_1.2fr_0.7fr]">
+            <label className="text-xs font-semibold text-[#536579]">
+              Instansi
+              <select
+                value={batchId}
+                onChange={(event) => {
+                  setBatchId(event.target.value);
+                  setFormationPage(1);
+                }}
+                className="desk-input mt-1 h-9 bg-white"
+              >
+                <option value="">Semua instansi</option>
+                {overview.data?.institutions.map((institution) => (
+                  <option key={institution.id} value={institution.id}>
+                    {institution.institution_name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-xs font-semibold text-[#536579]">
+              Cari formasi
+              <div className="relative mt-1">
+                <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-[#8a99aa]" />
+                <input
+                  value={formationSearchInput}
+                  onChange={(event) => setFormationSearchInput(event.target.value)}
+                  className="desk-input h-9 pl-9"
+                  placeholder="Jabatan, lokasi, atau pendidikan"
+                />
+              </div>
+            </label>
+            <label className="text-xs font-semibold text-[#536579]">
+              Urutkan
+              <select
+                value={formationSort}
+                onChange={(event) => {
+                  setFormationSort(event.target.value);
+                  setFormationPage(1);
+                }}
+                className="desk-input mt-1 h-9 bg-white"
+              >
+                <option value="quota_desc">Kuota terbesar</option>
+                <option value="name">Nama jabatan</option>
+              </select>
+            </label>
+          </div>
+          {formations.isLoading ? (
+            <LoadingRows />
+          ) : formations.error ? (
+            <p className="p-8 text-center text-sm text-red-700">
+              {formations.error instanceof Error
+                ? formations.error.message
+                : "Formasi gagal dimuat."}
+            </p>
+          ) : formations.data?.formations.length ? (
+            <>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-xs">
+                  <thead className="bg-[#f7f9fc] text-[#536579]">
+                    <tr>
+                      <TableHead>Jabatan / instansi</TableHead>
+                      <TableHead>Pendidikan</TableHead>
+                      <TableHead>Lokasi</TableHead>
+                      <TableHead align="right">Kuota</TableHead>
+                      <TableHead align="right">Hadir</TableHead>
+                      <TableHead align="right">Rasio</TableHead>
+                      <TableHead align="right">Cutoff</TableHead>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {formations.data.formations.map((formation) => (
+                      <tr key={formation.id} className="border-t border-[#edf1f5] align-top">
+                        <td className="max-w-sm px-3 py-3">
+                          <p className="font-semibold leading-5">{formation.jabatan}</p>
+                          <p className="mt-1 text-[11px] text-[#718196]">
+                            {formation.institution_name} · {formation.jenis_formasi ?? "UMUM"}
+                          </p>
+                        </td>
+                        <td className="max-w-xs px-3 py-3 leading-5">
+                          {formation.pendidikan ?? "-"}
+                        </td>
+                        <td className="max-w-xs px-3 py-3 leading-5">
+                          {formation.lokasi_formasi ?? "-"}
+                        </td>
+                        <td className="px-3 py-3 text-right font-semibold">
+                          {(formation.stats?.quota ?? formation.jumlah_formasi).toLocaleString(
+                            "id-ID",
+                          )}
+                        </td>
+                        <td className="px-3 py-3 text-right">
+                          {formation.stats?.attended_count?.toLocaleString("id-ID") ?? "-"}
+                        </td>
+                        <td className="px-3 py-3 text-right">
+                          {formation.stats?.competition_ratio == null
+                            ? "-"
+                            : `${formation.stats.competition_ratio}x`}
+                        </td>
+                        <td className="px-3 py-3 text-right font-semibold">
+                          {formation.stats?.cutoff_total ?? "-"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex items-center justify-between border-t border-[#e2e8f0] px-4 py-3 text-xs">
+                <span className="text-[#65768a]">
+                  {formations.data.pagination.total.toLocaleString("id-ID")} formasi · halaman{" "}
+                  {formations.data.pagination.page} dari {formations.data.pagination.total_pages}
+                </span>
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    className="desk-icon-button"
+                    disabled={formationPage <= 1}
+                    onClick={() => setFormationPage((page) => Math.max(1, page - 1))}
+                    title="Halaman sebelumnya"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    className="desk-icon-button"
+                    disabled={formationPage >= formations.data.pagination.total_pages}
+                    onClick={() => setFormationPage((page) => page + 1)}
+                    title="Halaman berikutnya"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <p className="p-10 text-center text-sm text-[#718196]">Formasi tidak ditemukan.</p>
+          )}
+        </section>
+      )}
+
+      {view === "participants" && (
+        <section className="mt-5 overflow-hidden rounded-lg border border-[#d8e1ec] bg-white shadow-sm">
+          <form
+            className="flex gap-2 border-b border-[#e2e8f0] p-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (isSupabaseConfigured && participantSearch.trim()) participantMutation.mutate();
+            }}
+          >
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-[#8a99aa]" />
+              <input
+                className="desk-input h-9 pl-9"
+                placeholder="Cari nama peserta"
+                value={participantSearch}
+                onChange={(event) => setParticipantSearch(event.target.value)}
+              />
+            </div>
+            <button className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#0d6cbd] px-4 text-sm font-semibold text-white">
+              {participantMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              Cari
+            </button>
+          </form>
+          {participantMutation.data?.length ? (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-xs">
+                <thead className="bg-[#f7f9fc] text-[#536579]">
+                  <tr>
+                    <TableHead>Nama</TableHead>
+                    <TableHead>No. peserta</TableHead>
+                    <TableHead>Instansi</TableHead>
+                    <TableHead>Formasi</TableHead>
+                    <TableHead align="right">Total</TableHead>
+                  </tr>
+                </thead>
+                <tbody>
+                  {participantMutation.data.map((row) => (
+                    <tr key={row.id} className="border-t border-[#edf1f5]">
+                      <td className="px-3 py-3 font-semibold">{row.nama}</td>
+                      <td className="px-3 py-3 font-mono">{maskNoPeserta(row.no_peserta)}</td>
+                      <td className="px-3 py-3">{row.skd_formations?.nama_instansi ?? "-"}</td>
+                      <td className="px-3 py-3">{row.skd_formations?.jabatan ?? "-"}</td>
+                      <td className="px-3 py-3 text-right font-semibold">{row.total ?? "-"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="p-10 text-center text-sm text-[#718196]">
+              {participantMutation.data
+                ? "Data tidak ditemukan."
+                : "Masukkan nama peserta untuk mencari."}
+            </div>
+          )}
+        </section>
+      )}
+    </div>
+  );
+}
+
+function PublishedViewButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`h-8 px-3 text-xs font-semibold ${active ? "bg-[#0d6cbd] text-white" : "text-[#536579] hover:bg-[#f1f5f8]"}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function PublishedMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="bg-white px-4 py-4">
+      <p className="text-[10px] font-semibold uppercase text-[#718196]">{label}</p>
+      <p className="mt-1 text-xl font-semibold">{value.toLocaleString("id-ID")}</p>
     </div>
   );
 }
@@ -1924,6 +2250,8 @@ function RationalizationWorkspaceLegacy({ adminPassword }: { adminPassword: stri
 }
 
 function RationalizationWorkspace({ adminPassword }: { adminPassword: string }) {
+  const [sessionSearch, setSessionSearch] = useState("");
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const sessions = useQuery({
     queryKey: ["admin-result-sessions", adminPassword],
     queryFn: () => getAdminResultSessions(adminPassword),
@@ -1939,6 +2267,30 @@ function RationalizationWorkspace({ adminPassword }: { adminPassword: string }) 
   const funnel = insights.data?.funnel;
   const operational = insights.data?.operational;
   const quality = insights.data?.quality;
+  const sessionOptions = useMemo(() => {
+    const query = sessionSearch.trim().toLocaleLowerCase("id-ID");
+    const rows = sessions.data?.sessions ?? [];
+    if (!query) return rows;
+    return rows.filter((session) =>
+      [session.nama_peserta, session.leads?.nama_panggilan, session.token, session.sender_wa_id]
+        .filter(Boolean)
+        .some((value) => String(value).toLocaleLowerCase("id-ID").includes(query)),
+    );
+  }, [sessionSearch, sessions.data?.sessions]);
+  const selectedSession =
+    sessions.data?.sessions.find((session) => session.id === selectedSessionId) ??
+    sessionOptions[0] ??
+    null;
+
+  useEffect(() => {
+    if (!sessionOptions.length) {
+      setSelectedSessionId(null);
+      return;
+    }
+    if (!sessionOptions.some((session) => session.id === selectedSessionId)) {
+      setSelectedSessionId(sessionOptions[0].id);
+    }
+  }, [selectedSessionId, sessionOptions]);
 
   const refresh = () => {
     void Promise.all([sessions.refetch(), insights.refetch()]);
@@ -2048,6 +2400,98 @@ function RationalizationWorkspace({ adminPassword }: { adminPassword: string }) 
           last
         />
       </div>
+
+      <section className="mt-5 overflow-hidden rounded-lg border border-[#d8e1ec] bg-white">
+        <div className="grid gap-4 border-b border-[#e2e8f0] p-4 lg:grid-cols-[1fr_1.4fr] lg:items-end">
+          <label className="text-xs font-semibold text-[#536579]">
+            Cari nama, kode, atau WhatsApp
+            <div className="relative mt-1.5">
+              <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-[#8a99aa]" />
+              <input
+                value={sessionSearch}
+                onChange={(event) => setSessionSearch(event.target.value)}
+                className="desk-input h-9 pl-9"
+                placeholder="Contoh: Fadila, RSKD-, atau 628..."
+              />
+            </div>
+          </label>
+          <label className="text-xs font-semibold text-[#536579]">
+            Lihat data atas nama
+            <select
+              value={selectedSession?.id ?? ""}
+              onChange={(event) => setSelectedSessionId(event.target.value)}
+              className="desk-input mt-1.5 h-9 bg-white"
+            >
+              {sessionOptions.length ? (
+                sessionOptions.map((session) => (
+                  <option key={session.id} value={session.id}>
+                    {session.nama_peserta ?? session.leads?.nama_panggilan ?? "Tanpa nama"} ·{" "}
+                    {session.token}
+                  </option>
+                ))
+              ) : (
+                <option value="">Tidak ada hasil yang cocok</option>
+              )}
+            </select>
+          </label>
+        </div>
+        {selectedSession ? (
+          <div className="grid lg:grid-cols-[1.15fr_0.85fr]">
+            <div className="border-b border-[#e2e8f0] p-4 lg:border-b-0 lg:border-r">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="font-mono text-[10px] uppercase text-[#718196]">Hasil terpilih</p>
+                  <h2 className="mt-1 text-lg font-semibold">
+                    {selectedSession.nama_peserta ??
+                      selectedSession.leads?.nama_panggilan ??
+                      "Tanpa nama"}
+                  </h2>
+                  <p className="mt-1 text-xs text-[#65768a]">
+                    {selectedSession.sender_wa_id
+                      ? `+${selectedSession.sender_wa_id}`
+                      : "Belum terikat WhatsApp"}{" "}
+                    · {selectedSession.token}
+                  </p>
+                </div>
+                <ResultStatus status={selectedSession.status} />
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-md border border-[#dfe6ee] bg-[#dfe6ee] sm:grid-cols-4">
+                <SelectedScore label="TWK" value={selectedSession.twk} />
+                <SelectedScore label="TIU" value={selectedSession.tiu} />
+                <SelectedScore label="TKP" value={selectedSession.tkp} />
+                <SelectedScore label="Total" value={selectedSession.total} highlight />
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <SelectedDetail label="Instansi asal" value={selectedSession.instansi} />
+                <SelectedDetail label="Formasi asal" value={selectedSession.formasi} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 content-start">
+              <SelectedMeta label="Zona" value={selectedSession.zona?.toUpperCase() ?? "-"} />
+              <SelectedMeta label="Dipakai" value={`${selectedSession.used_count} kali`} />
+              <SelectedMeta
+                label="Target instansi"
+                value={selectedSession.leads?.target_instansi ?? "Bebas"}
+              />
+              <SelectedMeta
+                label="Target formasi"
+                value={selectedSession.leads?.target_formasi ?? "Otomatis"}
+              />
+              <SelectedMeta label="Dibuat" value={formatAdminDate(selectedSession.created_at)} />
+              <SelectedMeta
+                label="Terkirim"
+                value={
+                  selectedSession.delivered_at
+                    ? formatAdminDate(selectedSession.delivered_at)
+                    : "Belum"
+                }
+              />
+            </div>
+          </div>
+        ) : (
+          <p className="p-8 text-center text-sm text-[#718196]">Data pengguna tidak ditemukan.</p>
+        )}
+      </section>
 
       <div className="mt-5 grid gap-5 xl:grid-cols-[1.6fr_0.8fr]">
         <section className="overflow-hidden rounded-lg border border-[#d8e1ec] bg-white">
@@ -2265,6 +2709,54 @@ function RationalizationWorkspace({ adminPassword }: { adminPassword: string }) 
       </div>
     </div>
   );
+}
+
+function SelectedScore({
+  label,
+  value,
+  highlight = false,
+}: {
+  label: string;
+  value: number | null;
+  highlight?: boolean;
+}) {
+  return (
+    <div className="bg-white px-3 py-3">
+      <p className="text-[10px] uppercase text-[#718196]">{label}</p>
+      <p className={`mt-1 text-xl font-semibold ${highlight ? "text-[#0d6cbd]" : ""}`}>
+        {value ?? "-"}
+      </p>
+    </div>
+  );
+}
+
+function SelectedDetail({ label, value }: { label: string; value: string | null }) {
+  return (
+    <div className="border-l-2 border-[#c8d7e5] pl-3">
+      <p className="text-[10px] font-semibold uppercase text-[#718196]">{label}</p>
+      <p className="mt-1 text-sm leading-5 text-[#34485e]">{value || "-"}</p>
+    </div>
+  );
+}
+
+function SelectedMeta({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 border-b border-r border-[#edf1f5] px-4 py-4 even:border-r-0">
+      <p className="text-[10px] font-semibold uppercase text-[#718196]">{label}</p>
+      <p className="mt-1 truncate text-sm font-medium" title={value}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function formatAdminDate(value: string): string {
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
 }
 
 function OwnerMetric({

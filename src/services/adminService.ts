@@ -281,8 +281,17 @@ export interface AdminResultSession {
   status: ResultSessionStatus;
   sender_wa_id: string | null;
   used_count: number;
+  nama_peserta: string | null;
+  instansi: string | null;
+  formasi: string | null;
+  twk: number | null;
+  tiu: number | null;
+  tkp: number | null;
+  total: number | null;
+  zona: string | null;
   created_at: string;
   updated_at: string;
+  ready_at: string | null;
   delivered_at: string | null;
   failure_message: string | null;
   leads: {
@@ -370,6 +379,91 @@ export async function getAdminMarketingInsights(
     headers: { "x-admin-password": adminPassword },
   });
   return readAdminJson<AdminMarketingInsights>(response);
+}
+
+export interface PublishedInstitution {
+  id: string;
+  institution_code: string | null;
+  institution_name: string;
+  selection_year: number;
+  source_count: number;
+  source_page_count: number;
+  formation_count: number;
+  participant_count: number;
+  published_at: string | null;
+}
+
+export interface PublishedFormation {
+  id: string;
+  batch_id: string;
+  institution_name: string;
+  kode_jabatan: string | null;
+  jabatan: string;
+  lokasi_formasi: string | null;
+  jenis_formasi: string | null;
+  pendidikan: string | null;
+  jumlah_formasi: number;
+  quality_status: string;
+  stats: {
+    quota: number;
+    participant_count: number;
+    attended_count: number;
+    passing_count: number;
+    competition_ratio: number | null;
+    minimum_total: number | null;
+    median_total: number | null;
+    maximum_total: number | null;
+    cutoff_total: number | null;
+    capacity_consistent: boolean;
+  } | null;
+}
+
+export interface PublishedDataOverview {
+  summary: {
+    institutions: number;
+    sources: number;
+    pages: number;
+    formations: number;
+    participants: number;
+  };
+  institutions: PublishedInstitution[];
+}
+
+export interface PublishedFormationData extends PublishedDataOverview {
+  formations: PublishedFormation[];
+  pagination: {
+    page: number;
+    page_size: number;
+    total: number;
+    total_pages: number;
+  };
+}
+
+export async function getPublishedDataOverview(
+  adminPassword: string,
+): Promise<PublishedDataOverview> {
+  const response = await fetch("/api/admin/published-data", {
+    headers: { "x-admin-password": adminPassword },
+  });
+  return readAdminJson<PublishedDataOverview>(response);
+}
+
+export async function getPublishedFormations(
+  adminPassword: string,
+  filters: { batchId?: string; search?: string; sort?: string; page?: number; pageSize?: number },
+): Promise<PublishedFormationData> {
+  const params = new URLSearchParams({
+    mode: "formations",
+    page: String(filters.page ?? 1),
+    pageSize: String(filters.pageSize ?? 25),
+  });
+  if (filters.batchId) params.set("batchId", filters.batchId);
+  if (filters.search) params.set("search", filters.search);
+  if (filters.sort) params.set("sort", filters.sort);
+  const response = await fetch(`/api/admin/published-data?${params.toString()}`, {
+    headers: { "x-admin-password": adminPassword },
+  });
+  return readAdminJson<PublishedFormationData>(response);
 }
 
 export interface SkdReviewRow {
