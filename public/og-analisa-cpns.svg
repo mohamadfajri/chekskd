@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#F4F8FF"/>
+  <rect x="80" y="76" width="1040" height="478" rx="32" fill="#FFFFFF" stroke="#D9E4F1"/>
+  <g transform="translate(132 126) scale(1.25)">
+    <rect width="48" height="48" rx="13" fill="#071B36"/>
+    <path d="M10.5 37 22.4 11.8c.65-1.38 2.61-1.38 3.26 0L37.5 37" fill="none" stroke="#fff" stroke-width="5.6" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M25.15 12.7 37.5 37" fill="none" stroke="#2F6BFF" stroke-width="5.6" stroke-linecap="round"/>
+    <path d="m15.8 30.2 6.1-4.1 5.2 2.25 5.15-6.2" fill="none" stroke="#39D4D8" stroke-width="3.15" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="32.25" cy="22.15" r="2.65" fill="#39D4D8"/>
+  </g>
+  <text x="214" y="164" font-family="Arial, sans-serif" font-size="40" font-weight="700" fill="#071B36">Analisa<tspan fill="#2F6BFF">CPNS</tspan></text>
+  <text x="132" y="310" font-family="Arial, sans-serif" font-size="64" font-weight="700" fill="#071B36">Nilai menjadi posisi</text>
+  <text x="132" y="382" font-family="Arial, sans-serif" font-size="64" font-weight="700" fill="#071B36">yang bisa dipahami.</text>
+  <path d="M135 468 H930" stroke="#D9E4F1" stroke-width="8" stroke-linecap="round"/>
+  <path d="M135 468 H750" stroke="#2F6BFF" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="750" cy="468" r="13" fill="#39D4D8" stroke="#FFFFFF" stroke-width="6"/>
+  <text x="132" y="520" font-family="Arial, sans-serif" font-size="22" fill="#5B6F87">Cek posisi nilai SKD dan bandingkan persaingan formasi.</text>
+</svg>

@@ -1,32 +1,30 @@
 import { Link } from "@tanstack/react-router";
-import { GraduationCap } from "lucide-react";
+import { Search } from "lucide-react";
+import { AnalisaCPNSLogo } from "@/components/brand/AnalisaCPNSLogo";
 
 export function SiteHeader() {
   return (
-    <header className="sticky top-0 z-30 border-b border-border/70 bg-background/85 backdrop-blur">
-      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
-        <Link to="/" className="flex items-center gap-2 font-semibold text-foreground">
-          <span className="flex h-8 w-8 items-center justify-center rounded-md bg-brand-gradient text-primary-foreground">
-            <GraduationCap className="h-4 w-4" />
-          </span>
-          <span className="text-sm sm:text-base">
-            cpnsguru.id{" "}
-            <span className="text-muted-foreground font-normal">· Cek Rasionalisasi SKD</span>
-          </span>
+    <header className="sticky top-0 z-30 border-b border-border bg-white/95 backdrop-blur-sm">
+      <div className="mx-auto flex h-16 max-w-[1240px] items-center justify-between gap-4 px-4 sm:px-6">
+        <Link to="/" aria-label="AnalisaCPNS - beranda">
+          <AnalisaCPNSLogo size={39} className="hidden sm:block" />
+          <AnalisaCPNSLogo variant="icon" size={36} className="sm:hidden" />
         </Link>
-        <nav className="flex items-center gap-1 text-sm">
-          <Link
-            to="/search"
-            className="rounded-md px-3 py-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            Cari Data
-          </Link>
+
+        <nav aria-label="Navigasi utama" className="flex items-center gap-1 text-sm">
           <Link
             to="/"
             hash="cara-kerja"
-            className="hidden rounded-md px-3 py-1.5 text-muted-foreground hover:bg-muted hover:text-foreground sm:inline-block"
+            className="hidden rounded-md px-3 py-2 font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground md:inline-flex"
           >
-            Cara Kerja
+            Cara kerja
+          </Link>
+          <Link
+            to="/search"
+            className="inline-flex h-9 items-center gap-2 rounded-lg bg-primary px-3.5 font-semibold text-white transition hover:bg-[#255de8]"
+          >
+            <Search className="h-4 w-4" />
+            Cek posisi
           </Link>
         </nav>
       </div>
@@ -36,14 +34,25 @@ export function SiteHeader() {
 
 export function SiteFooter() {
   return (
-    <footer className="border-t border-border/70 bg-muted/40">
-      <div className="mx-auto max-w-6xl px-4 py-8 text-sm text-muted-foreground">
-        <p className="font-medium text-foreground">cpnsguru.id</p>
-        <p className="mt-1 max-w-2xl">
-          Hasil analisa di situs ini bersifat edukatif dan bukan pengumuman resmi. Data bersumber
-          dari pengumuman instansi yang telah dipublikasikan.
-        </p>
-        <p className="mt-4 text-xs">© {new Date().getFullYear()} cpnsguru.id</p>
+    <footer className="border-t border-[#193451] bg-[#071b36] text-white">
+      <div className="mx-auto grid max-w-[1240px] gap-8 px-4 py-10 sm:px-6 md:grid-cols-[1fr_auto] md:items-end">
+        <div>
+          <AnalisaCPNSLogo theme="dark" size={40} />
+          <p className="mt-4 max-w-2xl text-sm leading-6 text-[#a9b9cb]">
+            Alat bantu untuk memahami posisi nilai SKD berdasarkan data pengumuman instansi yang
+            telah dipublikasikan. Hasil analisis bukan pengumuman resmi dan tidak menjamin
+            kelulusan.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-[#a9b9cb]">
+          <Link to="/search" className="hover:text-white">
+            Cari data
+          </Link>
+          <Link to="/" hash="cara-kerja" className="hover:text-white">
+            Cara kerja
+          </Link>
+          <span className="font-mono text-xs">analisacpns.id</span>
+        </div>
       </div>
     </footer>
   );

@@ -1,202 +1,282 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { Search, ListChecks, Eye, MessageCircle, ShieldCheck, GraduationCap } from "lucide-react";
-import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
+import { useQuery } from "@tanstack/react-query";
+import { createFileRoute } from "@tanstack/react-router";
+import { ArrowRight, BarChart3, Database, MessageCircle, Search, ShieldCheck } from "lucide-react";
+import { SiteFooter, SiteHeader } from "@/components/SiteHeader";
+import { SkdSearchTool } from "@/components/public/SkdSearchTool";
+import { countStats } from "@/services/skdService";
+import { isSupabaseConfigured } from "@/lib/supabase/client";
 
 export const Route = createFileRoute("/")({
   component: LandingPage,
 });
 
 function LandingPage() {
+  const stats = useQuery({
+    queryKey: ["public-dataset-stats"],
+    queryFn: countStats,
+    enabled: isSupabaseConfigured,
+    staleTime: 5 * 60_000,
+  });
+
   return (
     <div className="min-h-screen bg-background">
       <SiteHeader />
 
-      {/* Hero */}
-      <section className="relative overflow-hidden">
-        <div className="pointer-events-none absolute inset-0 -z-10">
-          <div className="absolute -top-24 right-[-10%] h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
-          <div className="absolute top-40 left-[-10%] h-72 w-72 rounded-full bg-accent/20 blur-3xl" />
-        </div>
-        <div className="mx-auto max-w-6xl px-4 pt-16 pb-20 sm:pt-24 sm:pb-28">
-          <div className="mx-auto max-w-3xl text-center">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm">
-              <GraduationCap className="h-3.5 w-3.5 text-primary" />
-              cpnsguru.id · Simulasi Edukatif
-            </span>
-            <h1 className="mt-6 text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl">
-              Cek Rasionalisasi <span className="text-primary">Nilai SKD</span> Kamu
-            </h1>
-            <p className="mx-auto mt-5 max-w-2xl text-base text-muted-foreground sm:text-lg">
-              Cari data nilai SKD tahun lalu, bandingkan dengan formasi sejenis, dan lihat apakah
-              nilaimu masih layak dipertahankan atau lebih aman tes ulang.
-            </p>
-            <div className="mt-8 flex flex-wrap justify-center gap-3">
-              <Link
-                to="/search"
-                className="inline-flex items-center gap-2 rounded-lg bg-brand-gradient px-6 py-3 text-sm font-semibold text-primary-foreground shadow-md shadow-primary/20 transition hover:opacity-95"
-              >
-                <Search className="h-4 w-4" />
-                Cek Nilai SKD Saya
-              </Link>
-              <a
-                href="#cara-kerja"
-                className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-6 py-3 text-sm font-semibold text-foreground transition hover:bg-muted"
-              >
-                Lihat cara kerja
-              </a>
-            </div>
-            <p className="mt-4 text-xs text-muted-foreground">
-              Gratis · Tanpa perlu login · Data dari pengumuman instansi
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* Cara Kerja */}
-      <section id="cara-kerja" className="border-t border-border bg-muted/40 py-16 sm:py-20">
-        <div className="mx-auto max-w-6xl px-4">
-          <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">Cara Kerja</h2>
-            <p className="mt-3 text-muted-foreground">
-              Empat langkah singkat untuk memahami posisi nilai SKD Kakak.
-            </p>
-          </div>
-
-          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              {
-                icon: Search,
-                title: "Cari data",
-                desc: "Ketik nama atau nomor peserta SKD Kakak.",
-              },
-              {
-                icon: ListChecks,
-                title: "Pilih data",
-                desc: "Pilih baris yang benar-benar milik Kakak.",
-              },
-              {
-                icon: Eye,
-                title: "Lihat preview",
-                desc: "Nilai TWK, TIU, TKP, total, dan zona nilai.",
-              },
-              {
-                icon: MessageCircle,
-                title: "Analisa via WA",
-                desc: "Terima analisa lengkap lewat WhatsApp.",
-              },
-            ].map((s, i) => (
-              <div
-                key={s.title}
-                className="rounded-xl border border-border bg-card p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-soft text-primary">
-                    <s.icon className="h-4 w-4" />
+      <main>
+        <section className="border-b border-border bg-muted">
+          <div className="mx-auto max-w-[1240px] px-4 pb-10 pt-10 sm:px-6 sm:pb-14 sm:pt-14">
+            <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-end">
+              <div>
+                <p className="font-mono text-[11px] font-semibold uppercase text-primary">
+                  Analisis persaingan SKD
+                </p>
+                <h1 className="mt-3 max-w-3xl text-4xl font-extrabold leading-[1.08] sm:text-5xl lg:text-[58px]">
+                  Nilai menjadi posisi yang bisa dipahami.
+                </h1>
+                <p className="mt-4 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
+                  Temukan data SKD Anda, lihat konteks persaingannya, lalu uji nilai yang sama pada
+                  formasi lain sebelum mengambil keputusan.
+                </p>
+                <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-xs font-medium text-muted-foreground">
+                  <span className="inline-flex items-center gap-1.5">
+                    <ShieldCheck className="h-4 w-4 text-[#16805c]" /> Tanpa login
                   </span>
-                  <span className="text-xs font-semibold text-muted-foreground">
-                    Langkah {i + 1}
+                  <span className="inline-flex items-center gap-1.5">
+                    <Database className="h-4 w-4 text-primary" /> Data pengumuman instansi
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <MessageCircle className="h-4 w-4 text-[#16805c]" /> Hasil melalui WhatsApp
                   </span>
                 </div>
-                <h3 className="mt-4 font-semibold">{s.title}</h3>
-                <p className="mt-1 text-sm text-muted-foreground">{s.desc}</p>
               </div>
-            ))}
-          </div>
-        </div>
-      </section>
 
-      {/* Value / soft-sell */}
-      <section className="py-16 sm:py-20">
-        <div className="mx-auto grid max-w-6xl gap-8 px-4 lg:grid-cols-2 lg:items-center">
-          <div>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-warm-soft px-3 py-1 text-xs font-semibold text-accent-foreground">
-              Kenapa penting?
-            </span>
-            <h2 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">
-              Passing grade lolos ≠ otomatis ranking aman
-            </h2>
-            <p className="mt-3 text-muted-foreground">
-              Persaingan CPNS tidak hanya soal ambang batas. Ranking, jumlah pesaing, dan kuota
-              formasi sama-sama menentukan. Rasionalisasi membantu Kakak memutuskan: pakai nilai
-              lama atau tes ulang.
-            </p>
-            <ul className="mt-6 space-y-3 text-sm">
-              {[
-                "Estimasi zona nilai (Aman / Waspada / Rawan)",
-                "Perbandingan terhadap data formasi sejenis",
-                "Rekomendasi strategi persiapan yang realistis",
-              ].map((t) => (
-                <li key={t} className="flex items-start gap-2">
-                  <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                  <span>{t}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Contoh preview
-            </p>
-            <div className="mt-3 space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Nama</span>
-                <span className="font-medium">Andi ***</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Instansi</span>
-                <span className="font-medium">Kemen. XYZ</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Formasi</span>
-                <span className="font-medium">Analis Kebijakan</span>
-              </div>
-              <div className="my-3 h-px bg-border" />
-              <div className="grid grid-cols-4 gap-2 text-center">
-                {[
-                  { l: "TWK", v: 90 },
-                  { l: "TIU", v: 125 },
-                  { l: "TKP", v: 178 },
-                  { l: "Total", v: 393 },
-                ].map((c) => (
-                  <div key={c.l} className="rounded-lg bg-muted p-2">
-                    <div className="text-[10px] text-muted-foreground">{c.l}</div>
-                    <div className="text-lg font-bold text-primary">{c.v}</div>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-                <span className="font-semibold">Zona Waspada.</span> Peluang tetap ada, tapi
-                bergantung tingkat kompetisi.
-              </div>
+              <PositionRail />
+            </div>
+
+            <div className="mt-8 max-w-4xl">
+              <SkdSearchTool />
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Disclaimer */}
-      <section className="pb-16">
-        <div className="mx-auto max-w-4xl px-4">
-          <div className="rounded-xl border border-border bg-muted/50 p-5 text-sm text-muted-foreground">
-            <p className="font-semibold text-foreground">Disclaimer</p>
-            <p className="mt-1">
-              Hasil analisa ini bukan pengumuman resmi dan tidak menjamin kelulusan. Data bersumber
-              dari pengumuman instansi yang telah dipublikasikan. Gunakan sebagai bahan pertimbangan
-              strategi persiapan, bukan sebagai jaminan hasil.
+        <section aria-label="Cakupan data" className="border-b border-border bg-white">
+          <div className="mx-auto grid max-w-[1240px] grid-cols-2 px-4 sm:px-6 md:grid-cols-4">
+            <CoverageMetric
+              label="Peserta terpublikasi"
+              value={stats.data?.scores}
+              loading={stats.isLoading}
+            />
+            <CoverageMetric
+              label="Formasi terpublikasi"
+              value={stats.data?.formations}
+              loading={stats.isLoading}
+            />
+            <CoverageMetric label="Tahun data" value="2024" />
+            <CoverageMetric label="Status" value="Historis" />
+          </div>
+        </section>
+
+        <section id="cara-kerja" className="bg-white py-14 sm:py-20">
+          <div className="mx-auto max-w-[1240px] px-4 sm:px-6">
+            <div className="max-w-2xl">
+              <p className="font-mono text-[11px] font-semibold uppercase text-primary">
+                Alur analisis
+              </p>
+              <h2 className="mt-2 text-2xl font-bold sm:text-3xl">
+                Dari data lama ke keputusan berikutnya
+              </h2>
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                Passing grade hanya titik awal. AnalisaCPNS membantu membaca posisi, persaingan, dan
+                alternatif target dari data yang tersedia.
+              </p>
+            </div>
+
+            <div className="mt-8 grid border-y border-border md:grid-cols-3">
+              <FlowStep
+                icon={Search}
+                step="01"
+                title="Temukan data Anda"
+                description="Cari nama atau nomor peserta, lalu pastikan instansi dan formasinya benar."
+              />
+              <FlowStep
+                icon={BarChart3}
+                step="02"
+                title="Tentukan target"
+                description="Pilih jabatan sejenis, semua yang sesuai pendidikan, atau satu formasi tertentu."
+              />
+              <FlowStep
+                icon={MessageCircle}
+                step="03"
+                title="Terima analisis"
+                description="Kirim kode RSKD ke WhatsApp dan terima satu kartu analisis yang ringkas."
+              />
+            </div>
+          </div>
+        </section>
+
+        <section className="border-y border-border bg-muted py-14 sm:py-20">
+          <div className="mx-auto grid max-w-[1240px] gap-10 px-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_500px] lg:items-center">
+            <div>
+              <p className="font-mono text-[11px] font-semibold uppercase text-primary">
+                Yang dibaca mesin
+              </p>
+              <h2 className="mt-2 text-2xl font-bold sm:text-3xl">
+                Bukan sekadar lolos ambang batas
+              </h2>
+              <p className="mt-4 max-w-xl text-sm leading-7 text-muted-foreground">
+                Mesin membandingkan skor, kuota, peserta hadir, batas historis, pendidikan, dan
+                kualitas data. Hasilnya berupa posisi simulasi, kebutuhan kenaikan nilai, serta
+                beberapa target yang lebih rasional.
+              </p>
+              <div className="mt-6 flex items-center gap-3 text-sm font-semibold text-foreground">
+                <span className="grid h-8 w-8 place-items-center rounded-lg bg-[#071b36] text-white">
+                  <ArrowRight className="h-4 w-4" />
+                </span>
+                Analisis lengkap tetap dikirim melalui WhatsApp.
+              </div>
+            </div>
+
+            <AnalysisSample />
+          </div>
+        </section>
+
+        <section className="bg-white py-10">
+          <div className="mx-auto max-w-[960px] px-4 text-center sm:px-6">
+            <p className="text-xs leading-6 text-muted-foreground">
+              AnalisaCPNS bukan pengumuman resmi dan tidak menjamin kelulusan. Data historis dipakai
+              sebagai bahan perbandingan; syarat serta formasi terbaru tetap mengikuti pengumuman
+              resmi pemerintah.
             </p>
           </div>
-          <div className="mt-8 text-center">
-            <Link
-              to="/search"
-              className="inline-flex items-center gap-2 rounded-lg bg-brand-gradient px-6 py-3 text-sm font-semibold text-primary-foreground shadow-md shadow-primary/20 transition hover:opacity-95"
-            >
-              <Search className="h-4 w-4" />
-              Mulai Cek Nilai SKD
-            </Link>
-          </div>
-        </div>
-      </section>
+        </section>
+      </main>
 
       <SiteFooter />
+    </div>
+  );
+}
+
+function PositionRail() {
+  return (
+    <div className="border-l-2 border-[#cddbf0] pl-5 lg:pb-1">
+      <div className="flex items-end justify-between gap-4">
+        <div>
+          <p className="font-mono text-[10px] font-semibold uppercase text-muted-foreground">
+            Contoh pembacaan
+          </p>
+          <p className="mt-1 text-xl font-bold">Total 412</p>
+        </div>
+        <span className="rounded-sm bg-[#e8f7f1] px-2 py-1 text-[10px] font-bold text-[#16805c]">
+          KOMPETITIF
+        </span>
+      </div>
+      <div className="relative mt-5 h-3 rounded-full bg-[#dce5f0]">
+        <div className="rankline-fill absolute inset-y-0 left-0 w-[78%] rounded-full bg-primary" />
+        <span className="rankline-point absolute left-[calc(78%-6px)] top-1/2 h-4 w-4 -translate-y-1/2 rounded-full border-4 border-white bg-accent shadow-sm" />
+      </div>
+      <div className="mt-2 flex justify-between font-mono text-[9px] text-muted-foreground">
+        <span>Batas historis</span>
+        <span>Posisi nilai</span>
+      </div>
+    </div>
+  );
+}
+
+function CoverageMetric({
+  label,
+  value,
+  loading = false,
+}: {
+  label: string;
+  value?: number | string;
+  loading?: boolean;
+}) {
+  return (
+    <div className="border-r border-border px-4 py-5 first:pl-0 last:border-r-0 md:px-6">
+      <p className="text-[10px] font-semibold uppercase text-muted-foreground">{label}</p>
+      <p className="mt-1 font-mono text-lg font-semibold text-foreground">
+        {loading
+          ? "..."
+          : typeof value === "number"
+            ? value.toLocaleString("id-ID")
+            : (value ?? "-")}
+      </p>
+    </div>
+  );
+}
+
+function FlowStep({
+  icon: Icon,
+  step,
+  title,
+  description,
+}: {
+  icon: typeof Search;
+  step: string;
+  title: string;
+  description: string;
+}) {
+  return (
+    <article className="border-b border-border py-6 last:border-b-0 md:border-b-0 md:border-r md:px-6 md:first:pl-0 md:last:border-r-0 md:last:pr-0">
+      <div className="flex items-center justify-between">
+        <span className="grid h-9 w-9 place-items-center rounded-lg bg-muted text-primary">
+          <Icon className="h-4 w-4" />
+        </span>
+        <span className="font-mono text-xs font-semibold text-[#8ca0b7]">{step}</span>
+      </div>
+      <h3 className="mt-5 text-base font-bold">{title}</h3>
+      <p className="mt-2 text-sm leading-6 text-muted-foreground">{description}</p>
+    </article>
+  );
+}
+
+function AnalysisSample() {
+  return (
+    <div className="overflow-hidden rounded-lg border border-[#214263] bg-[#071b36] text-white shadow-lg shadow-[#071b36]/10">
+      <div className="flex items-center justify-between border-b border-[#214263] px-5 py-4">
+        <div>
+          <p className="font-mono text-[9px] font-semibold uppercase text-[#7f9bb8]">
+            Kartu analisis
+          </p>
+          <p className="mt-1 text-sm font-bold">Contoh hasil rasionalisasi</p>
+        </div>
+        <span className="font-mono text-[9px] text-[#7f9bb8]">RSKD-XXXXXXXX</span>
+      </div>
+      <div className="p-5">
+        <div className="grid grid-cols-4 border border-[#214263]">
+          {[
+            ["TWK", "90"],
+            ["TIU", "135"],
+            ["TKP", "187"],
+            ["Total", "412"],
+          ].map(([label, value], index) => (
+            <div key={label} className={`${index ? "border-l border-[#214263]" : ""} p-3`}>
+              <p className="text-[9px] font-semibold uppercase text-[#7f9bb8]">{label}</p>
+              <p
+                className={`mt-1 font-mono text-lg font-semibold ${index === 3 ? "text-[#6f98ff]" : ""}`}
+              >
+                {value}
+              </p>
+            </div>
+          ))}
+        </div>
+        <div className="mt-5 flex items-end justify-between gap-4">
+          <div>
+            <p className="text-[10px] uppercase text-[#7f9bb8]">Posisi simulasi</p>
+            <p className="mt-1 text-sm font-bold">Layak dipertimbangkan</p>
+          </div>
+          <span className="rounded-sm bg-[#153f39] px-2 py-1 text-[10px] font-bold text-[#6de2be]">
+            DATA CUKUP
+          </span>
+        </div>
+        <div className="relative mt-4 h-2 rounded-full bg-[#193451]">
+          <div className="absolute inset-y-0 left-0 w-[72%] rounded-full bg-[#2f6bff]" />
+          <span className="absolute left-[calc(72%-5px)] top-1/2 h-3 w-3 -translate-y-1/2 rounded-full border-2 border-[#071b36] bg-[#39d4d8]" />
+        </div>
+        <p className="mt-4 text-xs leading-5 text-[#a9b9cb]">
+          Tiga target disusun dari kecocokan pendidikan, batas historis, dan selisih nilai.
+        </p>
+      </div>
     </div>
   );
 }

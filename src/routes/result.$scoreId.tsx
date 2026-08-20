@@ -1,34 +1,37 @@
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useQuery, useMutation } from "@tanstack/react-query";
 import { useDeferredValue, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
-  Loader2,
   AlertCircle,
   ArrowLeft,
+  BarChart3,
+  Check,
   CheckCircle2,
-  Image,
+  Loader2,
   MessageCircle,
   Search,
+  Target,
+  UserRound,
   X,
 } from "lucide-react";
-import { SiteHeader, SiteFooter } from "@/components/SiteHeader";
-import { getSkdScoreById } from "@/services/skdService";
+import { toast } from "sonner";
+import { SiteFooter, SiteHeader } from "@/components/SiteHeader";
+import { getZona, lolosPassingGrade, zonaLabel } from "@/lib/analysis";
 import {
   createLeadAndSession,
   searchRationalizationTargets,
   type LeadFormInput,
   type RationalizationTargetOption,
 } from "@/services/leadService";
-import { getZona, lolosPassingGrade, zonaLabel, zonaColor } from "@/lib/analysis";
-import { toast } from "sonner";
+import { getSkdScoreById } from "@/services/skdService";
 
 export const Route = createFileRoute("/result/$scoreId")({
   head: () => ({
     meta: [
-      { title: "Preview Nilai SKD — cpnsguru.id" },
+      { title: "Posisi Nilai SKD - AnalisaCPNS" },
       {
         name: "description",
-        content: "Preview nilai SKD dan form untuk menerima analisa lengkap via WhatsApp.",
+        content: "Verifikasi nilai SKD dan siapkan target rasionalisasi melalui WhatsApp.",
       },
     ],
   }),
@@ -38,12 +41,10 @@ export const Route = createFileRoute("/result/$scoreId")({
 function ResultPage() {
   const { scoreId } = Route.useParams();
   const navigate = useNavigate();
-
-  const query = useQuery({
+  const scoreQuery = useQuery({
     queryKey: ["skd-score", scoreId],
     queryFn: () => getSkdScoreById(scoreId),
   });
-
   const [form, setForm] = useState<LeadFormInput>({
     nama_panggilan: "",
     target_tahun: "2026",
@@ -58,53 +59,47 @@ function ResultPage() {
   const [targetSearch, setTargetSearch] = useState("");
   const [selectedTarget, setSelectedTarget] = useState<RationalizationTargetOption | null>(null);
   const deferredTargetSearch = useDeferredValue(targetSearch.trim());
-
   const targetQuery = useQuery({
     queryKey: ["rationalization-targets", scoreId, deferredTargetSearch],
     queryFn: () => searchRationalizationTargets(scoreId, deferredTargetSearch),
     enabled: !selectedTarget && deferredTargetSearch.length >= 2,
     staleTime: 30_000,
   });
-
-  const mutation = useMutation({
-    mutationFn: async () => {
-      const s = query.data!;
-      return createLeadAndSession({
-        score_id: s.id,
+  const createMutation = useMutation({
+    mutationFn: () =>
+      createLeadAndSession({
+        score_id: scoreQuery.data!.id,
         lead: form,
-      });
+      }),
+    onSuccess: (result) => {
+      toast.success("Kode analisis berhasil dibuat");
+      navigate({ to: "/wa/$token", params: { token: result.token } });
     },
-    onSuccess: (res) => {
-      toast.success("Kode hasil berhasil dibuat!");
-      navigate({ to: "/wa/$token", params: { token: res.token } });
-    },
-    onError: (err: Error) => {
-      toast.error("Gagal menyimpan data: " + err.message);
-    },
+    onError: (error: Error) => toast.error(`Kode belum berhasil dibuat: ${error.message}`),
   });
 
-  if (query.isLoading) {
+  if (scoreQuery.isLoading) {
     return (
       <PageShell>
-        <div className="flex items-center justify-center py-20 text-muted-foreground">
-          <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Memuat data...
+        <div className="flex items-center justify-center py-24 text-sm text-muted-foreground">
+          <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Memuat data peserta
         </div>
       </PageShell>
     );
   }
 
-  if (query.isError || !query.data) {
+  if (scoreQuery.isError || !scoreQuery.data) {
     return (
       <PageShell>
-        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 text-center">
+        <div className="mx-auto max-w-lg border-y border-red-200 bg-red-50 px-5 py-10 text-center">
           <AlertCircle className="mx-auto h-8 w-8 text-destructive" />
-          <p className="mt-2 font-semibold">Data tidak ditemukan</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Data mungkin sudah dihapus atau tautan tidak valid.
+          <h1 className="mt-3 text-xl font-bold">Data tidak ditemukan</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Tautan tidak valid atau data ini sudah tidak tersedia.
           </p>
           <Link
             to="/search"
-            className="mt-4 inline-block text-sm font-semibold text-primary hover:underline"
+            className="mt-5 inline-flex text-sm font-bold text-primary hover:underline"
           >
             Kembali ke pencarian
           </Link>
@@ -113,357 +108,425 @@ function ResultPage() {
     );
   }
 
-  const s = query.data;
-  const f = s.skd_formations;
-  const zona = getZona(s.total);
-  const lolos = lolosPassingGrade(s);
+  const score = scoreQuery.data;
+  const formation = score.skd_formations;
+  const zone = getZona(score.total);
+  const passed = lolosPassingGrade(score);
 
-  function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  function onSubmit(event: React.FormEvent) {
+    event.preventDefault();
     if (!form.consent_whatsapp) {
-      toast.error("Silakan centang persetujuan WhatsApp.");
+      toast.error("Setujui pengiriman hasil melalui WhatsApp terlebih dahulu.");
       return;
     }
-    mutation.mutate();
+    createMutation.mutate();
   }
 
   function chooseTarget(target: RationalizationTargetOption) {
     setSelectedTarget(target);
     setTargetSearch(`${target.institution} - ${target.position}`);
-    setForm({
-      ...form,
+    setForm((current) => ({
+      ...current,
       target_formation_id: target.id,
       target_instansi: target.institution,
       target_formasi: target.position,
-    });
+    }));
   }
 
   function clearTarget() {
     setSelectedTarget(null);
     setTargetSearch("");
-    setForm({ ...form, target_formation_id: "", target_instansi: "", target_formasi: "" });
+    setForm((current) => ({
+      ...current,
+      target_formation_id: "",
+      target_instansi: "",
+      target_formasi: "",
+    }));
   }
 
   return (
     <PageShell>
       <Link
         to="/search"
-        className="mb-6 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        className="mb-6 inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground transition hover:text-foreground"
       >
-        <ArrowLeft className="h-4 w-4" /> Kembali ke pencarian
+        <ArrowLeft className="h-4 w-4" /> Kembali ke hasil pencarian
       </Link>
 
-      <div className="grid gap-6 lg:grid-cols-5">
-        {/* Preview */}
-        <div className="lg:col-span-3">
-          <div className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Preview Nilai
-            </p>
-            <h1 className="mt-1 text-2xl font-bold">{s.nama}</h1>
-            <div className="mt-4 grid gap-y-1.5 text-sm sm:grid-cols-2">
-              <Info label="Instansi" value={f?.nama_instansi ?? "-"} />
-              <Info label="Formasi" value={f?.jabatan ?? "-"} />
-              <Info label="Tahun SKD" value={s.tahun_skd?.toString() ?? "-"} />
-              <Info label="Pendidikan" value={s.pendidikan ?? f?.pendidikan ?? "-"} />
-              <Info label="Halaman PDF" value={s.source_page?.toString() ?? "-"} />
-            </div>
-
-            <div className="mt-6 grid grid-cols-4 gap-2 text-center">
-              {[
-                { l: "TWK", v: s.twk, pg: 65 },
-                { l: "TIU", v: s.tiu, pg: 80 },
-                { l: "TKP", v: s.tkp, pg: 166 },
-                { l: "Total", v: s.total, hi: true },
-              ].map((c) => (
-                <div key={c.l} className={`rounded-xl p-3 ${c.hi ? "bg-brand-soft" : "bg-muted"}`}>
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                    {c.l}
-                  </div>
-                  <div
-                    className={`mt-0.5 text-2xl font-bold ${c.hi ? "text-primary" : "text-foreground"}`}
-                  >
-                    {c.v ?? "-"}
-                  </div>
-                  {c.pg && (
-                    <div className="mt-0.5 text-[10px] text-muted-foreground">PG {c.pg}</div>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              <div
-                className={`rounded-xl border p-4 text-sm ${lolos ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-rose-200 bg-rose-50 text-rose-800"}`}
-              >
-                <div className="text-xs font-semibold uppercase tracking-wider opacity-80">
-                  Passing Grade
-                </div>
-                <div className="mt-1 text-base font-bold">
-                  {lolos ? "Lolos PG" : "Belum Lolos PG"}
-                </div>
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_410px] lg:items-start">
+        <div>
+          <section aria-labelledby="participant-title">
+            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-5">
+              <div>
+                <p className="font-mono text-[10px] font-semibold uppercase text-primary">
+                  Data peserta terpilih
+                </p>
+                <h1 id="participant-title" className="mt-2 text-2xl font-extrabold sm:text-3xl">
+                  {score.nama}
+                </h1>
               </div>
-              <div className={`rounded-xl border p-4 text-sm ${zonaColor(zona)}`}>
-                <div className="text-xs font-semibold uppercase tracking-wider opacity-80">
-                  Zona Nilai
-                </div>
-                <div className="mt-1 text-base font-bold">{zonaLabel(zona)}</div>
-              </div>
-            </div>
-
-            <div className="mt-5 rounded-xl border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
-              Nilai kamu sudah melewati (atau berada di sekitar) ambang batas, tetapi persaingan
-              CPNS tidak hanya berdasarkan passing grade. Untuk formasi populer, ranking dan jumlah
-              pesaing sangat menentukan.
-            </div>
-          </div>
-        </div>
-
-        {/* Lead form */}
-        <div className="lg:col-span-2">
-          <form
-            onSubmit={onSubmit}
-            className="sticky top-20 rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6"
-          >
-            <p className="text-xs font-semibold uppercase tracking-wider text-primary">
-              Hasil via WhatsApp
-            </p>
-            <h2 className="mt-1 text-lg font-bold">Terima kartu analisis di WhatsApp</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Isi target singkat. Nomor WhatsApp akan dikenali saat kamu mengirim kode ke Hermes.
-            </p>
-
-            <div className="mt-4 flex items-center gap-3 rounded-lg border border-[#cfe2f2] bg-[#eef6fc] p-3 text-xs text-[#245e88]">
-              <Image className="h-5 w-5 shrink-0" />
-              <span>
-                Hermes akan membalas satu gambar ringkasan yang siap disimpan atau dibagikan.
+              <span className="rounded-sm bg-muted px-2 py-1 font-mono text-[10px] font-semibold text-muted-foreground">
+                SKD {score.tahun_skd ?? 2024}
               </span>
             </div>
 
-            <div className="mt-5 space-y-3">
-              <SmallField label="Nama panggilan" required>
-                <input
-                  className="input-base"
-                  value={form.nama_panggilan}
-                  onChange={(e) => setForm({ ...form, nama_panggilan: e.target.value })}
-                  required
-                />
-              </SmallField>
-              <SmallField label="Target ikut seleksi" required>
+            <div className="grid gap-5 border-b border-border py-5 sm:grid-cols-2">
+              <Detail label="Instansi" value={formation?.nama_instansi ?? "-"} />
+              <Detail label="Formasi" value={formation?.jabatan ?? "-"} />
+              <Detail label="Pendidikan" value={score.pendidikan ?? formation?.pendidikan ?? "-"} />
+              <Detail
+                label="Sumber"
+                value={`Pengumuman halaman ${score.source_page ?? "-"}`}
+                mono
+              />
+            </div>
+
+            <div className="grid grid-cols-2 overflow-hidden border-b border-border sm:grid-cols-4">
+              <ScoreCell label="TWK" value={score.twk} threshold={65} />
+              <ScoreCell label="TIU" value={score.tiu} threshold={80} bordered />
+              <ScoreCell label="TKP" value={score.tkp} threshold={166} bordered />
+              <ScoreCell label="Total" value={score.total} highlight bordered />
+            </div>
+
+            <div className="grid border-b border-border sm:grid-cols-2">
+              <StatusBlock
+                label="Ambang batas dasar"
+                value={passed ? "Memenuhi" : "Belum memenuhi"}
+                tone={passed ? "success" : "risk"}
+              />
+              <StatusBlock
+                label="Indikator nilai awal"
+                value={zonaLabel(zone)}
+                tone={zone === "aman" ? "success" : zone === "waspada" ? "warning" : "risk"}
+                bordered
+              />
+            </div>
+
+            <div className="mt-6 border-l-2 border-primary bg-muted px-4 py-3 text-sm leading-6 text-muted-foreground">
+              Memenuhi ambang batas belum berarti posisi akhir aman. Mesin akan membaca skor ini
+              bersama kuota, peserta hadir, batas historis, pendidikan, dan kualitas data formasi.
+            </div>
+          </section>
+
+          <section className="mt-10 border-t border-border pt-7" aria-labelledby="reading-title">
+            <div className="flex items-center gap-3">
+              <span className="grid h-9 w-9 place-items-center rounded-lg bg-muted text-primary">
+                <BarChart3 className="h-4 w-4" />
+              </span>
+              <div>
+                <p className="font-mono text-[10px] font-semibold uppercase text-muted-foreground">
+                  Langkah berikutnya
+                </p>
+                <h2 id="reading-title" className="mt-0.5 text-lg font-bold">
+                  Tentukan cara nilai ini dibandingkan
+                </h2>
+              </div>
+            </div>
+            <p className="mt-4 max-w-2xl text-sm leading-6 text-muted-foreground">
+              Anda bisa mempertahankan bidang jabatan yang mirip atau membuka rekomendasi ke semua
+              formasi yang menerima pendidikan peserta. Target khusus dapat diprioritaskan.
+            </p>
+          </section>
+        </div>
+
+        <form
+          onSubmit={onSubmit}
+          className="overflow-hidden rounded-lg border border-border bg-white shadow-lg shadow-[#071b36]/5 lg:sticky lg:top-20"
+        >
+          <div className="border-b border-border bg-[#071b36] px-5 py-5 text-white">
+            <p className="font-mono text-[9px] font-semibold uppercase text-[#7f9bb8]">
+              Siapkan rasionalisasi
+            </p>
+            <h2 className="mt-1 text-lg font-bold">Pilih tujuan analisis</h2>
+            <p className="mt-1 text-xs leading-5 text-[#a9b9cb]">
+              Hasil lengkap dikirim sebagai satu gambar melalui WhatsApp.
+            </p>
+          </div>
+
+          <div className="space-y-6 p-5">
+            <FormSection icon={UserRound} number="01" title="Tujuan Anda">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                <InputField label="Nama panggilan" required>
+                  <input
+                    value={form.nama_panggilan}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, nama_panggilan: event.target.value }))
+                    }
+                    className="result-input"
+                    placeholder="Nama untuk hasil"
+                    required
+                  />
+                </InputField>
+                <InputField label="Target seleksi" required>
+                  <select
+                    value={form.target_tahun}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        target_tahun: event.target.value as LeadFormInput["target_tahun"],
+                      }))
+                    }
+                    className="result-input"
+                  >
+                    <option value="2026">2026</option>
+                    <option value="2027">2027</option>
+                    <option value="Belum tahu">Belum tahu</option>
+                  </select>
+                </InputField>
+              </div>
+              <InputField label="Rencana saat ini" required>
                 <select
-                  className="input-base"
-                  value={form.target_tahun}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      target_tahun: e.target.value as LeadFormInput["target_tahun"],
-                    })
-                  }
-                >
-                  <option value="2026">2026</option>
-                  <option value="2027">2027</option>
-                  <option value="Belum tahu">Belum tahu</option>
-                </select>
-              </SmallField>
-              <SmallField label="Rencana" required>
-                <select
-                  className="input-base"
                   value={form.rencana}
-                  onChange={(e) =>
-                    setForm({ ...form, rencana: e.target.value as LeadFormInput["rencana"] })
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      rencana: event.target.value as LeadFormInput["rencana"],
+                    }))
                   }
+                  className="result-input"
                 >
                   <option value="Pakai nilai lama">Pakai nilai lama</option>
                   <option value="Tes ulang">Tes ulang</option>
                   <option value="Belum yakin">Belum yakin</option>
                 </select>
-              </SmallField>
-              <fieldset>
-                <legend className="mb-1 block text-xs font-semibold">
-                  Jenis rekomendasi <span className="text-destructive">*</span>
-                </legend>
-                <div
-                  role="radiogroup"
-                  aria-label="Jenis rekomendasi formasi"
-                  className="grid grid-cols-2 rounded-lg border border-border bg-muted p-1"
-                >
-                  {[
-                    {
-                      value: "related" as const,
-                      label: "Jabatan sejenis",
-                      description: "Utamakan bidang jabatan yang mirip",
-                    },
-                    {
-                      value: "all" as const,
-                      label: "Semua sesuai",
-                      description: "Jelajahi semua jabatan yang menerima pendidikan",
-                    },
-                  ].map((mode) => (
-                    <button
-                      key={mode.value}
-                      type="button"
-                      role="radio"
-                      aria-checked={form.recommendation_mode === mode.value}
-                      onClick={() => setForm({ ...form, recommendation_mode: mode.value })}
-                      className={`min-h-16 rounded-md px-2.5 py-2 text-left transition ${
-                        form.recommendation_mode === mode.value
-                          ? "bg-background text-foreground shadow-sm"
-                          : "text-muted-foreground hover:text-foreground"
-                      }`}
-                    >
-                      <span className="block text-xs font-bold">{mode.label}</span>
-                      <span className="mt-0.5 block text-[10px] leading-4">{mode.description}</span>
-                    </button>
-                  ))}
-                </div>
-              </fieldset>
-              <SmallField label="Target tertentu (opsional)">
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <input
-                    className="input-base target-input"
-                    value={targetSearch}
-                    onChange={(event) => {
-                      if (selectedTarget) {
-                        setSelectedTarget(null);
-                        setForm({
-                          ...form,
-                          target_formation_id: "",
-                          target_instansi: "",
-                          target_formasi: "",
-                        });
-                      }
-                      setTargetSearch(event.target.value);
-                    }}
-                    placeholder="Biarkan kosong untuk rekomendasi otomatis"
-                    autoComplete="off"
-                  />
-                  {targetQuery.isFetching ? (
-                    <Loader2 className="absolute right-3 top-2.5 h-4 w-4 animate-spin text-muted-foreground" />
-                  ) : targetSearch ? (
-                    <button
-                      type="button"
-                      onClick={clearTarget}
-                      className="absolute right-2 top-1.5 grid h-7 w-7 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-                      title="Hapus target"
-                      aria-label="Hapus target"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  ) : null}
+              </InputField>
+            </FormSection>
 
-                  {!selectedTarget && deferredTargetSearch.length >= 2 ? (
-                    <div className="absolute z-20 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-border bg-background shadow-lg">
-                      {targetQuery.isError ? (
-                        <p className="p-3 text-xs text-destructive">Target belum dapat dimuat.</p>
-                      ) : targetQuery.data?.length ? (
-                        targetQuery.data.map((target) => (
-                          <button
-                            key={target.id}
-                            type="button"
-                            onClick={() => chooseTarget(target)}
-                            className="block w-full border-b border-border px-3 py-3 text-left last:border-b-0 hover:bg-muted/70"
-                          >
-                            <span className="block text-xs font-bold text-foreground">
-                              {target.position}
-                            </span>
-                            <span className="mt-0.5 block text-xs text-muted-foreground">
-                              {target.institution}
-                            </span>
-                            <span className="mt-1 block text-[11px] text-muted-foreground">
-                              Kuota {target.quota} | Batas {target.cutoff_total ?? "-"} | Selisih{" "}
-                              {target.score_gap === null
-                                ? "-"
-                                : target.score_gap > 0
-                                  ? `+${target.score_gap}`
-                                  : target.score_gap}
-                            </span>
-                          </button>
-                        ))
-                      ) : !targetQuery.isFetching ? (
-                        <p className="p-3 text-xs text-muted-foreground">
-                          Tidak ada formasi UMUM yang cocok dengan pendidikan dan pencarian ini.
-                        </p>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-              </SmallField>
+            <FormSection icon={BarChart3} number="02" title="Cakupan rekomendasi">
+              <div
+                className="grid grid-cols-2 rounded-lg border border-border bg-muted p-1"
+                role="radiogroup"
+              >
+                <ScopeButton
+                  active={form.recommendation_mode === "related"}
+                  title="Jabatan sejenis"
+                  description="Bidang yang mirip"
+                  onClick={() =>
+                    setForm((current) => ({ ...current, recommendation_mode: "related" }))
+                  }
+                />
+                <ScopeButton
+                  active={form.recommendation_mode === "all"}
+                  title="Semua sesuai"
+                  description="Sesuai pendidikan"
+                  onClick={() => setForm((current) => ({ ...current, recommendation_mode: "all" }))}
+                />
+              </div>
+            </FormSection>
+
+            <FormSection icon={Target} number="03" title="Target prioritas">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <input
+                  value={targetSearch}
+                  onChange={(event) => {
+                    if (selectedTarget) clearTarget();
+                    setTargetSearch(event.target.value);
+                  }}
+                  className="result-input pl-9 pr-9"
+                  placeholder="Cari instansi atau jabatan"
+                  autoComplete="off"
+                />
+                {targetQuery.isFetching ? (
+                  <Loader2 className="absolute right-3 top-3 h-4 w-4 animate-spin text-muted-foreground" />
+                ) : targetSearch ? (
+                  <button
+                    type="button"
+                    onClick={clearTarget}
+                    title="Hapus target"
+                    aria-label="Hapus target"
+                    className="absolute right-2 top-1.5 grid h-7 w-7 place-items-center rounded-md text-muted-foreground hover:bg-muted"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                ) : null}
+
+                {!selectedTarget && deferredTargetSearch.length >= 2 && (
+                  <div className="absolute z-20 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-border bg-white shadow-xl">
+                    {targetQuery.isError ? (
+                      <p className="p-3 text-xs text-destructive">Target belum dapat dimuat.</p>
+                    ) : targetQuery.data?.length ? (
+                      targetQuery.data.map((target) => (
+                        <button
+                          key={target.id}
+                          type="button"
+                          onClick={() => chooseTarget(target)}
+                          className="block w-full border-b border-border px-3 py-3 text-left last:border-b-0 hover:bg-muted"
+                        >
+                          <span className="block text-xs font-bold">{target.position}</span>
+                          <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                            {target.institution}
+                          </span>
+                          <span className="mt-1 block font-mono text-[9px] text-muted-foreground">
+                            Kuota {target.quota} · hadir {target.attended} · batas{" "}
+                            {target.cutoff_total ?? "-"}
+                          </span>
+                        </button>
+                      ))
+                    ) : !targetQuery.isFetching ? (
+                      <p className="p-3 text-xs text-muted-foreground">
+                        Tidak ada target yang cocok dengan pencarian ini.
+                      </p>
+                    ) : null}
+                  </div>
+                )}
+              </div>
 
               {selectedTarget ? (
-                <div className="flex gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
+                <div className="mt-3 flex gap-2 border-l-2 border-[#16805c] bg-[#eef9f5] p-3 text-xs text-[#116347]">
                   <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-                  <div className="min-w-0">
-                    <p className="font-bold">Target terpilih</p>
-                    <p className="mt-0.5 break-words">{selectedTarget.position}</p>
-                    <p className="mt-0.5 break-words opacity-80">{selectedTarget.institution}</p>
+                  <div>
+                    <p className="font-bold">Target diprioritaskan</p>
+                    <p className="mt-1 leading-5">{selectedTarget.position}</p>
+                    <p className="leading-5 opacity-80">{selectedTarget.institution}</p>
                   </div>
                 </div>
               ) : (
-                <p className="px-1 text-[11px] text-muted-foreground">
-                  Mesin akan memilih tiga formasi UMUM terverifikasi yang menerima pendidikan{" "}
-                  {s.pendidikan ?? "peserta"}. Target tertentu akan diprioritaskan jika dipilih.
+                <p className="mt-2 text-[11px] leading-5 text-muted-foreground">
+                  Kosongkan untuk mendapatkan tiga rekomendasi otomatis berdasarkan pendidikan{" "}
+                  {score.pendidikan ?? "peserta"}.
                 </p>
               )}
+            </FormSection>
 
-              <label className="mt-2 flex items-start gap-2 rounded-lg bg-muted/60 p-3 text-xs text-muted-foreground">
-                <input
-                  type="checkbox"
-                  checked={form.consent_whatsapp}
-                  onChange={(e) => setForm({ ...form, consent_whatsapp: e.target.checked })}
-                  className="mt-0.5 h-4 w-4 shrink-0 accent-[color:var(--color-primary)]"
-                  required
-                />
-                <span>Saya meminta Hermes mengirim kartu hasil analisis ini melalui WhatsApp.</span>
-              </label>
-
-              <label className="flex items-start gap-2 px-1 text-xs text-muted-foreground">
-                <input
-                  type="checkbox"
-                  checked={form.consent_marketing}
-                  onChange={(e) => setForm({ ...form, consent_marketing: e.target.checked })}
-                  className="mt-0.5 h-4 w-4 shrink-0 accent-[color:var(--color-primary)]"
-                />
-                <span>
-                  Saya juga bersedia menerima informasi CPNS dan tryout. Pilihan ini tidak wajib.
-                </span>
-              </label>
+            <div className="space-y-3 border-t border-border pt-5">
+              <ConsentRow
+                checked={form.consent_whatsapp}
+                onChange={(checked) =>
+                  setForm((current) => ({ ...current, consent_whatsapp: checked }))
+                }
+                required
+              >
+                Kirim kartu hasil analisis melalui WhatsApp.
+              </ConsentRow>
+              <ConsentRow
+                checked={form.consent_marketing}
+                onChange={(checked) =>
+                  setForm((current) => ({ ...current, consent_marketing: checked }))
+                }
+              >
+                Saya bersedia menerima informasi CPNS dan tryout. Pilihan ini tidak wajib.
+              </ConsentRow>
             </div>
+          </div>
 
+          <div className="border-t border-border bg-muted px-5 py-4">
             <button
               type="submit"
-              disabled={mutation.isPending}
-              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-brand-gradient px-5 py-3 text-sm font-semibold text-primary-foreground shadow-md shadow-primary/20 transition hover:opacity-95 disabled:opacity-60"
+              disabled={createMutation.isPending}
+              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary px-5 text-sm font-bold text-white transition hover:bg-[#255de8] disabled:opacity-50"
             >
-              {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              <MessageCircle className="h-4 w-4" />
-              Buat Kode untuk Hermes
+              {createMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <MessageCircle className="h-4 w-4" />
+              )}
+              Buat kode analisis
             </button>
-          </form>
-        </div>
+          </div>
+        </form>
       </div>
 
       <style>{`
-        .input-base { width:100%; border-radius:.5rem; border:1px solid var(--color-border); background:var(--color-background); padding:.55rem .75rem; font-size:.875rem; outline:none; transition: box-shadow .15s, border-color .15s; }
-        .input-base.target-input { padding-left:2.25rem; padding-right:2.25rem; }
-        .input-base:focus { border-color: var(--color-primary); box-shadow: 0 0 0 3px color-mix(in oklch, var(--color-primary) 20%, transparent); }
+        .result-input { width:100%; height:40px; border-radius:8px; border:1px solid var(--color-input); background:#fff; padding:0 12px; font-size:12px; color:var(--color-foreground); transition:border-color .15s, box-shadow .15s; }
+        .result-input:focus { border-color:var(--color-primary); box-shadow:0 0 0 3px #dce8ff; outline:none; }
       `}</style>
     </PageShell>
   );
 }
 
-function Info({ label, value }: { label: string; value: string }) {
+function Detail({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
   return (
-    <p>
-      <span className="text-muted-foreground">{label}: </span>
-      <span className="font-medium">{value}</span>
-    </p>
+    <div>
+      <p className="text-[10px] font-semibold uppercase text-muted-foreground">{label}</p>
+      <p className={`mt-1 text-sm font-semibold leading-6 ${mono ? "font-mono text-xs" : ""}`}>
+        {value}
+      </p>
+    </div>
   );
 }
 
-function SmallField({
+function ScoreCell({
   label,
-  required,
+  value,
+  threshold,
+  highlight = false,
+  bordered = false,
+}: {
+  label: string;
+  value: number | null;
+  threshold?: number;
+  highlight?: boolean;
+  bordered?: boolean;
+}) {
+  return (
+    <div className={`${bordered ? "border-l border-border" : ""} px-3 py-4 text-center sm:py-5`}>
+      <p className="text-[10px] font-semibold uppercase text-muted-foreground">{label}</p>
+      <p className={`mt-1 font-mono text-2xl font-semibold ${highlight ? "text-primary" : ""}`}>
+        {value ?? "-"}
+      </p>
+      {threshold ? (
+        <p className="mt-1 font-mono text-[9px] text-muted-foreground">PG {threshold}</p>
+      ) : null}
+    </div>
+  );
+}
+
+function StatusBlock({
+  label,
+  value,
+  tone,
+  bordered = false,
+}: {
+  label: string;
+  value: string;
+  tone: "success" | "warning" | "risk";
+  bordered?: boolean;
+}) {
+  const toneClass =
+    tone === "success"
+      ? "text-[#16805c]"
+      : tone === "warning"
+        ? "text-[#a45e00]"
+        : "text-[#b43b45]";
+  return (
+    <div
+      className={`${bordered ? "border-t border-border sm:border-l sm:border-t-0" : ""} px-4 py-4`}
+    >
+      <p className="text-[10px] font-semibold uppercase text-muted-foreground">{label}</p>
+      <p className={`mt-1 text-sm font-bold ${toneClass}`}>{value}</p>
+    </div>
+  );
+}
+
+function FormSection({
+  icon: Icon,
+  number,
+  title,
+  children,
+}: {
+  icon: typeof UserRound;
+  number: string;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <fieldset>
+      <legend className="mb-3 flex w-full items-center gap-2 text-xs font-bold">
+        <span className="grid h-7 w-7 place-items-center rounded-md bg-muted text-primary">
+          <Icon className="h-3.5 w-3.5" />
+        </span>
+        <span className="font-mono text-[9px] text-[#8ca0b7]">{number}</span>
+        {title}
+      </legend>
+      <div className="space-y-3">{children}</div>
+    </fieldset>
+  );
+}
+
+function InputField({
+  label,
+  required = false,
   children,
 }: {
   label: string;
@@ -472,10 +535,67 @@ function SmallField({
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-semibold">
-        {label} {required && <span className="text-destructive">*</span>}
+      <span className="mb-1.5 block text-[11px] font-semibold text-muted-foreground">
+        {label} {required ? <span className="text-destructive">*</span> : null}
       </span>
       {children}
+    </label>
+  );
+}
+
+function ScopeButton({
+  active,
+  title,
+  description,
+  onClick,
+}: {
+  active: boolean;
+  title: string;
+  description: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={active}
+      onClick={onClick}
+      className={`min-h-16 rounded-md p-2.5 text-left transition ${
+        active
+          ? "bg-white text-foreground shadow-sm"
+          : "text-muted-foreground hover:text-foreground"
+      }`}
+    >
+      <span className="flex items-center gap-1.5 text-[11px] font-bold">
+        {active ? <Check className="h-3.5 w-3.5 text-primary" /> : null}
+        {title}
+      </span>
+      <span className="mt-1 block text-[9px] leading-4">{description}</span>
+    </button>
+  );
+}
+
+function ConsentRow({
+  checked,
+  onChange,
+  required = false,
+  children,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  required?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="flex cursor-pointer items-start gap-2 text-[11px] leading-5 text-muted-foreground">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        required={required}
+        className="mt-0.5 h-4 w-4 shrink-0 accent-[#2f6bff]"
+      />
+      <span>{children}</span>
     </label>
   );
 }
@@ -484,7 +604,7 @@ function PageShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-background">
       <SiteHeader />
-      <main className="mx-auto max-w-5xl px-4 py-10">{children}</main>
+      <main className="mx-auto max-w-[1180px] px-4 py-8 sm:px-6 sm:py-10">{children}</main>
       <SiteFooter />
     </div>
   );
