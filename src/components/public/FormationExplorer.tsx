@@ -361,10 +361,11 @@ function DesktopFormationTable({ formations }: { formations: PublicFormation[] }
               </td>
               <td className="px-4 py-4 text-right">
                 <Link
-                  to="/search"
+                  to="/formasi/$formationId"
+                  params={{ formationId: formation.id }}
                   className="inline-flex h-8 w-8 items-center justify-center rounded-md text-primary transition hover:bg-[#edf3ff]"
-                  aria-label={`Gunakan nilai saya untuk ${formation.jabatan}`}
-                  title="Gunakan nilai saya"
+                  aria-label={`Lihat detail ${formation.jabatan}`}
+                  title="Lihat detail"
                 >
                   <ArrowRight className="h-4 w-4" />
                 </Link>
@@ -419,10 +420,11 @@ function MobileFormationList({ formations }: { formations: PublicFormation[] }) 
           <div className="mt-3 flex items-center justify-between">
             <CompetitionLabel ratio={formation.competition_ratio} />
             <Link
-              to="/search"
+              to="/formasi/$formationId"
+              params={{ formationId: formation.id }}
               className="inline-flex items-center gap-1 text-xs font-bold text-primary"
             >
-              Gunakan nilai saya
+              Lihat detail
               <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>

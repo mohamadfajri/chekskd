@@ -13,8 +13,10 @@ import { Route as SearchRouteImport } from './routes/search'
 import { Route as FormasiRouteImport } from './routes/formasi'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as FormasiIndexRouteImport } from './routes/formasi.index'
 import { Route as WaTokenRouteImport } from './routes/wa.$token'
 import { Route as ResultScoreIdRouteImport } from './routes/result.$scoreId'
+import { Route as FormasiFormationIdRouteImport } from './routes/formasi.$formationId'
 import { Route as ApiWaResultRouteImport } from './routes/api/wa-result'
 import { Route as ApiWaJobsRouteImport } from './routes/api/wa-jobs'
 import { Route as ApiResultSessionRouteImport } from './routes/api/result-session'
@@ -49,6 +51,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FormasiIndexRoute = FormasiIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => FormasiRoute,
+} as any)
 const WaTokenRoute = WaTokenRouteImport.update({
   id: '/wa/$token',
   path: '/wa/$token',
@@ -58,6 +65,11 @@ const ResultScoreIdRoute = ResultScoreIdRouteImport.update({
   id: '/result/$scoreId',
   path: '/result/$scoreId',
   getParentRoute: () => rootRouteImport,
+} as any)
+const FormasiFormationIdRoute = FormasiFormationIdRouteImport.update({
+  id: '/$formationId',
+  path: '/$formationId',
+  getParentRoute: () => FormasiRoute,
 } as any)
 const ApiWaResultRoute = ApiWaResultRouteImport.update({
   id: '/api/wa-result',
@@ -130,15 +142,17 @@ const ApiAdminMarketingInsightsRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
-  '/formasi': typeof FormasiRoute
+  '/formasi': typeof FormasiRouteWithChildren
   '/search': typeof SearchRoute
   '/api/rationalization-targets': typeof ApiRationalizationTargetsRoute
   '/api/result-card': typeof ApiResultCardRoute
   '/api/result-session': typeof ApiResultSessionRoute
   '/api/wa-jobs': typeof ApiWaJobsRoute
   '/api/wa-result': typeof ApiWaResultRoute
+  '/formasi/$formationId': typeof FormasiFormationIdRoute
   '/result/$scoreId': typeof ResultScoreIdRoute
   '/wa/$token': typeof WaTokenRoute
+  '/formasi/': typeof FormasiIndexRoute
   '/api/admin/marketing-insights': typeof ApiAdminMarketingInsightsRoute
   '/api/admin/pdf-sources': typeof ApiAdminPdfSourcesRoute
   '/api/admin/published-data': typeof ApiAdminPublishedDataRoute
@@ -151,15 +165,16 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
-  '/formasi': typeof FormasiRoute
   '/search': typeof SearchRoute
   '/api/rationalization-targets': typeof ApiRationalizationTargetsRoute
   '/api/result-card': typeof ApiResultCardRoute
   '/api/result-session': typeof ApiResultSessionRoute
   '/api/wa-jobs': typeof ApiWaJobsRoute
   '/api/wa-result': typeof ApiWaResultRoute
+  '/formasi/$formationId': typeof FormasiFormationIdRoute
   '/result/$scoreId': typeof ResultScoreIdRoute
   '/wa/$token': typeof WaTokenRoute
+  '/formasi': typeof FormasiIndexRoute
   '/api/admin/marketing-insights': typeof ApiAdminMarketingInsightsRoute
   '/api/admin/pdf-sources': typeof ApiAdminPdfSourcesRoute
   '/api/admin/published-data': typeof ApiAdminPublishedDataRoute
@@ -173,15 +188,17 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
-  '/formasi': typeof FormasiRoute
+  '/formasi': typeof FormasiRouteWithChildren
   '/search': typeof SearchRoute
   '/api/rationalization-targets': typeof ApiRationalizationTargetsRoute
   '/api/result-card': typeof ApiResultCardRoute
   '/api/result-session': typeof ApiResultSessionRoute
   '/api/wa-jobs': typeof ApiWaJobsRoute
   '/api/wa-result': typeof ApiWaResultRoute
+  '/formasi/$formationId': typeof FormasiFormationIdRoute
   '/result/$scoreId': typeof ResultScoreIdRoute
   '/wa/$token': typeof WaTokenRoute
+  '/formasi/': typeof FormasiIndexRoute
   '/api/admin/marketing-insights': typeof ApiAdminMarketingInsightsRoute
   '/api/admin/pdf-sources': typeof ApiAdminPdfSourcesRoute
   '/api/admin/published-data': typeof ApiAdminPublishedDataRoute
@@ -203,8 +220,10 @@ export interface FileRouteTypes {
     | '/api/result-session'
     | '/api/wa-jobs'
     | '/api/wa-result'
+    | '/formasi/$formationId'
     | '/result/$scoreId'
     | '/wa/$token'
+    | '/formasi/'
     | '/api/admin/marketing-insights'
     | '/api/admin/pdf-sources'
     | '/api/admin/published-data'
@@ -217,15 +236,16 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/admin'
-    | '/formasi'
     | '/search'
     | '/api/rationalization-targets'
     | '/api/result-card'
     | '/api/result-session'
     | '/api/wa-jobs'
     | '/api/wa-result'
+    | '/formasi/$formationId'
     | '/result/$scoreId'
     | '/wa/$token'
+    | '/formasi'
     | '/api/admin/marketing-insights'
     | '/api/admin/pdf-sources'
     | '/api/admin/published-data'
@@ -245,8 +265,10 @@ export interface FileRouteTypes {
     | '/api/result-session'
     | '/api/wa-jobs'
     | '/api/wa-result'
+    | '/formasi/$formationId'
     | '/result/$scoreId'
     | '/wa/$token'
+    | '/formasi/'
     | '/api/admin/marketing-insights'
     | '/api/admin/pdf-sources'
     | '/api/admin/published-data'
@@ -260,7 +282,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
-  FormasiRoute: typeof FormasiRoute
+  FormasiRoute: typeof FormasiRouteWithChildren
   SearchRoute: typeof SearchRoute
   ApiRationalizationTargetsRoute: typeof ApiRationalizationTargetsRoute
   ApiResultCardRoute: typeof ApiResultCardRoute
@@ -309,6 +331,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/formasi/': {
+      id: '/formasi/'
+      path: '/'
+      fullPath: '/formasi/'
+      preLoaderRoute: typeof FormasiIndexRouteImport
+      parentRoute: typeof FormasiRoute
+    }
     '/wa/$token': {
       id: '/wa/$token'
       path: '/wa/$token'
@@ -322,6 +351,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/result/$scoreId'
       preLoaderRoute: typeof ResultScoreIdRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/formasi/$formationId': {
+      id: '/formasi/$formationId'
+      path: '/$formationId'
+      fullPath: '/formasi/$formationId'
+      preLoaderRoute: typeof FormasiFormationIdRouteImport
+      parentRoute: typeof FormasiRoute
     }
     '/api/wa-result': {
       id: '/api/wa-result'
@@ -417,10 +453,23 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface FormasiRouteChildren {
+  FormasiFormationIdRoute: typeof FormasiFormationIdRoute
+  FormasiIndexRoute: typeof FormasiIndexRoute
+}
+
+const FormasiRouteChildren: FormasiRouteChildren = {
+  FormasiFormationIdRoute: FormasiFormationIdRoute,
+  FormasiIndexRoute: FormasiIndexRoute,
+}
+
+const FormasiRouteWithChildren =
+  FormasiRoute._addFileChildren(FormasiRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
-  FormasiRoute: FormasiRoute,
+  FormasiRoute: FormasiRouteWithChildren,
   SearchRoute: SearchRoute,
   ApiRationalizationTargetsRoute: ApiRationalizationTargetsRoute,
   ApiResultCardRoute: ApiResultCardRoute,

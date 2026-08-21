@@ -61,6 +61,57 @@ export interface FormationExplorerResponse {
   };
 }
 
+export interface FormationScoreBucket {
+  from: number;
+  to: number;
+  count: number;
+}
+
+export interface PublicFormationDetail {
+  id: string;
+  kode_instansi: string | null;
+  nama_instansi: string;
+  kode_jabatan: string | null;
+  jabatan: string;
+  kode_lokasi: string | null;
+  lokasi_formasi: string | null;
+  jenis_formasi: string | null;
+  pendidikan: string | null;
+  pendidikan_options: string[] | null;
+  selection_year: number;
+  data_confidence: FormationDataConfidence;
+  stats: {
+    quota: number;
+    shortlist_capacity: number;
+    participant_count: number;
+    attended_count: number;
+    passing_count: number;
+    shortlisted_count: number;
+    no_show_count: number;
+    competition_ratio: number | null;
+    minimum_total: number | null;
+    median_total: number | null;
+    p75_total: number | null;
+    maximum_total: number | null;
+    cutoff_total: number | null;
+    cutoff_twk: number | null;
+    cutoff_tiu: number | null;
+    cutoff_tkp: number | null;
+    cutoff_tie_count: number;
+    capacity_consistent: boolean;
+    calculated_at: string;
+  };
+  source: {
+    file_name: string | null;
+    source_url: string | null;
+    page_number: number | null;
+    total_pages: number | null;
+    document_type: string | null;
+  };
+  score_distribution: FormationScoreBucket[];
+  status_counts: Record<string, number>;
+}
+
 export async function searchPublicFormations(
   params: FormationExplorerParams,
 ): Promise<FormationExplorerResponse> {
@@ -82,4 +133,15 @@ export async function searchPublicFormations(
     throw new Error("Respons data formasi tidak valid.");
   }
   return response;
+}
+
+export async function getPublicFormationDetail(
+  formationId: string,
+): Promise<PublicFormationDetail | null> {
+  const sb = requireSupabase();
+  const { data, error } = await sb.rpc("get_public_skd_formation_detail", {
+    p_formation_id: formationId,
+  });
+  if (error) throw error;
+  return (data as PublicFormationDetail | null) ?? null;
 }

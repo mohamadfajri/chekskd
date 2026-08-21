@@ -1,28 +1,15 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { FormationExplorer } from "@/components/public/FormationExplorer";
+import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { SiteFooter, SiteHeader } from "@/components/SiteHeader";
 
 export const Route = createFileRoute("/formasi")({
-  head: () => ({
-    meta: [
-      { title: "Jelajahi Formasi CPNS - AnalisaCPNS" },
-      {
-        name: "description",
-        content:
-          "Bandingkan kuota, persaingan, dan batas nilai historis formasi CPNS dari data SKD terverifikasi.",
-      },
-    ],
-  }),
-  component: FormationPage,
+  component: FormationLayout,
 });
 
-function FormationPage() {
+function FormationLayout() {
   return (
     <div className="min-h-screen bg-background">
       <SiteHeader />
-      <main>
-        <FormationExplorer />
-      </main>
+      <Outlet />
       <SiteFooter />
     </div>
   );
