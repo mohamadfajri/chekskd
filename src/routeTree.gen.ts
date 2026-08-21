@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SearchRouteImport } from './routes/search'
+import { Route as FormasiRouteImport } from './routes/formasi'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as WaTokenRouteImport } from './routes/wa.$token'
@@ -31,6 +32,11 @@ import { Route as ApiAdminMarketingInsightsRouteImport } from './routes/api/admi
 const SearchRoute = SearchRouteImport.update({
   id: '/search',
   path: '/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FormasiRoute = FormasiRouteImport.update({
+  id: '/formasi',
+  path: '/formasi',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRoute = AdminRouteImport.update({
@@ -124,6 +130,7 @@ const ApiAdminMarketingInsightsRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/formasi': typeof FormasiRoute
   '/search': typeof SearchRoute
   '/api/rationalization-targets': typeof ApiRationalizationTargetsRoute
   '/api/result-card': typeof ApiResultCardRoute
@@ -144,6 +151,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/formasi': typeof FormasiRoute
   '/search': typeof SearchRoute
   '/api/rationalization-targets': typeof ApiRationalizationTargetsRoute
   '/api/result-card': typeof ApiResultCardRoute
@@ -165,6 +173,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/formasi': typeof FormasiRoute
   '/search': typeof SearchRoute
   '/api/rationalization-targets': typeof ApiRationalizationTargetsRoute
   '/api/result-card': typeof ApiResultCardRoute
@@ -187,6 +196,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/admin'
+    | '/formasi'
     | '/search'
     | '/api/rationalization-targets'
     | '/api/result-card'
@@ -207,6 +217,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/admin'
+    | '/formasi'
     | '/search'
     | '/api/rationalization-targets'
     | '/api/result-card'
@@ -227,6 +238,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/admin'
+    | '/formasi'
     | '/search'
     | '/api/rationalization-targets'
     | '/api/result-card'
@@ -248,6 +260,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
+  FormasiRoute: typeof FormasiRoute
   SearchRoute: typeof SearchRoute
   ApiRationalizationTargetsRoute: typeof ApiRationalizationTargetsRoute
   ApiResultCardRoute: typeof ApiResultCardRoute
@@ -273,6 +286,13 @@ declare module '@tanstack/react-router' {
       path: '/search'
       fullPath: '/search'
       preLoaderRoute: typeof SearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/formasi': {
+      id: '/formasi'
+      path: '/formasi'
+      fullPath: '/formasi'
+      preLoaderRoute: typeof FormasiRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -400,6 +420,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
+  FormasiRoute: FormasiRoute,
   SearchRoute: SearchRoute,
   ApiRationalizationTargetsRoute: ApiRationalizationTargetsRoute,
   ApiResultCardRoute: ApiResultCardRoute,
