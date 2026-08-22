@@ -7,6 +7,7 @@ import {
   BarChart3,
   ChevronDown,
   ChevronUp,
+  Columns3,
   ExternalLink,
   FileText,
   GraduationCap,
@@ -66,13 +67,29 @@ function DetailContent({ detail }: { detail: FormationDetailData }) {
                 <span>{detail.lokasi_formasi || "Lokasi tidak tercatat"}</span>
               </p>
             </div>
-            <Link
-              to="/search"
-              className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-bold text-white transition hover:bg-[#255de8]"
-            >
-              Gunakan nilai saya
-              <ArrowRight className="h-4 w-4" />
-            </Link>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Link
+                to="/formasi"
+                search={{ banding: detail.id }}
+                className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md border border-input bg-white px-4 text-sm font-bold text-[#476078] transition hover:bg-[#f8fbff]"
+              >
+                <Columns3 className="h-4 w-4" />
+                Bandingkan
+              </Link>
+              <Link
+                to="/search"
+                search={{
+                  targetFormationId:
+                    detail.jenis_formasi?.trim().toUpperCase() === "UMUM" ? detail.id : undefined,
+                }}
+                className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-bold text-white transition hover:bg-[#255de8]"
+              >
+                {detail.jenis_formasi?.trim().toUpperCase() === "UMUM"
+                  ? "Gunakan nilai saya"
+                  : "Cari nilai saya"}
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
           </div>
         </div>
       </section>

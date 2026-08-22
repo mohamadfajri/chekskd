@@ -17,7 +17,13 @@ import { searchSkdScores } from "@/services/skdService";
 
 type SearchMode = "name" | "participant";
 
-export function SkdSearchTool({ compact = false }: { compact?: boolean }) {
+export function SkdSearchTool({
+  compact = false,
+  targetFormationId,
+}: {
+  compact?: boolean;
+  targetFormationId?: string;
+}) {
   const [mode, setMode] = useState<SearchMode>("name");
   const [nama, setNama] = useState("");
   const [noPeserta, setNoPeserta] = useState("");
@@ -188,7 +194,12 @@ export function SkdSearchTool({ compact = false }: { compact?: boolean }) {
 
             <div className="overflow-hidden rounded-lg border border-border bg-white">
               {results.map((result, index) => (
-                <SearchResultRow key={result.id} result={result} first={index === 0} />
+                <SearchResultRow
+                  key={result.id}
+                  result={result}
+                  first={index === 0}
+                  targetFormationId={targetFormationId}
+                />
               ))}
             </div>
           </section>
@@ -251,9 +262,11 @@ function FilterField({
 function SearchResultRow({
   result,
   first,
+  targetFormationId,
 }: {
   result: Awaited<ReturnType<typeof searchSkdScores>>[number];
   first: boolean;
+  targetFormationId?: string;
 }) {
   const formation = result.skd_formations;
 
@@ -302,6 +315,7 @@ function SearchResultRow({
         <Link
           to="/result/$scoreId"
           params={{ scoreId: result.id }}
+          search={{ targetFormationId }}
           className="inline-flex h-10 shrink-0 items-center justify-center rounded-lg bg-[#071b36] px-4 text-xs font-bold text-white transition hover:bg-[#11365f]"
         >
           Ini data saya

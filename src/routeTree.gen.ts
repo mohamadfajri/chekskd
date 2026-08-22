@@ -16,6 +16,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as FormasiIndexRouteImport } from './routes/formasi.index'
 import { Route as WaTokenRouteImport } from './routes/wa.$token'
 import { Route as ResultScoreIdRouteImport } from './routes/result.$scoreId'
+import { Route as FormasiBandingRouteImport } from './routes/formasi.banding'
 import { Route as FormasiFormationIdRouteImport } from './routes/formasi.$formationId'
 import { Route as ApiWaResultRouteImport } from './routes/api/wa-result'
 import { Route as ApiWaJobsRouteImport } from './routes/api/wa-jobs'
@@ -65,6 +66,11 @@ const ResultScoreIdRoute = ResultScoreIdRouteImport.update({
   id: '/result/$scoreId',
   path: '/result/$scoreId',
   getParentRoute: () => rootRouteImport,
+} as any)
+const FormasiBandingRoute = FormasiBandingRouteImport.update({
+  id: '/banding',
+  path: '/banding',
+  getParentRoute: () => FormasiRoute,
 } as any)
 const FormasiFormationIdRoute = FormasiFormationIdRouteImport.update({
   id: '/$formationId',
@@ -150,6 +156,7 @@ export interface FileRoutesByFullPath {
   '/api/wa-jobs': typeof ApiWaJobsRoute
   '/api/wa-result': typeof ApiWaResultRoute
   '/formasi/$formationId': typeof FormasiFormationIdRoute
+  '/formasi/banding': typeof FormasiBandingRoute
   '/result/$scoreId': typeof ResultScoreIdRoute
   '/wa/$token': typeof WaTokenRoute
   '/formasi/': typeof FormasiIndexRoute
@@ -172,6 +179,7 @@ export interface FileRoutesByTo {
   '/api/wa-jobs': typeof ApiWaJobsRoute
   '/api/wa-result': typeof ApiWaResultRoute
   '/formasi/$formationId': typeof FormasiFormationIdRoute
+  '/formasi/banding': typeof FormasiBandingRoute
   '/result/$scoreId': typeof ResultScoreIdRoute
   '/wa/$token': typeof WaTokenRoute
   '/formasi': typeof FormasiIndexRoute
@@ -196,6 +204,7 @@ export interface FileRoutesById {
   '/api/wa-jobs': typeof ApiWaJobsRoute
   '/api/wa-result': typeof ApiWaResultRoute
   '/formasi/$formationId': typeof FormasiFormationIdRoute
+  '/formasi/banding': typeof FormasiBandingRoute
   '/result/$scoreId': typeof ResultScoreIdRoute
   '/wa/$token': typeof WaTokenRoute
   '/formasi/': typeof FormasiIndexRoute
@@ -221,6 +230,7 @@ export interface FileRouteTypes {
     | '/api/wa-jobs'
     | '/api/wa-result'
     | '/formasi/$formationId'
+    | '/formasi/banding'
     | '/result/$scoreId'
     | '/wa/$token'
     | '/formasi/'
@@ -243,6 +253,7 @@ export interface FileRouteTypes {
     | '/api/wa-jobs'
     | '/api/wa-result'
     | '/formasi/$formationId'
+    | '/formasi/banding'
     | '/result/$scoreId'
     | '/wa/$token'
     | '/formasi'
@@ -266,6 +277,7 @@ export interface FileRouteTypes {
     | '/api/wa-jobs'
     | '/api/wa-result'
     | '/formasi/$formationId'
+    | '/formasi/banding'
     | '/result/$scoreId'
     | '/wa/$token'
     | '/formasi/'
@@ -351,6 +363,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/result/$scoreId'
       preLoaderRoute: typeof ResultScoreIdRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/formasi/banding': {
+      id: '/formasi/banding'
+      path: '/banding'
+      fullPath: '/formasi/banding'
+      preLoaderRoute: typeof FormasiBandingRouteImport
+      parentRoute: typeof FormasiRoute
     }
     '/formasi/$formationId': {
       id: '/formasi/$formationId'
@@ -455,11 +474,13 @@ declare module '@tanstack/react-router' {
 
 interface FormasiRouteChildren {
   FormasiFormationIdRoute: typeof FormasiFormationIdRoute
+  FormasiBandingRoute: typeof FormasiBandingRoute
   FormasiIndexRoute: typeof FormasiIndexRoute
 }
 
 const FormasiRouteChildren: FormasiRouteChildren = {
   FormasiFormationIdRoute: FormasiFormationIdRoute,
+  FormasiBandingRoute: FormasiBandingRoute,
   FormasiIndexRoute: FormasiIndexRoute,
 }
 

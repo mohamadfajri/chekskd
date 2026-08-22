@@ -1,4 +1,4 @@
-import { useDeferredValue, useState } from "react";
+import { useDeferredValue, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
@@ -17,15 +17,21 @@ import {
 import { toast } from "sonner";
 import { SiteFooter, SiteHeader } from "@/components/SiteHeader";
 import { getZona, lolosPassingGrade, zonaLabel } from "@/lib/analysis";
+import { cleanFormationId } from "@/lib/formationSelection";
+import type { SkdScoreWithFormation } from "@/lib/supabase/types";
 import {
   createLeadAndSession,
   searchRationalizationTargets,
   type LeadFormInput,
   type RationalizationTargetOption,
 } from "@/services/leadService";
+import { getPublicFormationDetail, type PublicFormationDetail } from "@/services/formationService";
 import { getSkdScoreById } from "@/services/skdService";
 
 export const Route = createFileRoute("/result/$scoreId")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    targetFormationId: cleanFormationId(search.targetFormationId),
+  }),
   head: () => ({
     meta: [
       { title: "Posisi Nilai SKD - AnalisaCPNS" },
@@ -40,10 +46,17 @@ export const Route = createFileRoute("/result/$scoreId")({
 
 function ResultPage() {
   const { scoreId } = Route.useParams();
+  const { targetFormationId } = Route.useSearch();
   const navigate = useNavigate();
   const scoreQuery = useQuery({
     queryKey: ["skd-score", scoreId],
     queryFn: () => getSkdScoreById(scoreId),
+  });
+  const preferredTargetQuery = useQuery({
+    queryKey: ["public-formation-detail", targetFormationId],
+    queryFn: () => getPublicFormationDetail(targetFormationId!),
+    enabled: Boolean(targetFormationId),
+    staleTime: 60_000,
   });
   const [form, setForm] = useState<LeadFormInput>({
     nama_panggilan: "",
@@ -58,6 +71,8 @@ function ResultPage() {
   });
   const [targetSearch, setTargetSearch] = useState("");
   const [selectedTarget, setSelectedTarget] = useState<RationalizationTargetOption | null>(null);
+  const [preferredTargetMessage, setPreferredTargetMessage] = useState<string | null>(null);
+  const preferredTargetHandled = useRef(false);
   const deferredTargetSearch = useDeferredValue(targetSearch.trim());
   const targetQuery = useQuery({
     queryKey: ["rationalization-targets", scoreId, deferredTargetSearch],
@@ -77,6 +92,55 @@ function ResultPage() {
     },
     onError: (error: Error) => toast.error(`Kode belum berhasil dibuat: ${error.message}`),
   });
+
+  useEffect(() => {
+    preferredTargetHandled.current = false;
+    setPreferredTargetMessage(null);
+  }, [targetFormationId]);
+
+  useEffect(() => {
+    if (!targetFormationId || preferredTargetHandled.current || !scoreQuery.data) {
+      return;
+    }
+
+    if (preferredTargetQuery.isError) {
+      preferredTargetHandled.current = true;
+      setPreferredTargetMessage(
+        "Target awal belum dapat diperiksa. Pilih target lain atau gunakan rekomendasi otomatis.",
+      );
+      return;
+    }
+    if (!preferredTargetQuery.isSuccess) return;
+
+    preferredTargetHandled.current = true;
+    if (!preferredTargetQuery.data) {
+      setPreferredTargetMessage("Formasi target tidak ditemukan atau belum dipublikasikan.");
+      return;
+    }
+
+    const target = buildTargetOption(scoreQuery.data, preferredTargetQuery.data);
+    if (!target) {
+      setPreferredTargetMessage(
+        "Target awal tidak menerima pendidikan peserta atau bukan formasi UMUM. Pilih target lain atau gunakan rekomendasi otomatis.",
+      );
+      return;
+    }
+
+    setSelectedTarget(target);
+    setTargetSearch(`${target.institution} - ${target.position}`);
+    setForm((current) => ({
+      ...current,
+      target_formation_id: target.id,
+      target_instansi: target.institution,
+      target_formasi: target.position,
+    }));
+  }, [
+    preferredTargetQuery.data,
+    preferredTargetQuery.isError,
+    preferredTargetQuery.isSuccess,
+    scoreQuery.data,
+    targetFormationId,
+  ]);
 
   if (scoreQuery.isLoading) {
     return (
@@ -136,6 +200,7 @@ function ResultPage() {
   function clearTarget() {
     setSelectedTarget(null);
     setTargetSearch("");
+    setPreferredTargetMessage(null);
     setForm((current) => ({
       ...current,
       target_formation_id: "",
@@ -148,6 +213,7 @@ function ResultPage() {
     <PageShell>
       <Link
         to="/search"
+        search={{ targetFormationId }}
         className="mb-6 inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground transition hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" /> Kembali ke hasil pencarian
@@ -373,19 +439,27 @@ function ResultPage() {
               </div>
 
               {selectedTarget ? (
-                <div className="mt-3 flex gap-2 border-l-2 border-[#16805c] bg-[#eef9f5] p-3 text-xs text-[#116347]">
-                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-                  <div>
-                    <p className="font-bold">Target diprioritaskan</p>
-                    <p className="mt-1 leading-5">{selectedTarget.position}</p>
-                    <p className="leading-5 opacity-80">{selectedTarget.institution}</p>
-                  </div>
-                </div>
+                <TargetPreview target={selectedTarget} />
               ) : (
-                <p className="mt-2 text-[11px] leading-5 text-muted-foreground">
-                  Kosongkan untuk mendapatkan tiga rekomendasi otomatis berdasarkan pendidikan{" "}
-                  {score.pendidikan ?? "peserta"}.
-                </p>
+                <>
+                  {targetFormationId && preferredTargetQuery.isLoading ? (
+                    <p className="mt-2 flex items-center gap-2 text-[11px] leading-5 text-muted-foreground">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Memeriksa kecocokan target
+                    </p>
+                  ) : null}
+                  {preferredTargetMessage ? (
+                    <div className="mt-3 flex gap-2 border-l-2 border-[#a45e00] bg-[#fff8eb] p-3 text-[11px] leading-5 text-[#7a4b08]">
+                      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                      <p>{preferredTargetMessage}</p>
+                    </div>
+                  ) : null}
+                  {!preferredTargetMessage ? (
+                    <p className="mt-2 text-[11px] leading-5 text-muted-foreground">
+                      Kosongkan untuk mendapatkan tiga rekomendasi otomatis berdasarkan pendidikan{" "}
+                      {score.pendidikan ?? "peserta"}.
+                    </p>
+                  ) : null}
+                </>
               )}
             </FormSection>
 
@@ -433,6 +507,105 @@ function ResultPage() {
       `}</style>
     </PageShell>
   );
+}
+
+function TargetPreview({ target }: { target: RationalizationTargetOption }) {
+  const gapLabel =
+    target.score_gap == null
+      ? "-"
+      : target.score_gap >= 0
+        ? `+${target.score_gap}`
+        : String(target.score_gap);
+  return (
+    <div className="mt-3 overflow-hidden border-l-2 border-[#16805c] bg-[#eef9f5] text-xs text-[#116347]">
+      <div className="flex gap-2 p-3">
+        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+        <div className="min-w-0">
+          <p className="font-bold">Target diprioritaskan</p>
+          <p className="mt-1 leading-5">{target.position}</p>
+          <p className="leading-5 opacity-80">{target.institution}</p>
+        </div>
+      </div>
+      <div className="grid grid-cols-4 gap-px bg-[#cfe9df]">
+        <TargetMetric label="Kuota" value={formatCompactNumber(target.quota)} />
+        <TargetMetric label="Hadir" value={formatCompactNumber(target.attended)} />
+        <TargetMetric
+          label="Rasio"
+          value={
+            target.competition_ratio == null
+              ? "-"
+              : `${formatCompactNumber(target.competition_ratio)}x`
+          }
+        />
+        <TargetMetric label="Selisih" value={gapLabel} />
+      </div>
+    </div>
+  );
+}
+
+function TargetMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 bg-[#f7fcfa] px-2 py-2.5 text-center">
+      <p className="text-[8px] font-semibold uppercase opacity-70">{label}</p>
+      <p className="mt-1 truncate font-mono text-[11px] font-bold">{value}</p>
+    </div>
+  );
+}
+
+function buildTargetOption(
+  score: SkdScoreWithFormation,
+  detail: PublicFormationDetail,
+): RationalizationTargetOption | null {
+  const participantEducation = normalizeEducation(score.pendidikan);
+  const acceptedEducations = (detail.pendidikan_options ?? []).map(normalizeEducation);
+  const isEligible =
+    detail.id !== score.formation_id &&
+    detail.jenis_formasi?.trim().toUpperCase() === "UMUM" &&
+    Boolean(participantEducation) &&
+    acceptedEducations.includes(participantEducation);
+  if (!isEligible) return null;
+
+  const cutoff = detail.stats.cutoff_total;
+  return {
+    id: detail.id,
+    institution: detail.nama_instansi,
+    position: detail.jabatan,
+    location: detail.lokasi_formasi,
+    formation_type: detail.jenis_formasi ?? "UMUM",
+    education_requirement: detail.pendidikan,
+    quota: detail.stats.quota,
+    attended: detail.stats.attended_count,
+    competition_ratio: detail.stats.competition_ratio,
+    cutoff_total: cutoff,
+    score_gap: score.total != null && cutoff != null ? score.total - cutoff : null,
+    above_historical_cutoff: isAtOrAboveCutoff(score, detail),
+  };
+}
+
+function isAtOrAboveCutoff(score: SkdScoreWithFormation, detail: PublicFormationDetail): boolean {
+  const participant = [score.total, score.tkp, score.tiu, score.twk];
+  const cutoff = [
+    detail.stats.cutoff_total,
+    detail.stats.cutoff_tkp,
+    detail.stats.cutoff_tiu,
+    detail.stats.cutoff_twk,
+  ];
+  if (participant.some((value) => value == null) || cutoff.some((value) => value == null)) {
+    return false;
+  }
+  for (let index = 0; index < participant.length; index += 1) {
+    if (participant[index]! > cutoff[index]!) return true;
+    if (participant[index]! < cutoff[index]!) return false;
+  }
+  return true;
+}
+
+function normalizeEducation(value: string | null | undefined): string {
+  return value?.trim().replace(/\s+/g, " ").toUpperCase() ?? "";
+}
+
+function formatCompactNumber(value: number): string {
+  return new Intl.NumberFormat("id-ID", { maximumFractionDigits: 1 }).format(value);
 }
 
 function Detail({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {

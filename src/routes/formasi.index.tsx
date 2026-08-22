@@ -1,7 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { FormationExplorer } from "@/components/public/FormationExplorer";
+import { parseFormationIds, serializeFormationIds } from "@/lib/formationSelection";
 
 export const Route = createFileRoute("/formasi/")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    banding: serializeFormationIds(parseFormationIds(search.banding)),
+  }),
   head: () => ({
     meta: [
       { title: "Jelajahi Formasi CPNS - AnalisaCPNS" },
@@ -16,9 +20,10 @@ export const Route = createFileRoute("/formasi/")({
 });
 
 function FormationIndexPage() {
+  const { banding } = Route.useSearch();
   return (
     <main>
-      <FormationExplorer />
+      <FormationExplorer initialComparisonIds={parseFormationIds(banding)} />
     </main>
   );
 }

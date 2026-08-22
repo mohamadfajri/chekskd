@@ -3,8 +3,10 @@ import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
+  Check,
   ChevronLeft,
   ChevronRight,
+  Columns3,
   FilterX,
   GraduationCap,
   LoaderCircle,
@@ -13,6 +15,7 @@ import {
   ShieldCheck,
   Users,
 } from "lucide-react";
+import { MAX_COMPARISON_FORMATIONS, serializeFormationIds } from "@/lib/formationSelection";
 import {
   searchPublicFormations,
   type FormationCompetitionLevel,
@@ -31,7 +34,11 @@ const sortOptions: Array<{ value: FormationSort; label: string }> = [
   { value: "name_asc", label: "Nama jabatan A-Z" },
 ];
 
-export function FormationExplorer() {
+export function FormationExplorer({
+  initialComparisonIds = [],
+}: {
+  initialComparisonIds?: string[];
+}) {
   const [queryInput, setQueryInput] = useState("");
   const [educationInput, setEducationInput] = useState("");
   const [query, setQuery] = useState("");
@@ -41,6 +48,12 @@ export function FormationExplorer() {
   const [competitionLevel, setCompetitionLevel] = useState<FormationCompetitionLevel | "">("");
   const [sort, setSort] = useState<FormationSort>("competition_desc");
   const [page, setPage] = useState(1);
+  const [comparisonIds, setComparisonIds] = useState(initialComparisonIds.slice(0, 3));
+  const initialComparisonKey = serializeFormationIds(initialComparisonIds) ?? "";
+
+  useEffect(() => {
+    setComparisonIds(initialComparisonKey ? initialComparisonKey.split(",") : []);
+  }, [initialComparisonKey]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -91,6 +104,16 @@ export function FormationExplorer() {
     setCompetitionLevel("");
     setSort("competition_desc");
     setPage(1);
+  }
+
+  function toggleComparison(formationId: string) {
+    setComparisonIds((current) => {
+      if (current.includes(formationId)) {
+        return current.filter((id) => id !== formationId);
+      }
+      if (current.length >= MAX_COMPARISON_FORMATIONS) return current;
+      return [...current, formationId];
+    });
   }
 
   const pagination = explorer.data?.pagination;
@@ -254,6 +277,10 @@ export function FormationExplorer() {
           </div>
         </section>
 
+        {comparisonIds.length > 0 ? (
+          <ComparisonSelectionBar ids={comparisonIds} onClear={() => setComparisonIds([])} />
+        ) : null}
+
         {explorer.isLoading ? (
           <FormationLoading />
         ) : explorer.error ? (
@@ -263,8 +290,16 @@ export function FormationExplorer() {
             aria-label="Daftar formasi"
             className="mt-5 overflow-hidden rounded-lg border border-border bg-white"
           >
-            <DesktopFormationTable formations={explorer.data.formations} />
-            <MobileFormationList formations={explorer.data.formations} />
+            <DesktopFormationTable
+              formations={explorer.data.formations}
+              comparisonIds={comparisonIds}
+              onToggleComparison={toggleComparison}
+            />
+            <MobileFormationList
+              formations={explorer.data.formations}
+              comparisonIds={comparisonIds}
+              onToggleComparison={toggleComparison}
+            />
             <PaginationBar
               page={pagination?.page ?? 1}
               totalPages={pagination?.total_pages ?? 1}
@@ -302,19 +337,27 @@ export function FormationExplorer() {
   );
 }
 
-function DesktopFormationTable({ formations }: { formations: PublicFormation[] }) {
+function DesktopFormationTable({
+  formations,
+  comparisonIds,
+  onToggleComparison,
+}: {
+  formations: PublicFormation[];
+  comparisonIds: string[];
+  onToggleComparison: (formationId: string) => void;
+}) {
   return (
     <div className="hidden overflow-x-auto lg:block">
       <table className="min-w-full table-fixed text-left text-xs">
         <thead className="bg-[#f4f8ff] text-[#476078]">
           <tr>
-            <TableHead className="w-[38%]">Formasi</TableHead>
+            <TableHead className="w-[36%]">Formasi</TableHead>
             <TableHead className="w-[9%] text-right">Kuota</TableHead>
             <TableHead className="w-[10%] text-right">Hadir</TableHead>
             <TableHead className="w-[12%] text-right">Persaingan</TableHead>
             <TableHead className="w-[12%] text-right">Batas historis</TableHead>
             <TableHead className="w-[11%]">Keyakinan data</TableHead>
-            <TableHead className="w-[8%] text-right">Aksi</TableHead>
+            <TableHead className="w-[10%] text-right">Aksi</TableHead>
           </tr>
         </thead>
         <tbody>
@@ -359,16 +402,27 @@ function DesktopFormationTable({ formations }: { formations: PublicFormation[] }
               <td className="px-4 py-4">
                 <ConfidenceBadge confidence={formation.data_confidence} />
               </td>
-              <td className="px-4 py-4 text-right">
-                <Link
-                  to="/formasi/$formationId"
-                  params={{ formationId: formation.id }}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-primary transition hover:bg-[#edf3ff]"
-                  aria-label={`Lihat detail ${formation.jabatan}`}
-                  title="Lihat detail"
-                >
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
+              <td className="px-4 py-4">
+                <div className="flex justify-end gap-1">
+                  <ComparisonToggle
+                    formation={formation}
+                    selected={comparisonIds.includes(formation.id)}
+                    disabled={
+                      comparisonIds.length >= MAX_COMPARISON_FORMATIONS &&
+                      !comparisonIds.includes(formation.id)
+                    }
+                    onToggle={onToggleComparison}
+                  />
+                  <Link
+                    to="/formasi/$formationId"
+                    params={{ formationId: formation.id }}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md text-primary transition hover:bg-[#edf3ff]"
+                    aria-label={`Lihat detail ${formation.jabatan}`}
+                    title="Lihat detail"
+                  >
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </div>
               </td>
             </tr>
           ))}
@@ -378,7 +432,15 @@ function DesktopFormationTable({ formations }: { formations: PublicFormation[] }
   );
 }
 
-function MobileFormationList({ formations }: { formations: PublicFormation[] }) {
+function MobileFormationList({
+  formations,
+  comparisonIds,
+  onToggleComparison,
+}: {
+  formations: PublicFormation[];
+  comparisonIds: string[];
+  onToggleComparison: (formationId: string) => void;
+}) {
   return (
     <div className="lg:hidden">
       {formations.map((formation) => (
@@ -417,20 +479,111 @@ function MobileFormationList({ formations }: { formations: PublicFormation[] }) 
             />
             <MobileMetric label="Batas" value={String(formation.cutoff_total ?? "-")} />
           </div>
-          <div className="mt-3 flex items-center justify-between">
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
             <CompetitionLabel ratio={formation.competition_ratio} />
-            <Link
-              to="/formasi/$formationId"
-              params={{ formationId: formation.id }}
-              className="inline-flex items-center gap-1 text-xs font-bold text-primary"
-            >
-              Lihat detail
-              <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => onToggleComparison(formation.id)}
+                disabled={
+                  comparisonIds.length >= MAX_COMPARISON_FORMATIONS &&
+                  !comparisonIds.includes(formation.id)
+                }
+                className="inline-flex items-center gap-1 text-xs font-bold text-[#476078] disabled:cursor-not-allowed disabled:opacity-35"
+                aria-pressed={comparisonIds.includes(formation.id)}
+              >
+                {comparisonIds.includes(formation.id) ? (
+                  <Check className="h-3.5 w-3.5 text-[#16805c]" />
+                ) : (
+                  <Columns3 className="h-3.5 w-3.5" />
+                )}
+                {comparisonIds.includes(formation.id) ? "Dipilih" : "Bandingkan"}
+              </button>
+              <Link
+                to="/formasi/$formationId"
+                params={{ formationId: formation.id }}
+                className="inline-flex items-center gap-1 text-xs font-bold text-primary"
+              >
+                Detail
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
           </div>
         </article>
       ))}
     </div>
+  );
+}
+
+function ComparisonSelectionBar({ ids, onClear }: { ids: string[]; onClear: () => void }) {
+  return (
+    <section
+      aria-label="Pilihan perbandingan"
+      className="mt-5 flex flex-col gap-3 border-l-2 border-primary bg-[#edf3ff] px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+    >
+      <div className="flex items-start gap-3">
+        <Columns3 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+        <div>
+          <p className="text-sm font-bold text-[#071b36]">
+            {ids.length} dari {MAX_COMPARISON_FORMATIONS} formasi dipilih
+          </p>
+          <p className="mt-0.5 text-xs leading-5 text-[#476078]">
+            Pilih minimal dua agar perbedaannya mudah dibaca.
+          </p>
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onClear}
+          className="inline-flex h-9 items-center justify-center rounded-md px-3 text-xs font-bold text-[#476078] hover:bg-white"
+        >
+          Kosongkan
+        </button>
+        {ids.length >= 2 ? (
+          <Link
+            to="/formasi/banding"
+            search={{ ids: serializeFormationIds(ids) }}
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-primary px-4 text-xs font-bold text-white transition hover:bg-[#255de8]"
+          >
+            Bandingkan sekarang
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        ) : (
+          <span className="inline-flex h-9 items-center justify-center rounded-md bg-[#dbe5f2] px-4 text-xs font-bold text-[#6f8298]">
+            Pilih 1 lagi
+          </span>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function ComparisonToggle({
+  formation,
+  selected,
+  disabled,
+  onToggle,
+}: {
+  formation: PublicFormation;
+  selected: boolean;
+  disabled: boolean;
+  onToggle: (formationId: string) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onToggle(formation.id)}
+      disabled={disabled}
+      aria-pressed={selected}
+      aria-label={`${selected ? "Hapus dari" : "Tambahkan ke"} perbandingan ${formation.jabatan}`}
+      title={selected ? "Hapus dari perbandingan" : "Tambahkan ke perbandingan"}
+      className={`inline-flex h-8 w-8 items-center justify-center rounded-md transition disabled:cursor-not-allowed disabled:opacity-30 ${
+        selected ? "bg-[#eaf7f1] text-[#16805c]" : "text-[#476078] hover:bg-[#edf3ff]"
+      }`}
+    >
+      {selected ? <Check className="h-4 w-4" /> : <Columns3 className="h-4 w-4" />}
+    </button>
   );
 }
 
