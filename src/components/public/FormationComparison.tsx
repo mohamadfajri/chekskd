@@ -8,6 +8,7 @@ import {
   LoaderCircle,
   ShieldCheck,
   Target,
+  Users,
   X,
 } from "lucide-react";
 import { serializeFormationIds } from "@/lib/formationSelection";
@@ -240,6 +241,12 @@ function FormationHeading({
         <p className="mt-2 font-mono text-[9px] font-semibold uppercase text-primary">
           {detail.jenis_formasi || "Jenis tidak tercatat"}
         </p>
+        {isQuietFormation(detail) ? (
+          <span className="mt-2 inline-flex items-center gap-1 rounded bg-[#eaf7f1] px-1.5 py-1 text-[9px] font-bold text-[#16805c]">
+            <Users className="h-3 w-3" />
+            Sepi peminat
+          </span>
+        ) : null}
       </div>
       <Link
         to="/formasi/banding"
@@ -391,6 +398,14 @@ function bestIndex(
 
 function isGeneralFormation(detail: PublicFormationDetail): boolean {
   return detail.jenis_formasi?.trim().toUpperCase() === "UMUM";
+}
+
+function isQuietFormation(detail: PublicFormationDetail): boolean {
+  return (
+    detail.stats.quota > 0 &&
+    detail.stats.attended_count > 0 &&
+    detail.stats.attended_count <= detail.stats.quota
+  );
 }
 
 function summarizeEducation(detail: PublicFormationDetail): string {

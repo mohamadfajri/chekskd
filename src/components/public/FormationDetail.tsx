@@ -19,7 +19,6 @@ import {
 } from "lucide-react";
 import {
   getPublicFormationDetail,
-  type FormationDataConfidence,
   type PublicFormationDetail as FormationDetailData,
 } from "@/services/formationService";
 
@@ -56,7 +55,7 @@ function DetailContent({ detail }: { detail: FormationDetailData }) {
                 <p className="font-mono text-[10px] font-semibold uppercase text-primary">
                   Formasi SKD {detail.selection_year}
                 </p>
-                <ConfidenceBadge confidence={detail.data_confidence} />
+                {isQuietFormation(detail) ? <QuietInterestBadge /> : null}
               </div>
               <h1 className="mt-2 max-w-4xl text-2xl font-extrabold leading-tight text-[#071b36] sm:text-3xl">
                 {detail.jabatan}
@@ -167,7 +166,6 @@ function DetailContent({ detail }: { detail: FormationDetailData }) {
 
           <aside className="space-y-5">
             <EducationPanel detail={detail} />
-            <ConfidencePanel detail={detail} />
             <SourcePanel detail={detail} />
           </aside>
         </div>
@@ -273,23 +271,6 @@ function EducationPanel({ detail }: { detail: FormationDetailData }) {
           {expanded ? "Ringkas daftar" : `Lihat ${formatNumber(options.length - 8)} lainnya`}
         </button>
       )}
-    </section>
-  );
-}
-
-function ConfidencePanel({ detail }: { detail: FormationDetailData }) {
-  const config = confidenceConfig(detail.data_confidence);
-  return (
-    <section className="rounded-lg border border-border bg-white p-4">
-      <div className="flex items-start gap-3">
-        <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-md ${config.iconStyle}`}>
-          <ShieldCheck className="h-4 w-4" />
-        </span>
-        <div>
-          <p className="text-xs font-bold text-[#071b36]">{config.label}</p>
-          <p className="mt-1 text-[11px] leading-5 text-muted-foreground">{config.description}</p>
-        </div>
-      </div>
     </section>
   );
 }
@@ -419,11 +400,11 @@ function SectionHeader({
   );
 }
 
-function ConfidenceBadge({ confidence }: { confidence: FormationDataConfidence }) {
-  const config = confidenceConfig(confidence);
+function QuietInterestBadge() {
   return (
-    <span className={`rounded px-1.5 py-1 text-[9px] font-bold ${config.badgeStyle}`}>
-      {config.label}
+    <span className="inline-flex items-center gap-1 rounded bg-[#eaf7f1] px-1.5 py-1 text-[9px] font-bold text-[#16805c]">
+      <Users className="h-3 w-3" />
+      Sepi peminat
     </span>
   );
 }
@@ -489,30 +470,12 @@ function normalizedEducationOptions(detail: FormationDetailData): string[] {
     .filter(Boolean);
 }
 
-function confidenceConfig(confidence: FormationDataConfidence) {
-  if (confidence === "high") {
-    return {
-      label: "Data kuat",
-      description: "Kuota, peserta hadir, dan kapasitas shortlist tercatat konsisten.",
-      badgeStyle: "bg-[#eaf7f1] text-[#16805c]",
-      iconStyle: "bg-[#eaf7f1] text-[#16805c]",
-    };
-  }
-  if (confidence === "medium") {
-    return {
-      label: "Data cukup",
-      description:
-        "Statistik utama tersedia, tetapi terdapat sinyal konsistensi yang perlu diperhatikan.",
-      badgeStyle: "bg-[#edf3ff] text-[#2457cc]",
-      iconStyle: "bg-[#edf3ff] text-[#2457cc]",
-    };
-  }
-  return {
-    label: "Data terbatas",
-    description: "Jumlah peserta atau batas historis belum cukup untuk pembacaan yang kuat.",
-    badgeStyle: "bg-[#fff5e5] text-[#9a5b00]",
-    iconStyle: "bg-[#fff5e5] text-[#9a5b00]",
-  };
+function isQuietFormation(detail: FormationDetailData): boolean {
+  return (
+    detail.stats.quota > 0 &&
+    detail.stats.attended_count > 0 &&
+    detail.stats.attended_count <= detail.stats.quota
+  );
 }
 
 function statusValue(detail: FormationDetailData, status: string): number {

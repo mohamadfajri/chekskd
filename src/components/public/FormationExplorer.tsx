@@ -19,7 +19,6 @@ import { MAX_COMPARISON_FORMATIONS, serializeFormationIds } from "@/lib/formatio
 import {
   searchPublicFormations,
   type FormationCompetitionLevel,
-  type FormationDataConfidence,
   type FormationSort,
   type PublicFormation,
 } from "@/services/formationService";
@@ -114,6 +113,13 @@ export function FormationExplorer({
       if (current.length >= MAX_COMPARISON_FORMATIONS) return current;
       return [...current, formationId];
     });
+  }
+
+  function toggleQuietFormations() {
+    const enable = competitionLevel !== "quiet";
+    setCompetitionLevel(enable ? "quiet" : "");
+    if (enable) setSort("competition_asc");
+    setPage(1);
   }
 
   const pagination = explorer.data?.pagination;
@@ -223,7 +229,8 @@ export function FormationExplorer({
                 className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
               >
                 <option value="">Semua tingkat</option>
-                <option value="low">Rendah (maks. 10x)</option>
+                <option value="quiet">Sepi (minimal 1 hadir, maks. kuota)</option>
+                <option value="low">Rendah (lebih dari 1-10x)</option>
                 <option value="medium">Menengah (11-30x)</option>
                 <option value="high">Tinggi (di atas 30x)</option>
               </select>
@@ -231,15 +238,30 @@ export function FormationExplorer({
           </div>
 
           <div className="flex flex-col gap-3 border-t border-border bg-[#f8fbff] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              {explorer.isFetching && (
-                <LoaderCircle className="h-4 w-4 animate-spin text-primary" />
-              )}
-              <span>
-                <strong className="font-semibold text-foreground">
-                  {formatNumber(pagination?.total ?? 0)}
-                </strong>{" "}
-                formasi ditemukan
+            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+              <button
+                type="button"
+                onClick={toggleQuietFormations}
+                aria-pressed={competitionLevel === "quiet"}
+                className={`inline-flex h-9 items-center gap-2 rounded-md border px-3 text-xs font-bold transition ${
+                  competitionLevel === "quiet"
+                    ? "border-[#16805c] bg-[#eaf7f1] text-[#16805c]"
+                    : "border-input bg-white text-[#476078] hover:border-[#16805c] hover:text-[#16805c]"
+                }`}
+              >
+                <Users className="h-3.5 w-3.5" />
+                Sepi peminat
+              </button>
+              <span className="inline-flex items-center gap-2">
+                {explorer.isFetching && (
+                  <LoaderCircle className="h-4 w-4 animate-spin text-primary" />
+                )}
+                <span>
+                  <strong className="font-semibold text-foreground">
+                    {formatNumber(pagination?.total ?? 0)}
+                  </strong>{" "}
+                  formasi ditemukan
+                </span>
               </span>
               {activeFilterCount > 0 && (
                 <span className="font-mono text-[11px] font-semibold text-primary">
@@ -290,6 +312,18 @@ export function FormationExplorer({
             aria-label="Daftar formasi"
             className="mt-5 overflow-hidden rounded-lg border border-border bg-white"
           >
+            {competitionLevel === "quiet" ? (
+              <div className="flex items-start gap-3 border-b border-border bg-[#eaf7f1] px-4 py-3">
+                <Users className="mt-0.5 h-4 w-4 shrink-0 text-[#16805c]" />
+                <div>
+                  <h2 className="text-sm font-bold text-[#0e684a]">Daftar formasi sepi peminat</h2>
+                  <p className="mt-0.5 text-[11px] leading-5 text-[#476078]">
+                    Ada peserta hadir dan jumlahnya tidak melebihi kuota. Ini bukan jumlah
+                    pendaftar.
+                  </p>
+                </div>
+              </div>
+            ) : null}
             <DesktopFormationTable
               formations={explorer.data.formations}
               comparisonIds={comparisonIds}
@@ -351,13 +385,12 @@ function DesktopFormationTable({
       <table className="min-w-full table-fixed text-left text-xs">
         <thead className="bg-[#f4f8ff] text-[#476078]">
           <tr>
-            <TableHead className="w-[36%]">Formasi</TableHead>
+            <TableHead className="w-[43%]">Formasi</TableHead>
             <TableHead className="w-[9%] text-right">Kuota</TableHead>
             <TableHead className="w-[10%] text-right">Hadir</TableHead>
             <TableHead className="w-[12%] text-right">Persaingan</TableHead>
-            <TableHead className="w-[12%] text-right">Batas historis</TableHead>
-            <TableHead className="w-[11%]">Keyakinan data</TableHead>
-            <TableHead className="w-[10%] text-right">Aksi</TableHead>
+            <TableHead className="w-[14%] text-right">Batas historis</TableHead>
+            <TableHead className="w-[12%] text-right">Aksi</TableHead>
           </tr>
         </thead>
         <tbody>
@@ -369,6 +402,11 @@ function DesktopFormationTable({
               <td className="px-4 py-4">
                 <p className="text-sm font-bold leading-5 text-[#071b36]">{formation.jabatan}</p>
                 <p className="mt-1.5 font-semibold text-[#476078]">{formation.nama_instansi}</p>
+                {isQuietFormation(formation) ? (
+                  <div className="mt-2">
+                    <QuietInterestBadge />
+                  </div>
+                ) : null}
                 <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] leading-4 text-muted-foreground">
                   <span className="grid min-w-0 grid-cols-[12px_1fr] items-start gap-1">
                     <MapPin className="mt-0.5 h-3 w-3 shrink-0" />
@@ -398,9 +436,6 @@ function DesktopFormationTable({
                   {formation.cutoff_total ?? "-"}
                 </p>
                 <p className="mt-1 text-[10px] text-muted-foreground">SKD 2024</p>
-              </td>
-              <td className="px-4 py-4">
-                <ConfidenceBadge confidence={formation.data_confidence} />
               </td>
               <td className="px-4 py-4">
                 <div className="flex justify-end gap-1">
@@ -452,7 +487,7 @@ function MobileFormationList({
                 {formation.nama_instansi}
               </p>
             </div>
-            <ConfidenceBadge confidence={formation.data_confidence} compact />
+            {isQuietFormation(formation) ? <QuietInterestBadge /> : null}
           </div>
           <p className="mt-2 flex items-start gap-1.5 text-[11px] leading-4 text-muted-foreground">
             <MapPin className="mt-0.5 h-3 w-3 shrink-0" />
@@ -612,25 +647,20 @@ function CompetitionLabel({ ratio }: { ratio: number | null }) {
   return <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${style}`}>{label}</span>;
 }
 
-function ConfidenceBadge({
-  confidence,
-  compact = false,
-}: {
-  confidence: FormationDataConfidence;
-  compact?: boolean;
-}) {
-  const config = {
-    high: { label: "Data kuat", style: "bg-[#eaf7f1] text-[#16805c]" },
-    medium: { label: "Data cukup", style: "bg-[#edf3ff] text-[#2457cc]" },
-    limited: { label: "Data terbatas", style: "bg-[#fff5e5] text-[#9a5b00]" },
-  }[confidence];
+function QuietInterestBadge() {
   return (
-    <span
-      className={`inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-1 text-[10px] font-bold ${config.style}`}
-    >
-      {!compact && <ShieldCheck className="h-3 w-3" />}
-      {config.label}
+    <span className="inline-flex shrink-0 items-center gap-1 rounded bg-[#eaf7f1] px-1.5 py-1 text-[10px] font-bold text-[#16805c]">
+      <Users className="h-3 w-3" />
+      Sepi peminat
     </span>
+  );
+}
+
+function isQuietFormation(formation: Pick<PublicFormation, "quota" | "attended_count">): boolean {
+  return (
+    formation.quota > 0 &&
+    formation.attended_count > 0 &&
+    formation.attended_count <= formation.quota
   );
 }
 

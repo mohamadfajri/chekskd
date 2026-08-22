@@ -1,6 +1,6 @@
 import { requireSupabase } from "@/lib/supabase/client";
 
-export type FormationCompetitionLevel = "low" | "medium" | "high";
+export type FormationCompetitionLevel = "quiet" | "low" | "medium" | "high";
 export type FormationDataConfidence = "high" | "medium" | "limited";
 export type FormationSort =
   "competition_desc" | "competition_asc" | "cutoff_desc" | "quota_desc" | "name_asc";
