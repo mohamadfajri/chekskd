@@ -1,0 +1,1044 @@
+begin;
+
+create index if not exists lead_events_type_created_idx
+  on public.lead_events (event_type, created_at desc);
+
+create table if not exists public.skd_education_aliases (
+  normalized_label text primary key,
+  canonical_label text not null,
+  degree_level text,
+  major_family text not null,
+  match_kind text not null default 'equivalent',
+  review_status text not null default 'pending',
+  notes text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.skd_education_aliases
+drop constraint if exists skd_education_aliases_match_kind_check;
+
+alter table public.skd_education_aliases
+add constraint skd_education_aliases_match_kind_check
+check (match_kind in ('exact', 'equivalent', 'family_only'));
+
+alter table public.skd_education_aliases
+drop constraint if exists skd_education_aliases_review_status_check;
+
+alter table public.skd_education_aliases
+add constraint skd_education_aliases_review_status_check
+check (review_status in ('pending', 'approved', 'rejected'));
+
+alter table public.skd_education_aliases enable row level security;
+
+insert into public.skd_education_aliases (
+  normalized_label,
+  canonical_label,
+  degree_level,
+  major_family,
+  match_kind,
+  review_status,
+  notes
+)
+values
+  ('S-1 HUKUM', 'S-1 HUKUM', 'S-1', 'HUKUM', 'exact', 'approved', 'Label kanonis rumpun pendidikan hukum.'),
+  ('S1 HUKUM', 'S-1 HUKUM', 'S-1', 'HUKUM', 'equivalent', 'approved', 'Variasi tanpa tanda hubung.'),
+  ('S-1 ILMU HUKUM', 'S-1 HUKUM', 'S-1', 'HUKUM', 'equivalent', 'approved', 'Nomenklatur ekuivalen yang diterima bersama pada formasi Jaksa.'),
+  ('S1 ILMU HUKUM', 'S-1 HUKUM', 'S-1', 'HUKUM', 'equivalent', 'approved', 'Variasi tanpa tanda hubung.'),
+  ('HUKUM', 'HUKUM', null, 'HUKUM', 'family_only', 'pending', 'Tidak digunakan untuk eligibility sampai jenjangnya terverifikasi.')
+on conflict (normalized_label) do update
+set canonical_label = excluded.canonical_label,
+    degree_level = excluded.degree_level,
+    major_family = excluded.major_family,
+    match_kind = excluded.match_kind,
+    review_status = excluded.review_status,
+    notes = excluded.notes;
+
+create or replace function public.skd_canonical_education(p_education text)
+returns text
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  with normalized as (
+    select upper(regexp_replace(trim(coalesce(p_education, '')), '\s+', ' ', 'g')) as value
+  )
+  select coalesce(alias.canonical_label, normalized.value)
+  from normalized
+  left join public.skd_education_aliases alias
+    on alias.normalized_label = normalized.value
+    and alias.review_status = 'approved'
+    and alias.match_kind in ('exact', 'equivalent');
+$$;
+
+revoke all on function public.skd_canonical_education(text)
+from public, anon, authenticated;
+grant execute on function public.skd_canonical_education(text) to service_role;
+
+comment on function public.skd_canonical_education(text) is
+  'Returns a curated canonical education label without changing the official source label.';
+
+create or replace function public.skd_education_matches(
+  p_participant_education text,
+  p_accepted_educations text[]
+)
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from unnest(coalesce(p_accepted_educations, '{}'::text[])) option_name
+    where public.skd_canonical_education(option_name)
+      = public.skd_canonical_education(p_participant_education)
+  );
+$$;
+
+revoke all on function public.skd_education_matches(text, text[])
+from public, anon, authenticated;
+grant execute on function public.skd_education_matches(text, text[]) to service_role;
+
+create or replace function public.search_skd_target_formations(
+  p_score_id uuid,
+  p_query text,
+  p_limit integer default 20
+)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  with source as (
+    select
+      score.id,
+      score.formation_id,
+      score.pendidikan,
+      array(
+        select distinct education_label
+        from (
+          select upper(regexp_replace(trim(score.pendidikan), '\s+', ' ', 'g')) as education_label
+          union all
+          select public.skd_canonical_education(score.pendidikan)
+          union all
+          select education_alias.normalized_label
+          from public.skd_education_aliases education_alias
+          where education_alias.review_status = 'approved'
+            and education_alias.match_kind in ('exact', 'equivalent')
+            and education_alias.canonical_label = public.skd_canonical_education(score.pendidikan)
+        ) accepted_education
+        order by education_label
+      ) as education_labels,
+      score.total,
+      score.tkp,
+      score.tiu,
+      score.twk
+    from public.skd_scores score
+    join public.skd_batches batch
+      on batch.id = score.batch_id and batch.status = 'published'
+    where score.id = p_score_id
+      and score.quality_status = 'verified'
+      and score.pendidikan is not null
+  ),
+  matches as (
+    select
+      formation.id,
+      formation.nama_instansi,
+      formation.jabatan,
+      formation.lokasi_formasi,
+      formation.jenis_formasi,
+      formation.pendidikan,
+      matched_education.option_name as matched_education,
+      case
+        when upper(regexp_replace(trim(matched_education.option_name), '\s+', ' ', 'g'))
+          = upper(regexp_replace(trim(source.pendidikan), '\s+', ' ', 'g')) then 'exact'
+        else 'equivalent'
+      end as education_match,
+      stats.quota,
+      stats.attended_count,
+      stats.competition_ratio,
+      stats.cutoff_total,
+      source.total - stats.cutoff_total as score_gap,
+      coalesce(
+        (source.total, source.tkp, source.tiu, source.twk)
+          >= (stats.cutoff_total, stats.cutoff_tkp, stats.cutoff_tiu, stats.cutoff_twk),
+        false
+      ) as above_historical_cutoff,
+      case
+        when lower(formation.nama_instansi) = lower(trim(coalesce(p_query, ''))) then 0
+        when lower(formation.jabatan) = lower(trim(coalesce(p_query, ''))) then 0
+        when formation.nama_instansi ilike trim(coalesce(p_query, '')) || '%' then 1
+        when formation.jabatan ilike trim(coalesce(p_query, '')) || '%' then 1
+        else 2
+      end as relevance
+    from source
+    join public.skd_formations formation
+      on formation.id <> source.formation_id
+      and formation.quality_status = 'verified'
+      and upper(trim(coalesce(formation.jenis_formasi, ''))) = 'UMUM'
+      and formation.pendidikan_options && source.education_labels
+    join lateral (
+      select option_name
+      from unnest(coalesce(formation.pendidikan_options, '{}'::text[])) option_name
+      where option_name = any(source.education_labels)
+      order by
+        (upper(regexp_replace(trim(option_name), '\s+', ' ', 'g'))
+          = upper(regexp_replace(trim(source.pendidikan), '\s+', ' ', 'g'))) desc,
+        option_name
+      limit 1
+    ) matched_education on true
+    join public.skd_batches target_batch
+      on target_batch.id = formation.batch_id and target_batch.status = 'published'
+    join public.skd_formation_stats stats
+      on stats.formation_id = formation.id
+      and stats.attended_count > 0
+      and stats.passing_count >= 3
+      and stats.shortlisted_count >= 1
+      and stats.shortlist_capacity > 0
+      and stats.cutoff_total is not null
+      and stats.cutoff_tkp is not null
+      and stats.cutoff_tiu is not null
+      and stats.cutoff_twk is not null
+    where trim(coalesce(p_query, '')) = ''
+       or formation.nama_instansi ilike '%' || trim(p_query) || '%'
+       or formation.jabatan ilike '%' || trim(p_query) || '%'
+       or coalesce(formation.lokasi_formasi, '') ilike '%' || trim(p_query) || '%'
+  ),
+  limited as (
+    select *
+    from matches
+    order by
+      relevance,
+      above_historical_cutoff desc,
+      abs(coalesce(score_gap, -9999)),
+      competition_ratio nulls last,
+      nama_instansi,
+      jabatan
+    limit least(greatest(coalesce(p_limit, 20), 1), 30)
+  )
+  select coalesce(
+    jsonb_agg(
+      jsonb_build_object(
+        'id', limited.id,
+        'institution', limited.nama_instansi,
+        'position', limited.jabatan,
+        'location', limited.lokasi_formasi,
+        'formation_type', limited.jenis_formasi,
+        'education_requirement', limited.pendidikan,
+        'matched_education', limited.matched_education,
+        'education_match', limited.education_match,
+        'quota', limited.quota,
+        'attended', limited.attended_count,
+        'competition_ratio', limited.competition_ratio,
+        'cutoff_total', limited.cutoff_total,
+        'score_gap', limited.score_gap,
+        'above_historical_cutoff', limited.above_historical_cutoff
+      )
+      order by
+        limited.relevance,
+        limited.above_historical_cutoff desc,
+        abs(coalesce(limited.score_gap, -9999)),
+        limited.competition_ratio nulls last,
+        limited.nama_instansi,
+        limited.jabatan
+    ),
+    '[]'::jsonb
+  )
+  from limited;
+$$;
+
+revoke all on function public.search_skd_target_formations(uuid, text, integer)
+from public, anon, authenticated;
+grant execute on function public.search_skd_target_formations(uuid, text, integer)
+to service_role;
+
+comment on function public.search_skd_target_formations(uuid, text, integer) is
+  'Returns verified published UMUM formations using exact or approved-equivalent education matching.';
+
+alter table public.leads
+add column if not exists analysis_goal text not null default 'related';
+
+alter table public.leads
+drop constraint if exists leads_analysis_goal_check;
+
+alter table public.leads
+add constraint leads_analysis_goal_check
+check (analysis_goal in ('opportunity', 'related', 'target'));
+
+alter table public.leads
+add column if not exists preference_flags text[] not null default '{}';
+
+alter table public.leads
+drop constraint if exists leads_preference_flags_check;
+
+alter table public.leads
+add constraint leads_preference_flags_check
+check (
+  preference_flags <@ array['low_competition', 'large_quota', 'strong_data']::text[]
+  and cardinality(preference_flags) <= 2
+);
+
+create or replace function public.skd_position_families(p_position text)
+returns text[]
+language sql
+immutable
+strict
+security invoker
+set search_path = ''
+as $$
+  with normalized as (
+    select upper(regexp_replace(coalesce(p_position, ''), '[^A-Za-z0-9]+', ' ', 'g')) as value
+  )
+  select array_remove(array[
+    case when value ~ '(HUKUM|JAKSA|PERATURAN|PERUNDANG|LEGAL|ADVOKAT)' then 'hukum' end,
+    case when value ~ '(KEUANGAN|ANGGARAN|AKUNTAN|AUDITOR|PAJAK|PERBENDAHARAAN)' then 'keuangan' end,
+    case when value ~ '(INFORMATIKA|KOMPUTER|SIBER|SISTEM INFORMASI|TEKNOLOGI INFORMASI|PROGRAMMER)' then 'teknologi' end,
+    case when value ~ '(DATA|STATISTIK|PENELITI|RISET)' then 'data_riset' end,
+    case when value ~ '(KEPEGAWAIAN|SUMBER DAYA MANUSIA|TALENTA|PERSONALIA)' then 'sdm' end,
+    case when value ~ '(HUMAS|KOMUNIKASI|PUBLIKASI|INFORMASI PUBLIK)' then 'komunikasi' end,
+    case when value ~ '(PENGADAAN|BARANG JASA|LOGISTIK)' then 'pengadaan' end,
+    case when value ~ '(ARSIP|PUSTAKA|DOKUMENTASI)' then 'arsip_pustaka' end,
+    case when value ~ '(KEBIJAKAN|PEMERINTAHAN|PERENCANAAN)' then 'kebijakan' end,
+    case when value ~ '(KESEHATAN|DOKTER|PERAWAT|FARMASI|GIZI)' then 'kesehatan' end,
+    case when value ~ '(PENDIDIKAN|GURU|DOSEN|WIDYAISWARA)' then 'pendidikan' end,
+    case when value ~ '(PERTANIAN|PANGAN|PERIKANAN|PETERNAKAN|KEHUTANAN)' then 'pangan_sda' end,
+    case when value ~ '(TEKNIK|INFRASTRUKTUR|BANGUNAN|JALAN|PERUMAHAN)' then 'teknik_infrastruktur' end
+  ], null)
+  from normalized;
+$$;
+
+revoke all on function public.skd_position_families(text)
+from public, anon, authenticated;
+grant execute on function public.skd_position_families(text) to service_role;
+
+comment on function public.skd_position_families(text) is
+  'Maps CPNS position titles into conservative domain families used by rationalization recommendations.';
+
+create or replace function public.get_skd_rationalization_v6(
+  p_score_id uuid,
+  p_analysis_goal text default 'related',
+  p_preference_flags text[] default '{}',
+  p_preferred_target_formation_id uuid default null
+)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  with source as (
+    select
+      score.id as score_id,
+      score.formation_id as source_formation_id,
+      score.pendidikan as participant_education,
+      public.skd_canonical_education(score.pendidikan) as participant_canonical_education,
+      array(
+        select distinct education_label
+        from (
+          select upper(regexp_replace(trim(score.pendidikan), '\s+', ' ', 'g')) as education_label
+          union all
+          select public.skd_canonical_education(score.pendidikan)
+          union all
+          select education_alias.normalized_label
+          from public.skd_education_aliases education_alias
+          where education_alias.review_status = 'approved'
+            and education_alias.match_kind in ('exact', 'equivalent')
+            and education_alias.canonical_label = public.skd_canonical_education(score.pendidikan)
+        ) accepted_education
+        order by education_label
+      ) as participant_education_labels,
+      score.total as user_total,
+      score.tkp as user_tkp,
+      score.tiu as user_tiu,
+      score.twk as user_twk,
+      score.keterangan as official_status,
+      source_formation.jabatan as source_position,
+      public.skd_position_keywords(source_formation.jabatan) as source_keywords,
+      public.skd_position_families(source_formation.jabatan) as source_families,
+      public.get_skd_rationalization(score.id) as base_snapshot,
+      case
+        when p_analysis_goal = 'opportunity' then 'opportunity'
+        when p_analysis_goal = 'target' and p_preferred_target_formation_id is not null then 'target'
+        else 'related'
+      end as analysis_goal,
+      case when p_analysis_goal = 'opportunity' then 'all' else 'related' end as recommendation_mode,
+      array(
+        select distinct flag
+        from unnest(coalesce(p_preference_flags, '{}'::text[])) flag
+        where flag in ('low_competition', 'large_quota', 'strong_data')
+        order by flag
+        limit 2
+      ) as preference_flags
+    from public.skd_scores score
+    join public.skd_batches source_batch
+      on source_batch.id = score.batch_id
+      and source_batch.status = 'published'
+    join public.skd_formations source_formation
+      on source_formation.id = score.formation_id
+    where score.id = p_score_id
+      and score.quality_status = 'verified'
+      and score.pendidikan is not null
+  ),
+  eligible as (
+    select
+      source.*,
+      formation.id as target_formation_id,
+      target_batch.selection_year as target_selection_year,
+      formation.nama_instansi as target_institution,
+      formation.jabatan as target_position,
+      formation.lokasi_formasi as target_location,
+      formation.jenis_formasi as target_formation_type,
+      formation.pendidikan as target_education_requirement,
+      matched_education.option_name as target_matched_education,
+      stats.quota as target_quota,
+      stats.shortlist_capacity as target_shortlist_capacity,
+      stats.participant_count as target_participant_count,
+      stats.attended_count as target_attended_count,
+      stats.passing_count as target_passing_count,
+      stats.shortlisted_count as target_shortlisted_count,
+      stats.competition_ratio as target_competition_ratio,
+      stats.minimum_total as target_minimum_total,
+      stats.median_total as target_median_total,
+      stats.maximum_total as target_maximum_total,
+      stats.cutoff_total as target_cutoff_total,
+      stats.cutoff_tkp as target_cutoff_tkp,
+      stats.cutoff_tiu as target_cutoff_tiu,
+      stats.cutoff_twk as target_cutoff_twk,
+      stats.cutoff_tie_count as target_cutoff_tie_count,
+      stats.capacity_consistent as target_capacity_consistent,
+      stats.calculated_at as target_stats_calculated_at,
+      coalesce(formation.id = p_preferred_target_formation_id, false) as is_preferred,
+      case
+        when upper(regexp_replace(trim(formation.jabatan), '\s+', ' ', 'g'))
+          = upper(regexp_replace(trim(source.source_position), '\s+', ' ', 'g'))
+          then 'same_position'
+        when public.skd_position_families(formation.jabatan) && source.source_families
+          then 'related_position'
+        when public.skd_position_keywords(formation.jabatan) && source.source_keywords
+          then 'related_position'
+        else 'cross_position'
+      end as position_relation,
+      case
+        when upper(regexp_replace(trim(formation.jabatan), '\s+', ' ', 'g'))
+          = upper(regexp_replace(trim(source.source_position), '\s+', ' ', 'g')) then 1.00
+        when public.skd_position_families(formation.jabatan) && source.source_families then 0.75
+        when public.skd_position_keywords(formation.jabatan) && source.source_keywords then 0.55
+        else 0.00
+      end::numeric(4,2) as position_similarity,
+      source.user_total - stats.cutoff_total as score_gap
+    from source
+    join public.skd_formations formation
+      on formation.id <> source.source_formation_id
+      and formation.quality_status = 'verified'
+      and upper(trim(coalesce(formation.jenis_formasi, ''))) = 'UMUM'
+      and formation.pendidikan_options && source.participant_education_labels
+    join lateral (
+        select option_name
+        from unnest(coalesce(formation.pendidikan_options, '{}'::text[])) option_name
+        where option_name = any(source.participant_education_labels)
+        order by
+          (upper(regexp_replace(trim(option_name), '\s+', ' ', 'g'))
+            = upper(regexp_replace(trim(source.participant_education), '\s+', ' ', 'g'))) desc,
+          option_name
+        limit 1
+      ) matched_education on true
+    join public.skd_batches target_batch
+      on target_batch.id = formation.batch_id
+      and target_batch.status = 'published'
+    join public.skd_formation_stats stats
+      on stats.formation_id = formation.id
+      and stats.attended_count > 0
+      and stats.passing_count >= 3
+      and stats.shortlisted_count >= 1
+      and stats.shortlist_capacity > 0
+      and stats.cutoff_total is not null
+      and stats.cutoff_tkp is not null
+      and stats.cutoff_tiu is not null
+      and stats.cutoff_twk is not null
+    where (source.official_status = 'P' or source.official_status like 'P/L%')
+      and source.user_total is not null
+  ),
+  dataset_coverage as (
+    select
+      count(*)::integer as formation_count,
+      count(distinct formation.nama_instansi)::integer as institution_count
+    from public.skd_formations formation
+    join public.skd_batches batch
+      on batch.id = formation.batch_id and batch.status = 'published'
+    join public.skd_formation_stats stats
+      on stats.formation_id = formation.id
+      and stats.passing_count >= 3
+      and stats.shortlisted_count >= 1
+      and stats.shortlist_capacity > 0
+      and stats.cutoff_total is not null
+      and stats.cutoff_tkp is not null
+      and stats.cutoff_tiu is not null
+      and stats.cutoff_twk is not null
+    where formation.quality_status = 'verified'
+      and upper(trim(coalesce(formation.jenis_formasi, ''))) = 'UMUM'
+  ),
+  recommendation_coverage as (
+    select
+      count(*)::integer as eligible_formation_count,
+      count(distinct eligible.target_institution)::integer as eligible_institution_count,
+      count(*) filter (
+        where eligible.position_relation in ('same_position', 'related_position')
+      )::integer as related_formation_count
+    from eligible
+  ),
+  subtest_profile as (
+    select
+      case when count(peer.id) = 0 then null else round(
+        count(peer.id) filter (where peer.twk <= source.user_twk)::numeric * 100 / count(peer.id),
+        1
+      ) end as twk_percentile,
+      case when count(peer.id) = 0 then null else round(
+        count(peer.id) filter (where peer.tiu <= source.user_tiu)::numeric * 100 / count(peer.id),
+        1
+      ) end as tiu_percentile,
+      case when count(peer.id) = 0 then null else round(
+        count(peer.id) filter (where peer.tkp <= source.user_tkp)::numeric * 100 / count(peer.id),
+        1
+      ) end as tkp_percentile
+    from source
+    left join public.skd_scores peer
+      on peer.formation_id = source.source_formation_id
+      and peer.quality_status = 'verified'
+      and (peer.keterangan = 'P' or peer.keterangan like 'P/L%')
+      and peer.twk is not null
+      and peer.tiu is not null
+      and peer.tkp is not null
+  ),
+  preselected as (
+    select eligible.*
+    from eligible
+    order by
+      eligible.is_preferred desc,
+      case
+        when eligible.analysis_goal in ('related', 'target')
+          and eligible.position_relation = 'cross_position' then 1
+        else 0
+      end,
+      (
+        case
+          when 'low_competition' = any(eligible.preference_flags)
+            and eligible.target_competition_ratio is not null
+            then least(10::numeric, 30 / greatest(eligible.target_competition_ratio, 1))
+          else 0
+        end
+        + case
+          when 'large_quota' = any(eligible.preference_flags)
+            then least(10::numeric, eligible.target_quota::numeric / 5)
+          else 0
+        end
+        + case
+          when 'strong_data' = any(eligible.preference_flags)
+            and eligible.target_capacity_consistent
+            and eligible.target_passing_count >= 30
+            and eligible.target_shortlisted_count >= 3 then 10
+          when 'strong_data' = any(eligible.preference_flags)
+            and eligible.target_capacity_consistent
+            and eligible.target_passing_count >= 10 then 5
+          else 0
+        end
+      ) desc,
+      case when 'strong_data' = any(eligible.preference_flags) then
+        case
+          when eligible.target_capacity_consistent
+            and eligible.target_passing_count >= 30
+            and eligible.target_shortlisted_count >= 3 then 0
+          when eligible.target_capacity_consistent
+            and eligible.target_passing_count >= 10
+            and eligible.target_shortlisted_count >= 1 then 1
+          else 2
+        end
+      else 0 end,
+      case when 'low_competition' = any(eligible.preference_flags)
+        then eligible.target_competition_ratio end asc nulls last,
+      case when 'large_quota' = any(eligible.preference_flags)
+        then eligible.target_quota end desc nulls last,
+      eligible.target_capacity_consistent desc,
+      case
+        when eligible.target_capacity_consistent
+          and eligible.target_passing_count >= 30
+          and eligible.target_shortlisted_count >= 3 then 0
+        when eligible.target_capacity_consistent
+          and eligible.target_passing_count >= 10
+          and eligible.target_shortlisted_count >= 1 then 1
+        else 2
+      end,
+      eligible.score_gap desc nulls last,
+      eligible.target_competition_ratio asc nulls last,
+      eligible.target_attended_count desc,
+      eligible.target_institution,
+      eligible.target_position
+    limit 200
+  ),
+  simulated as (
+    select
+      preselected.*,
+      1 + (
+        select count(*)
+        from public.skd_scores peer
+        where peer.formation_id = preselected.target_formation_id
+          and peer.quality_status = 'verified'
+          and (peer.keterangan = 'P' or peer.keterangan like 'P/L%')
+          and (peer.total, peer.tkp, peer.tiu, peer.twk)
+            > (preselected.user_total, preselected.user_tkp, preselected.user_tiu, preselected.user_twk)
+      )::integer as simulated_rank,
+      (
+        select count(*)
+        from public.skd_scores peer
+        where peer.formation_id = preselected.target_formation_id
+          and peer.quality_status = 'verified'
+          and (peer.keterangan = 'P' or peer.keterangan like 'P/L%')
+          and (peer.total, peer.tkp, peer.tiu, peer.twk)
+            = (preselected.user_total, preselected.user_tkp, preselected.user_tiu, preselected.user_twk)
+      )::integer as simulated_tied_count
+    from preselected
+  ),
+  classified as (
+    select
+      simulated.*,
+      case
+        when simulated.simulated_rank <= greatest(simulated.target_quota, 1)
+          then 'most_rational'
+        when simulated.simulated_rank <= greatest(simulated.target_shortlist_capacity, 1)
+          then 'competitive'
+        when simulated.score_gap >= -10 then 'ambitious'
+        else 'below'
+      end as recommendation_tier,
+      case
+        when simulated.target_capacity_consistent
+          and simulated.target_passing_count >= 30
+          and simulated.target_shortlisted_count >= 3 then 'strong'
+        when simulated.target_capacity_consistent
+          and simulated.target_passing_count >= 10
+          and simulated.target_shortlisted_count >= 1 then 'moderate'
+        else 'limited'
+      end as confidence_code,
+      case
+        when simulated.recommendation_mode = 'related'
+          and simulated.position_relation = 'cross_position' then true
+        else false
+      end as is_mode_fallback
+    from simulated
+  ),
+  scored as (
+    select
+      classified.*,
+      (
+        case
+          when 'low_competition' = any(classified.preference_flags)
+            and classified.target_competition_ratio is not null
+            then least(10::numeric, 30 / greatest(classified.target_competition_ratio, 1))
+          else 0
+        end
+        + case
+          when 'large_quota' = any(classified.preference_flags)
+            then least(10::numeric, classified.target_quota::numeric / 5)
+          else 0
+        end
+        + case
+          when 'strong_data' = any(classified.preference_flags)
+            and classified.confidence_code = 'strong' then 10
+          when 'strong_data' = any(classified.preference_flags)
+            and classified.confidence_code = 'moderate' then 5
+          else 0
+        end
+      )::numeric(6,2) as preference_score,
+      least(
+        550,
+        classified.target_cutoff_total + case classified.confidence_code
+          when 'strong' then 5
+          when 'moderate' then 8
+          else 12
+        end
+      )::integer as recommended_total,
+      least(
+        100,
+        (case classified.recommendation_tier
+          when 'most_rational' then 45
+          when 'competitive' then 35
+          when 'ambitious' then 22
+          else 5
+        end)
+        + (case classified.confidence_code when 'strong' then 20 when 'moderate' then 12 else 4 end)
+        + (case classified.position_relation when 'same_position' then 15 when 'related_position' then 10 else 0 end)
+        + (case
+            when classified.target_competition_ratio <= 10 then 10
+            when classified.target_competition_ratio <= 25 then 6
+            else 2
+          end)
+        + (case
+            when classified.score_gap >= 10 then 10
+            when classified.score_gap >= 0 then 7
+            when classified.score_gap >= -10 then 3
+            else 0
+          end)
+        + (
+          case
+            when 'low_competition' = any(classified.preference_flags)
+              and classified.target_competition_ratio is not null
+              then least(10::numeric, 30 / greatest(classified.target_competition_ratio, 1))
+            else 0
+          end
+          + case
+            when 'large_quota' = any(classified.preference_flags)
+              then least(10::numeric, classified.target_quota::numeric / 5)
+            else 0
+          end
+          + case
+            when 'strong_data' = any(classified.preference_flags)
+              and classified.confidence_code = 'strong' then 10
+            when 'strong_data' = any(classified.preference_flags)
+              and classified.confidence_code = 'moderate' then 5
+            else 0
+          end
+        )
+      )::integer as recommendation_score
+    from classified
+  ),
+  diversified as (
+    select
+      scored.*,
+      row_number() over (
+        partition by scored.target_institution
+        order by
+          scored.is_preferred desc,
+          case scored.confidence_code when 'strong' then 0 when 'moderate' then 1 else 2 end,
+          scored.recommendation_score desc,
+          scored.simulated_rank::numeric / greatest(scored.target_shortlist_capacity, 1),
+          scored.score_gap desc,
+          scored.target_position
+      ) as institution_rank
+    from scored
+  ),
+  guardrailed as (
+    select
+      diversified.*,
+      sum(case when diversified.confidence_code = 'limited' then 1 else 0 end) over (
+        order by
+          diversified.is_preferred desc,
+          diversified.is_mode_fallback,
+          case diversified.confidence_code when 'strong' then 0 when 'moderate' then 1 else 2 end,
+          case when diversified.institution_rank = 1 then 0 else 1 end,
+          diversified.recommendation_score desc,
+          diversified.simulated_rank::numeric / greatest(diversified.target_shortlist_capacity, 1),
+          diversified.score_gap desc,
+          diversified.target_competition_ratio asc nulls last,
+          diversified.target_institution,
+          diversified.target_position
+      ) as limited_sequence,
+      sum(case when diversified.is_mode_fallback then 1 else 0 end) over (
+        order by
+          diversified.is_preferred desc,
+          diversified.is_mode_fallback,
+          case diversified.confidence_code when 'strong' then 0 when 'moderate' then 1 else 2 end,
+          case when diversified.institution_rank = 1 then 0 else 1 end,
+          diversified.recommendation_score desc,
+          diversified.simulated_rank::numeric / greatest(diversified.target_shortlist_capacity, 1),
+          diversified.score_gap desc,
+          diversified.target_competition_ratio asc nulls last,
+          diversified.target_institution,
+          diversified.target_position
+      ) as fallback_sequence
+    from diversified
+  ),
+  valid_candidates as (
+    select guardrailed.*
+    from guardrailed
+    where (guardrailed.confidence_code <> 'limited' or guardrailed.limited_sequence <= 1)
+      and (not guardrailed.is_mode_fallback or guardrailed.fallback_sequence <= 1)
+  ),
+  safe_pick as (
+    select valid_candidates.*, 'safe'::text as portfolio_strategy, 1 as portfolio_order
+    from valid_candidates
+    order by
+      valid_candidates.is_preferred desc,
+      valid_candidates.is_mode_fallback,
+      case valid_candidates.recommendation_tier
+        when 'most_rational' then 0 when 'competitive' then 1 when 'ambitious' then 2 else 3 end,
+      case valid_candidates.confidence_code when 'strong' then 0 when 'moderate' then 1 else 2 end,
+      valid_candidates.preference_score desc,
+      valid_candidates.simulated_rank::numeric / greatest(valid_candidates.target_shortlist_capacity, 1),
+      valid_candidates.target_competition_ratio asc nulls last,
+      valid_candidates.target_institution,
+      valid_candidates.target_position
+    limit 1
+  ),
+  balanced_pick as (
+    select valid_candidates.*, 'balanced'::text as portfolio_strategy, 2 as portfolio_order
+    from valid_candidates
+    where valid_candidates.target_formation_id not in (
+      select safe_pick.target_formation_id from safe_pick
+    )
+      and valid_candidates.target_institution not in (
+        select safe_pick.target_institution from safe_pick
+      )
+    order by
+      valid_candidates.is_preferred desc,
+      valid_candidates.is_mode_fallback,
+      case when valid_candidates.position_relation in ('same_position', 'related_position') then 0 else 1 end,
+      case valid_candidates.confidence_code when 'strong' then 0 when 'moderate' then 1 else 2 end,
+      valid_candidates.preference_score desc,
+      valid_candidates.recommendation_score desc,
+      case when valid_candidates.institution_rank = 1 then 0 else 1 end,
+      valid_candidates.simulated_rank::numeric / greatest(valid_candidates.target_shortlist_capacity, 1),
+      valid_candidates.target_institution,
+      valid_candidates.target_position
+    limit 1
+  ),
+  ambitious_pick as (
+    select valid_candidates.*, 'ambitious'::text as portfolio_strategy, 3 as portfolio_order
+    from valid_candidates
+    where valid_candidates.target_formation_id not in (
+      select safe_pick.target_formation_id from safe_pick
+      union all
+      select balanced_pick.target_formation_id from balanced_pick
+    )
+      and valid_candidates.target_institution not in (
+        select safe_pick.target_institution from safe_pick
+        union all
+        select balanced_pick.target_institution from balanced_pick
+      )
+    order by
+      valid_candidates.is_preferred desc,
+      valid_candidates.is_mode_fallback,
+      case valid_candidates.recommendation_tier
+        when 'ambitious' then 0 when 'competitive' then 1 when 'most_rational' then 2 else 3 end,
+      case valid_candidates.confidence_code when 'strong' then 0 when 'moderate' then 1 else 2 end,
+      valid_candidates.preference_score desc,
+      valid_candidates.target_cutoff_total desc,
+      valid_candidates.recommendation_score desc,
+      valid_candidates.target_institution,
+      valid_candidates.target_position
+    limit 1
+  ),
+  selected as (
+    select * from safe_pick
+    union all
+    select * from balanced_pick
+    union all
+    select * from ambitious_pick
+  ),
+  recommendations as (
+    select
+      coalesce(
+        jsonb_agg(
+          jsonb_build_object(
+            'formation_id', selected.target_formation_id,
+            'dataset_year', selected.target_selection_year,
+            'institution', selected.target_institution,
+            'position', selected.target_position,
+            'location', selected.target_location,
+            'formation_type', selected.target_formation_type,
+            'education_requirement', selected.target_education_requirement,
+            'matched_education', selected.target_matched_education,
+            'education_match', case
+              when upper(regexp_replace(trim(selected.participant_education), '\s+', ' ', 'g'))
+                = upper(regexp_replace(trim(selected.target_matched_education), '\s+', ' ', 'g'))
+                then 'exact'
+              else 'equivalent'
+            end,
+            'position_relation', selected.position_relation,
+            'position_similarity', selected.position_similarity,
+            'is_mode_fallback', selected.is_mode_fallback,
+            'is_preferred', selected.is_preferred,
+            'quota', selected.target_quota,
+            'participants', selected.target_participant_count,
+            'attended', selected.target_attended_count,
+            'passing_grade', selected.target_passing_count,
+            'eligible_pool', selected.target_passing_count,
+            'shortlisted_historical', selected.target_shortlisted_count,
+            'shortlist_capacity', selected.target_shortlist_capacity,
+            'competition_ratio', selected.target_competition_ratio,
+            'minimum_total', selected.target_minimum_total,
+            'median_total', selected.target_median_total,
+            'maximum_total', selected.target_maximum_total,
+            'simulated_rank', selected.simulated_rank,
+            'simulated_tied_count', selected.simulated_tied_count,
+            'eligible_percentile', round(
+              selected.simulated_rank::numeric * 100 / greatest(selected.target_passing_count, 1),
+              1
+            ),
+            'score_gap_to_shortlist_cutoff', selected.score_gap,
+            'score_needed_to_historical_cutoff', greatest(0, -selected.score_gap),
+            'recommended_total', selected.recommended_total,
+            'score_needed_to_recommended_total', greatest(
+              0,
+              selected.recommended_total - selected.user_total
+            ),
+            'above_historical_cutoff', selected.score_gap >= 0,
+            'recommendation_score', selected.recommendation_score,
+            'portfolio_strategy', selected.portfolio_strategy,
+            'strategy', case
+              when selected.analysis_goal = 'target' and selected.is_preferred then 'Target pilihan'
+              when selected.portfolio_strategy = 'safe' then 'Pilihan pengaman'
+              when selected.portfolio_strategy = 'balanced' then 'Pilihan seimbang'
+              else 'Pilihan ambisius'
+            end,
+            'risk_flags', to_jsonb(array_remove(array[
+              case when selected.confidence_code = 'limited' then 'small_sample' end,
+              case when selected.target_cutoff_tie_count > 1 then 'cutoff_tie' end,
+              case when selected.is_mode_fallback then 'cross_position' end,
+              case when selected.target_competition_ratio > 25 then 'high_competition' end,
+              case when selected.score_gap < 0 then 'below_cutoff' end
+            ], null)),
+            'reason', case selected.recommendation_tier
+              when 'most_rational' then format(
+                'Nilai berada pada posisi %s dari %s peserta yang memenuhi PG dan masuk kuota historis.',
+                selected.simulated_rank,
+                selected.target_passing_count
+              )
+              when 'competitive' then format(
+                'Nilai berada pada posisi %s dari %s peserta yang memenuhi PG dan masuk kapasitas SKB historis.',
+                selected.simulated_rank,
+                selected.target_passing_count
+              )
+              when 'ambitious' then format(
+                'Nilai berjarak %s poin dari batas SKB historis sehingga masih layak menjadi target peningkatan.',
+                abs(selected.score_gap)
+              )
+              else format(
+                'Nilai masih berjarak %s poin dari batas SKB historis.',
+                abs(selected.score_gap)
+              )
+            end,
+            'cutoff', jsonb_build_object(
+              'total', selected.target_cutoff_total,
+              'tkp', selected.target_cutoff_tkp,
+              'tiu', selected.target_cutoff_tiu,
+              'twk', selected.target_cutoff_twk
+            ),
+            'verdict', jsonb_build_object(
+              'code', case selected.recommendation_tier
+                when 'most_rational' then 'very_competitive'
+                when 'competitive' then 'competitive'
+                when 'ambitious' then 'close'
+                else 'below'
+              end,
+              'label', case selected.recommendation_tier
+                when 'most_rational' then 'Paling rasional'
+                when 'competitive' then 'Kompetitif'
+                when 'ambitious' then 'Pilihan ambisius'
+                else 'Perlu peningkatan'
+              end
+            ),
+            'recommendation_tier', selected.recommendation_tier,
+            'confidence', jsonb_build_object(
+              'code', selected.confidence_code,
+              'label', case selected.confidence_code
+                when 'strong' then 'Data kuat'
+                when 'moderate' then 'Data cukup'
+                else 'Data terbatas'
+              end
+            ),
+            'data_quality', jsonb_build_object(
+              'basis', 'official_2024_result',
+              'ranking_pool', 'passing_grade_only',
+              'capacity_consistent', selected.target_capacity_consistent,
+              'stats_calculated_at', selected.target_stats_calculated_at
+            )
+          )
+          order by selected.portfolio_order
+        ),
+        '[]'::jsonb
+      ) as items,
+      count(*)::integer as returned_count,
+      min(selected.recommended_total)::integer as minimum_recommended_total,
+      min(greatest(0, selected.recommended_total - selected.user_total))::integer
+        as minimum_score_increase
+    from selected
+  )
+  select source.base_snapshot || jsonb_build_object(
+    'version', 6,
+    'analysis_goal', source.analysis_goal,
+    'preference_flags', to_jsonb(source.preference_flags),
+    'recommendation_mode', source.recommendation_mode,
+    'score_profile', jsonb_build_object(
+      'eligible_for_simulation', source.official_status = 'P' or source.official_status like 'P/L%',
+      'passing_thresholds', jsonb_build_object('twk', 65, 'tiu', 80, 'tkp', 166),
+      'threshold_buffers', jsonb_build_object(
+        'twk', source.user_twk - 65,
+        'tiu', source.user_tiu - 80,
+        'tkp', source.user_tkp - 166
+      ),
+      'subtest_percentiles', jsonb_build_object(
+        'twk', subtest_profile.twk_percentile,
+        'tiu', subtest_profile.tiu_percentile,
+        'tkp', subtest_profile.tkp_percentile
+      ),
+      'priority_basis', 'lowest_passing_peer_percentile',
+      'priority_subtest', case
+        when subtest_profile.twk_percentile is null
+          or subtest_profile.tiu_percentile is null
+          or subtest_profile.tkp_percentile is null then null
+        when subtest_profile.twk_percentile <= subtest_profile.tiu_percentile
+          and subtest_profile.twk_percentile <= subtest_profile.tkp_percentile then 'TWK'
+        when subtest_profile.tiu_percentile <= subtest_profile.tkp_percentile then 'TIU'
+        else 'TKP'
+      end,
+      'minimum_recommended_total', recommendations.minimum_recommended_total,
+      'minimum_score_increase', recommendations.minimum_score_increase
+    ),
+    'methodology', jsonb_build_object(
+      'model', 'v6_personalized',
+      'ranking_pool', 'passing_grade_only',
+      'excluded_statuses', jsonb_build_array('TL', 'TH', 'TMS', 'DIS'),
+      'score_order', jsonb_build_array('total', 'tkp', 'tiu', 'twk'),
+      'uses_final_skb_result', false,
+      'quality_guardrails', jsonb_build_object(
+        'minimum_passing_pool', 3,
+        'minimum_historical_shortlist', 1,
+        'maximum_limited_confidence', 1,
+        'maximum_cross_position_fallback', 1,
+        'maximum_preferences', 2
+      ),
+      'education_matching', 'approved_alias_or_exact'
+    ),
+    'recommendation_summary', jsonb_build_object(
+      'analysis_goal', source.analysis_goal,
+      'mode', source.recommendation_mode,
+      'mode_label', case source.analysis_goal
+        when 'opportunity' then 'Peluang terbesar'
+        when 'target' then 'Analisis target saya'
+        else 'Bidang sejenis'
+      end,
+      'returned_count', recommendations.returned_count,
+      'eligible_formations', recommendation_coverage.eligible_formation_count,
+      'eligible_institutions', recommendation_coverage.eligible_institution_count,
+      'related_formations', recommendation_coverage.related_formation_count,
+      'dataset_formations', dataset_coverage.formation_count,
+      'dataset_institutions', dataset_coverage.institution_count,
+      'education_match', 'approved_alias_or_exact',
+      'formation_type', 'UMUM',
+      'scope_note', format(
+        'Dihitung dari %s instansi dan %s formasi UMUM terverifikasi yang memiliki cutoff serta sedikitnya 3 peserta lolos PG.',
+        dataset_coverage.institution_count,
+        dataset_coverage.formation_count
+      )
+    ),
+    'target_recommendations', recommendations.items
+  )
+  from source
+  cross join dataset_coverage
+  cross join recommendation_coverage
+  cross join subtest_profile
+  cross join recommendations
+  where source.base_snapshot is not null;
+$$;
+
+revoke all on function public.get_skd_rationalization_v6(uuid, text, text[], uuid)
+from public, anon, authenticated;
+grant execute on function public.get_skd_rationalization_v6(uuid, text, text[], uuid)
+to service_role;
+
+comment on function public.get_skd_rationalization_v6(uuid, text, text[], uuid) is
+  'Returns a deterministic personalized portfolio using approved education aliases, user goals, and up to two preference flags.';
+
+notify pgrst, 'reload schema';
+
+commit;

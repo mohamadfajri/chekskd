@@ -5,12 +5,18 @@ import {
   AlertCircle,
   ArrowLeft,
   BarChart3,
+  BriefcaseBusiness,
   Check,
   CheckCircle2,
+  Crosshair,
+  Gauge,
   Loader2,
   MessageCircle,
   Search,
+  ShieldCheck,
+  SlidersHorizontal,
   Target,
+  Trophy,
   UserRound,
   X,
 } from "lucide-react";
@@ -22,7 +28,9 @@ import type { SkdScoreWithFormation } from "@/lib/supabase/types";
 import {
   createLeadAndSession,
   searchRationalizationTargets,
+  type AnalysisGoal,
   type LeadFormInput,
+  type PreferenceFlag,
   type RationalizationTargetOption,
 } from "@/services/leadService";
 import { getPublicFormationDetail, type PublicFormationDetail } from "@/services/formationService";
@@ -65,7 +73,8 @@ function ResultPage() {
     target_instansi: "",
     target_formasi: "",
     target_formation_id: "",
-    recommendation_mode: "related",
+    analysis_goal: "opportunity",
+    preference_flags: [],
     consent_whatsapp: false,
     consent_marketing: false,
   });
@@ -77,7 +86,7 @@ function ResultPage() {
   const targetQuery = useQuery({
     queryKey: ["rationalization-targets", scoreId, deferredTargetSearch],
     queryFn: () => searchRationalizationTargets(scoreId, deferredTargetSearch),
-    enabled: !selectedTarget && deferredTargetSearch.length >= 2,
+    enabled: form.analysis_goal === "target" && !selectedTarget && deferredTargetSearch.length >= 2,
     staleTime: 30_000,
   });
   const createMutation = useMutation({
@@ -130,6 +139,7 @@ function ResultPage() {
     setTargetSearch(`${target.institution} - ${target.position}`);
     setForm((current) => ({
       ...current,
+      analysis_goal: "target",
       target_formation_id: target.id,
       target_instansi: target.institution,
       target_formasi: target.position,
@@ -183,7 +193,37 @@ function ResultPage() {
       toast.error("Setujui pengiriman hasil melalui WhatsApp terlebih dahulu.");
       return;
     }
+    if (form.analysis_goal === "target" && !form.target_formation_id) {
+      toast.error("Pilih instansi atau jabatan target terlebih dahulu.");
+      return;
+    }
     createMutation.mutate();
+  }
+
+  function chooseAnalysisGoal(goal: AnalysisGoal) {
+    if (goal !== "target") clearTarget();
+    setForm((current) => ({
+      ...current,
+      analysis_goal: goal,
+      preference_flags: goal === "target" ? [] : current.preference_flags,
+    }));
+  }
+
+  function togglePreference(preference: PreferenceFlag) {
+    setForm((current) => {
+      const selected = current.preference_flags.includes(preference);
+      if (selected) {
+        return {
+          ...current,
+          preference_flags: current.preference_flags.filter((item) => item !== preference),
+        };
+      }
+      if (current.preference_flags.length >= 2) {
+        toast.info("Pilih maksimal dua prioritas agar rekomendasi tidak terlalu sempit.");
+        return current;
+      }
+      return { ...current, preference_flags: [...current.preference_flags, preference] };
+    });
   }
 
   function chooseTarget(target: RationalizationTargetOption) {
@@ -191,6 +231,7 @@ function ResultPage() {
     setTargetSearch(`${target.institution} - ${target.position}`);
     setForm((current) => ({
       ...current,
+      analysis_goal: "target",
       target_formation_id: target.id,
       target_instansi: target.institution,
       target_formasi: target.position,
@@ -289,8 +330,8 @@ function ResultPage() {
               </div>
             </div>
             <p className="mt-4 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Anda bisa mempertahankan bidang jabatan yang mirip atau membuka rekomendasi ke semua
-              formasi yang menerima pendidikan peserta. Target khusus dapat diprioritaskan.
+              Pilih apakah mesin perlu mencari peluang historis terbesar, menjaga bidang pekerjaan
+              tetap sejenis, atau membedah satu target yang sudah Anda incar.
             </p>
           </section>
         </div>
@@ -358,110 +399,143 @@ function ResultPage() {
               </InputField>
             </FormSection>
 
-            <FormSection icon={BarChart3} number="02" title="Cakupan rekomendasi">
-              <div
-                className="grid grid-cols-2 rounded-lg border border-border bg-muted p-1"
-                role="radiogroup"
-              >
-                <ScopeButton
-                  active={form.recommendation_mode === "related"}
-                  title="Jabatan sejenis"
-                  description="Bidang yang mirip"
-                  onClick={() =>
-                    setForm((current) => ({ ...current, recommendation_mode: "related" }))
-                  }
+            <FormSection icon={BarChart3} number="02" title="Tujuan analisis">
+              <div className="space-y-2" role="radiogroup" aria-label="Tujuan analisis">
+                <GoalButton
+                  icon={Trophy}
+                  active={form.analysis_goal === "opportunity"}
+                  title="Peluang terbesar"
+                  description="Cari posisi historis terbaik dari seluruh formasi yang sesuai."
+                  onClick={() => chooseAnalysisGoal("opportunity")}
                 />
-                <ScopeButton
-                  active={form.recommendation_mode === "all"}
-                  title="Semua sesuai"
-                  description="Sesuai pendidikan"
-                  onClick={() => setForm((current) => ({ ...current, recommendation_mode: "all" }))}
+                <GoalButton
+                  icon={BriefcaseBusiness}
+                  active={form.analysis_goal === "related"}
+                  title="Bidang sejenis"
+                  description="Utamakan jabatan yang masih satu rumpun pekerjaan."
+                  onClick={() => chooseAnalysisGoal("related")}
+                />
+                <GoalButton
+                  icon={Crosshair}
+                  active={form.analysis_goal === "target"}
+                  title="Analisis target saya"
+                  description="Bedah satu instansi atau jabatan yang sudah Anda incar."
+                  onClick={() => chooseAnalysisGoal("target")}
                 />
               </div>
             </FormSection>
 
-            <FormSection icon={Target} number="03" title="Target prioritas">
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <input
-                  value={targetSearch}
-                  onChange={(event) => {
-                    if (selectedTarget) clearTarget();
-                    setTargetSearch(event.target.value);
-                  }}
-                  className="result-input pl-9 pr-9"
-                  placeholder="Cari instansi atau jabatan"
-                  autoComplete="off"
-                />
-                {targetQuery.isFetching ? (
-                  <Loader2 className="absolute right-3 top-3 h-4 w-4 animate-spin text-muted-foreground" />
-                ) : targetSearch ? (
-                  <button
-                    type="button"
-                    onClick={clearTarget}
-                    title="Hapus target"
-                    aria-label="Hapus target"
-                    className="absolute right-2 top-1.5 grid h-7 w-7 place-items-center rounded-md text-muted-foreground hover:bg-muted"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                ) : null}
+            {form.analysis_goal === "target" ? (
+              <FormSection icon={Target} number="03" title="Target pilihan">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <input
+                    value={targetSearch}
+                    onChange={(event) => {
+                      if (selectedTarget) clearTarget();
+                      setTargetSearch(event.target.value);
+                    }}
+                    className="result-input pl-9 pr-9"
+                    placeholder="Cari instansi atau jabatan"
+                    autoComplete="off"
+                  />
+                  {targetQuery.isFetching ? (
+                    <Loader2 className="absolute right-3 top-3 h-4 w-4 animate-spin text-muted-foreground" />
+                  ) : targetSearch ? (
+                    <button
+                      type="button"
+                      onClick={clearTarget}
+                      title="Hapus target"
+                      aria-label="Hapus target"
+                      className="absolute right-2 top-1.5 grid h-7 w-7 place-items-center rounded-md text-muted-foreground hover:bg-muted"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  ) : null}
 
-                {!selectedTarget && deferredTargetSearch.length >= 2 && (
-                  <div className="absolute z-20 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-border bg-white shadow-xl">
-                    {targetQuery.isError ? (
-                      <p className="p-3 text-xs text-destructive">Target belum dapat dimuat.</p>
-                    ) : targetQuery.data?.length ? (
-                      targetQuery.data.map((target) => (
-                        <button
-                          key={target.id}
-                          type="button"
-                          onClick={() => chooseTarget(target)}
-                          className="block w-full border-b border-border px-3 py-3 text-left last:border-b-0 hover:bg-muted"
-                        >
-                          <span className="block text-xs font-bold">{target.position}</span>
-                          <span className="mt-0.5 block text-[11px] text-muted-foreground">
-                            {target.institution}
-                          </span>
-                          <span className="mt-1 block font-mono text-[9px] text-muted-foreground">
-                            Kuota {target.quota} · hadir {target.attended} · batas{" "}
-                            {target.cutoff_total ?? "-"}
-                          </span>
-                        </button>
-                      ))
-                    ) : !targetQuery.isFetching ? (
-                      <p className="p-3 text-xs text-muted-foreground">
-                        Tidak ada target yang cocok dengan pencarian ini.
+                  {!selectedTarget && deferredTargetSearch.length >= 2 && (
+                    <div className="absolute z-20 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-border bg-white shadow-xl">
+                      {targetQuery.isError ? (
+                        <p className="p-3 text-xs text-destructive">Target belum dapat dimuat.</p>
+                      ) : targetQuery.data?.length ? (
+                        targetQuery.data.map((target) => (
+                          <button
+                            key={target.id}
+                            type="button"
+                            onClick={() => chooseTarget(target)}
+                            className="block w-full border-b border-border px-3 py-3 text-left last:border-b-0 hover:bg-muted"
+                          >
+                            <span className="block text-xs font-bold">{target.position}</span>
+                            <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                              {target.institution}
+                            </span>
+                            <span className="mt-1 block font-mono text-[9px] text-muted-foreground">
+                              Kuota {target.quota} · hadir {target.attended} · batas{" "}
+                              {target.cutoff_total ?? "-"}
+                            </span>
+                          </button>
+                        ))
+                      ) : !targetQuery.isFetching ? (
+                        <p className="p-3 text-xs text-muted-foreground">
+                          Tidak ada target yang cocok dengan pencarian ini.
+                        </p>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
+
+                {selectedTarget ? (
+                  <TargetPreview target={selectedTarget} />
+                ) : (
+                  <>
+                    {targetFormationId && preferredTargetQuery.isLoading ? (
+                      <p className="mt-2 flex items-center gap-2 text-[11px] leading-5 text-muted-foreground">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Memeriksa kecocokan target
                       </p>
                     ) : null}
-                  </div>
+                    {preferredTargetMessage ? (
+                      <div className="mt-3 flex gap-2 border-l-2 border-[#a45e00] bg-[#fff8eb] p-3 text-[11px] leading-5 text-[#7a4b08]">
+                        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                        <p>{preferredTargetMessage}</p>
+                      </div>
+                    ) : null}
+                    {!preferredTargetMessage ? (
+                      <p className="mt-2 text-[11px] leading-5 text-muted-foreground">
+                        Mesin akan membedah target ini dan menambahkan dua alternatif yang lebih
+                        rasional.
+                      </p>
+                    ) : null}
+                  </>
                 )}
-              </div>
-
-              {selectedTarget ? (
-                <TargetPreview target={selectedTarget} />
-              ) : (
-                <>
-                  {targetFormationId && preferredTargetQuery.isLoading ? (
-                    <p className="mt-2 flex items-center gap-2 text-[11px] leading-5 text-muted-foreground">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Memeriksa kecocokan target
-                    </p>
-                  ) : null}
-                  {preferredTargetMessage ? (
-                    <div className="mt-3 flex gap-2 border-l-2 border-[#a45e00] bg-[#fff8eb] p-3 text-[11px] leading-5 text-[#7a4b08]">
-                      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                      <p>{preferredTargetMessage}</p>
-                    </div>
-                  ) : null}
-                  {!preferredTargetMessage ? (
-                    <p className="mt-2 text-[11px] leading-5 text-muted-foreground">
-                      Kosongkan untuk mendapatkan tiga rekomendasi otomatis berdasarkan pendidikan{" "}
-                      {score.pendidikan ?? "peserta"}.
-                    </p>
-                  ) : null}
-                </>
-              )}
-            </FormSection>
+              </FormSection>
+            ) : (
+              <FormSection icon={SlidersHorizontal} number="03" title="Prioritas tambahan">
+                <div className="flex flex-wrap gap-2" role="group" aria-label="Prioritas tambahan">
+                  <PreferenceChip
+                    icon={Gauge}
+                    selected={form.preference_flags.includes("low_competition")}
+                    label="Persaingan rendah"
+                    onClick={() => togglePreference("low_competition")}
+                  />
+                  <PreferenceChip
+                    icon={Trophy}
+                    selected={form.preference_flags.includes("large_quota")}
+                    label="Kuota lebih besar"
+                    onClick={() => togglePreference("large_quota")}
+                  />
+                  <PreferenceChip
+                    icon={ShieldCheck}
+                    selected={form.preference_flags.includes("strong_data")}
+                    label="Data paling kuat"
+                    onClick={() => togglePreference("strong_data")}
+                  />
+                </div>
+                <p className="text-[10px] leading-5 text-muted-foreground">
+                  Opsional, maksimal dua. Hasil tetap berisi pilihan pengaman, seimbang, dan
+                  ambisius.
+                </p>
+              </FormSection>
+            )}
 
             <div className="space-y-3 border-t border-border pt-5">
               <ConsentRow
@@ -556,13 +630,15 @@ function buildTargetOption(
   score: SkdScoreWithFormation,
   detail: PublicFormationDetail,
 ): RationalizationTargetOption | null {
-  const participantEducation = normalizeEducation(score.pendidikan);
-  const acceptedEducations = (detail.pendidikan_options ?? []).map(normalizeEducation);
+  const participantEducation = canonicalEducation(score.pendidikan);
+  const matchedEducation = (detail.pendidikan_options ?? []).find(
+    (option) => canonicalEducation(option) === participantEducation,
+  );
   const isEligible =
     detail.id !== score.formation_id &&
     detail.jenis_formasi?.trim().toUpperCase() === "UMUM" &&
     Boolean(participantEducation) &&
-    acceptedEducations.includes(participantEducation);
+    Boolean(matchedEducation);
   if (!isEligible) return null;
 
   const cutoff = detail.stats.cutoff_total;
@@ -573,6 +649,11 @@ function buildTargetOption(
     location: detail.lokasi_formasi,
     formation_type: detail.jenis_formasi ?? "UMUM",
     education_requirement: detail.pendidikan,
+    matched_education: matchedEducation ?? null,
+    education_match:
+      normalizeEducation(score.pendidikan) === normalizeEducation(matchedEducation)
+        ? "exact"
+        : "equivalent",
     quota: detail.stats.quota,
     attended: detail.stats.attended_count,
     competition_ratio: detail.stats.competition_ratio,
@@ -602,6 +683,14 @@ function isAtOrAboveCutoff(score: SkdScoreWithFormation, detail: PublicFormation
 
 function normalizeEducation(value: string | null | undefined): string {
   return value?.trim().replace(/\s+/g, " ").toUpperCase() ?? "";
+}
+
+function canonicalEducation(value: string | null | undefined): string {
+  const normalized = normalizeEducation(value);
+  if (["S-1 HUKUM", "S1 HUKUM", "S-1 ILMU HUKUM", "S1 ILMU HUKUM"].includes(normalized)) {
+    return "S-1 HUKUM";
+  }
+  return normalized;
 }
 
 function formatCompactNumber(value: number): string {
@@ -716,12 +805,14 @@ function InputField({
   );
 }
 
-function ScopeButton({
+function GoalButton({
+  icon: Icon,
   active,
   title,
   description,
   onClick,
 }: {
+  icon: typeof Trophy;
   active: boolean;
   title: string;
   description: string;
@@ -733,17 +824,56 @@ function ScopeButton({
       role="radio"
       aria-checked={active}
       onClick={onClick}
-      className={`min-h-16 rounded-md p-2.5 text-left transition ${
+      className={`flex min-h-[72px] w-full items-start gap-3 rounded-md border p-3 text-left transition ${
         active
-          ? "bg-white text-foreground shadow-sm"
-          : "text-muted-foreground hover:text-foreground"
+          ? "border-primary bg-[#f3f7ff] text-foreground shadow-sm shadow-[#1058f5]/10"
+          : "border-border bg-white text-muted-foreground hover:border-[#a8c3ff] hover:text-foreground"
       }`}
     >
-      <span className="flex items-center gap-1.5 text-[11px] font-bold">
-        {active ? <Check className="h-3.5 w-3.5 text-primary" /> : null}
-        {title}
+      <span
+        className={`grid h-8 w-8 shrink-0 place-items-center rounded-md ${
+          active ? "bg-primary text-white" : "bg-muted text-primary"
+        }`}
+      >
+        <Icon className="h-4 w-4" />
       </span>
-      <span className="mt-1 block text-[9px] leading-4">{description}</span>
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center justify-between gap-2 text-[11px] font-bold">
+          {title}
+          {active ? <Check className="h-4 w-4 shrink-0 text-primary" /> : null}
+        </span>
+        <span className="mt-1 block text-[9px] leading-4 text-muted-foreground">{description}</span>
+      </span>
+    </button>
+  );
+}
+
+function PreferenceChip({
+  icon: Icon,
+  selected,
+  label,
+  onClick,
+}: {
+  icon: typeof Gauge;
+  selected: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={selected}
+      onClick={onClick}
+      className={`inline-flex h-9 items-center gap-1.5 rounded-md border px-3 text-[10px] font-semibold transition ${
+        selected
+          ? "border-primary bg-[#f3f7ff] text-primary"
+          : "border-border bg-white text-muted-foreground hover:border-[#a8c3ff] hover:text-foreground"
+      }`}
+    >
+      <Icon className="h-3.5 w-3.5" />
+      {label}
+      {selected ? <Check className="h-3.5 w-3.5" /> : null}
     </button>
   );
 }

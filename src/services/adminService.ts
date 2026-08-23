@@ -299,6 +299,8 @@ export interface AdminResultSession {
     target_instansi: string | null;
     target_formasi: string | null;
     recommendation_mode: "related" | "all";
+    analysis_goal: "opportunity" | "related" | "target";
+    preference_flags: Array<"low_competition" | "large_quota" | "strong_data">;
     consent_marketing: boolean;
   } | null;
 }
@@ -464,6 +466,43 @@ export async function getPublishedFormations(
     headers: { "x-admin-password": adminPassword },
   });
   return readAdminJson<PublishedFormationData>(response);
+}
+
+export interface EducationAlias {
+  normalized_label: string;
+  canonical_label: string;
+  degree_level: string | null;
+  major_family: string;
+  match_kind: "exact" | "equivalent" | "family_only";
+  review_status: "pending" | "approved" | "rejected";
+  notes: string | null;
+  created_at: string;
+}
+
+export type EducationAliasInput = Omit<EducationAlias, "created_at">;
+
+export async function getEducationAliases(adminPassword: string): Promise<EducationAlias[]> {
+  const response = await fetch("/api/admin/education-aliases", {
+    headers: { "x-admin-password": adminPassword },
+  });
+  const body = await readAdminJson<{ aliases: EducationAlias[] }>(response);
+  return body.aliases;
+}
+
+export async function saveEducationAlias(
+  adminPassword: string,
+  input: EducationAliasInput,
+): Promise<EducationAlias> {
+  const response = await fetch("/api/admin/education-aliases", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-admin-password": adminPassword,
+    },
+    body: JSON.stringify(input),
+  });
+  const body = await readAdminJson<{ alias: EducationAlias }>(response);
+  return body.alias;
 }
 
 export interface SkdReviewRow {

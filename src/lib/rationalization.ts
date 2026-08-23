@@ -5,6 +5,8 @@ export type TargetSimulationVerdict =
   "very_competitive" | "competitive" | "close" | "below" | "ineligible" | "unavailable";
 
 export type RecommendationMode = "related" | "all";
+export type AnalysisGoal = "opportunity" | "related" | "target";
+export type PreferenceFlag = "low_competition" | "large_quota" | "strong_data";
 export type RecommendationTier = "most_rational" | "competitive" | "ambitious" | "below";
 export type RecommendationConfidence = "strong" | "moderate" | "limited";
 
@@ -16,7 +18,8 @@ export interface RationalizationTargetSimulation {
   location: string | null;
   formation_type: string;
   education_requirement: string | null;
-  education_match: "exact";
+  matched_education?: string | null;
+  education_match: "exact" | "equivalent";
   position_relation?: "same_position" | "related_position" | "cross_position";
   position_similarity?: number;
   is_mode_fallback?: boolean;
@@ -41,6 +44,7 @@ export interface RationalizationTargetSimulation {
   eligible_percentile?: number | null;
   above_historical_cutoff: boolean;
   recommendation_score?: number;
+  portfolio_strategy?: "safe" | "balanced" | "ambitious";
   strategy?: string;
   reason?: string;
   risk_flags?: string[];
@@ -69,7 +73,7 @@ export interface RationalizationTargetSimulation {
 
 export interface RationalizationSnapshot {
   kind: "skd_rationalization";
-  version: 1 | 2 | 3 | 4 | 5;
+  version: 1 | 2 | 3 | 4 | 5 | 6;
   generated_at: string;
   score_id: string;
   formation_id: string;
@@ -140,6 +144,8 @@ export interface RationalizationSnapshot {
     eligible_for_simulation: boolean;
     passing_thresholds: { twk: number; tiu: number; tkp: number };
     threshold_buffers: { twk: number | null; tiu: number | null; tkp: number | null };
+    subtest_percentiles?: { twk: number | null; tiu: number | null; tkp: number | null };
+    priority_basis?: "lowest_passing_peer_percentile";
     priority_subtest: "TWK" | "TIU" | "TKP" | null;
     minimum_recommended_total: number | null;
     minimum_score_increase: number | null;
@@ -150,15 +156,20 @@ export interface RationalizationSnapshot {
     excluded_statuses: string[];
     score_order: string[];
     uses_final_skb_result: boolean;
+    education_matching?: "approved_alias_or_exact";
     quality_guardrails?: {
       minimum_passing_pool: number;
       minimum_historical_shortlist: number;
       maximum_limited_confidence: number;
       maximum_cross_position_fallback: number;
+      maximum_preferences?: number;
     };
   };
   recommendation_mode?: RecommendationMode;
+  analysis_goal?: AnalysisGoal;
+  preference_flags?: PreferenceFlag[];
   recommendation_summary?: {
+    analysis_goal?: AnalysisGoal;
     mode: RecommendationMode;
     mode_label: string;
     returned_count: number;
@@ -167,7 +178,7 @@ export interface RationalizationSnapshot {
     related_formations: number;
     dataset_formations: number;
     dataset_institutions: number;
-    education_match: "exact";
+    education_match: "exact" | "approved_alias_or_exact";
     formation_type: "UMUM";
     scope_note: string;
   };
@@ -183,7 +194,8 @@ export function isRationalizationSnapshot(value: unknown): value is Rationalizat
       snapshot.version === 2 ||
       snapshot.version === 3 ||
       snapshot.version === 4 ||
-      snapshot.version === 5) &&
+      snapshot.version === 5 ||
+      snapshot.version === 6) &&
     typeof snapshot.participant?.name === "string" &&
     typeof snapshot.formation?.institution === "string" &&
     typeof snapshot.verdict?.code === "string"
@@ -236,7 +248,9 @@ export function buildRationalizationCaption(snapshot: RationalizationSnapshot): 
     return [
       `Hasil rasionalisasi SKD ${snapshot.participant.name} sudah siap.`,
       `${snapshot.verdict.label} | Total ${snapshot.participant.total ?? "-"}`,
-      priority ? `Prioritas latihan: ${priority}, karena buffer terhadap PG paling tipis.` : null,
+      priority
+        ? `Prioritas latihan: ${priority}, berdasarkan posisi relatif subtes terhadap peserta lolos PG.`
+        : null,
       ...recommendations.map((item, index) => {
         const relation = item.is_mode_fallback ? " | lintas jabatan" : "";
         const pool = item.eligible_pool ?? item.passing_grade;

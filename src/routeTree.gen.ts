@@ -31,6 +31,7 @@ import { Route as ApiAdminResultSessionsRouteImport } from './routes/api/admin/r
 import { Route as ApiAdminPublishedDataRouteImport } from './routes/api/admin/published-data'
 import { Route as ApiAdminPdfSourcesRouteImport } from './routes/api/admin/pdf-sources'
 import { Route as ApiAdminMarketingInsightsRouteImport } from './routes/api/admin/marketing-insights'
+import { Route as ApiAdminEducationAliasesRouteImport } from './routes/api/admin/education-aliases'
 
 const SearchRoute = SearchRouteImport.update({
   id: '/search',
@@ -144,6 +145,12 @@ const ApiAdminMarketingInsightsRoute =
     path: '/api/admin/marketing-insights',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiAdminEducationAliasesRoute =
+  ApiAdminEducationAliasesRouteImport.update({
+    id: '/api/admin/education-aliases',
+    path: '/api/admin/education-aliases',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -160,6 +167,7 @@ export interface FileRoutesByFullPath {
   '/result/$scoreId': typeof ResultScoreIdRoute
   '/wa/$token': typeof WaTokenRoute
   '/formasi/': typeof FormasiIndexRoute
+  '/api/admin/education-aliases': typeof ApiAdminEducationAliasesRoute
   '/api/admin/marketing-insights': typeof ApiAdminMarketingInsightsRoute
   '/api/admin/pdf-sources': typeof ApiAdminPdfSourcesRoute
   '/api/admin/published-data': typeof ApiAdminPublishedDataRoute
@@ -183,6 +191,7 @@ export interface FileRoutesByTo {
   '/result/$scoreId': typeof ResultScoreIdRoute
   '/wa/$token': typeof WaTokenRoute
   '/formasi': typeof FormasiIndexRoute
+  '/api/admin/education-aliases': typeof ApiAdminEducationAliasesRoute
   '/api/admin/marketing-insights': typeof ApiAdminMarketingInsightsRoute
   '/api/admin/pdf-sources': typeof ApiAdminPdfSourcesRoute
   '/api/admin/published-data': typeof ApiAdminPublishedDataRoute
@@ -208,6 +217,7 @@ export interface FileRoutesById {
   '/result/$scoreId': typeof ResultScoreIdRoute
   '/wa/$token': typeof WaTokenRoute
   '/formasi/': typeof FormasiIndexRoute
+  '/api/admin/education-aliases': typeof ApiAdminEducationAliasesRoute
   '/api/admin/marketing-insights': typeof ApiAdminMarketingInsightsRoute
   '/api/admin/pdf-sources': typeof ApiAdminPdfSourcesRoute
   '/api/admin/published-data': typeof ApiAdminPublishedDataRoute
@@ -234,6 +244,7 @@ export interface FileRouteTypes {
     | '/result/$scoreId'
     | '/wa/$token'
     | '/formasi/'
+    | '/api/admin/education-aliases'
     | '/api/admin/marketing-insights'
     | '/api/admin/pdf-sources'
     | '/api/admin/published-data'
@@ -257,6 +268,7 @@ export interface FileRouteTypes {
     | '/result/$scoreId'
     | '/wa/$token'
     | '/formasi'
+    | '/api/admin/education-aliases'
     | '/api/admin/marketing-insights'
     | '/api/admin/pdf-sources'
     | '/api/admin/published-data'
@@ -281,6 +293,7 @@ export interface FileRouteTypes {
     | '/result/$scoreId'
     | '/wa/$token'
     | '/formasi/'
+    | '/api/admin/education-aliases'
     | '/api/admin/marketing-insights'
     | '/api/admin/pdf-sources'
     | '/api/admin/published-data'
@@ -303,6 +316,7 @@ export interface RootRouteChildren {
   ApiWaResultRoute: typeof ApiWaResultRoute
   ResultScoreIdRoute: typeof ResultScoreIdRoute
   WaTokenRoute: typeof WaTokenRoute
+  ApiAdminEducationAliasesRoute: typeof ApiAdminEducationAliasesRoute
   ApiAdminMarketingInsightsRoute: typeof ApiAdminMarketingInsightsRoute
   ApiAdminPdfSourcesRoute: typeof ApiAdminPdfSourcesRoute
   ApiAdminPublishedDataRoute: typeof ApiAdminPublishedDataRoute
@@ -469,6 +483,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminMarketingInsightsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/education-aliases': {
+      id: '/api/admin/education-aliases'
+      path: '/api/admin/education-aliases'
+      fullPath: '/api/admin/education-aliases'
+      preLoaderRoute: typeof ApiAdminEducationAliasesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -499,6 +520,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWaResultRoute: ApiWaResultRoute,
   ResultScoreIdRoute: ResultScoreIdRoute,
   WaTokenRoute: WaTokenRoute,
+  ApiAdminEducationAliasesRoute: ApiAdminEducationAliasesRoute,
   ApiAdminMarketingInsightsRoute: ApiAdminMarketingInsightsRoute,
   ApiAdminPdfSourcesRoute: ApiAdminPdfSourcesRoute,
   ApiAdminPublishedDataRoute: ApiAdminPublishedDataRoute,

@@ -122,6 +122,8 @@ export interface Lead {
   target_formasi: string | null;
   target_formation_id: string | null;
   recommendation_mode: "related" | "all";
+  analysis_goal: "opportunity" | "related" | "target";
+  preference_flags: Array<"low_competition" | "large_quota" | "strong_data">;
   rencana: string | null;
   consent_whatsapp: boolean;
   consent_marketing: boolean;

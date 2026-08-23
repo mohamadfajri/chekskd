@@ -43,7 +43,7 @@ function parseArgs(argv) {
 }
 
 function printHelp() {
-  console.log(`Evaluasi deterministik mesin rasionalisasi SKD v5.
+  console.log(`Evaluasi deterministik mesin rasionalisasi SKD v6.
 
 Pemakaian:
   npm run skd:evaluate-rationalization
@@ -224,6 +224,23 @@ async function fetchStoredStats(supabase, formationIds) {
   return new Map((data ?? []).map((row) => [row.formation_id, row]));
 }
 
+async function fetchEducationAliases(supabase) {
+  const { data, error } = await supabase
+    .from("skd_education_aliases")
+    .select("normalized_label,canonical_label,match_kind,review_status")
+    .eq("review_status", "approved")
+    .in("match_kind", ["exact", "equivalent"]);
+  if (error) throw new Error(`Gagal membaca alias pendidikan: ${error.message}`);
+  return new Map(
+    (data ?? []).map((row) => [normalize(row.normalized_label), normalize(row.canonical_label)]),
+  );
+}
+
+function canonicalEducation(value, aliases) {
+  const normalized = normalize(value);
+  return aliases.get(normalized) ?? normalized;
+}
+
 async function fetchFormationScores(supabase, formationId, expectedCount, maxRows) {
   if (expectedCount > maxRows) {
     return {
@@ -365,8 +382,8 @@ function snapshotStats(snapshot) {
 }
 
 function validateSnapshotContract(sample, snapshot, formation, issues) {
-  if (!snapshot || snapshot.version !== 5) {
-    addIssue(issues, "error", "snapshot_contract", "RPC tidak mengembalikan snapshot v5.");
+  if (!snapshot || snapshot.version !== 6) {
+    addIssue(issues, "error", "snapshot_contract", "RPC tidak mengembalikan snapshot v6.");
     return;
   }
 
@@ -440,8 +457,8 @@ function validateSnapshotContract(sample, snapshot, formation, issues) {
       "Passing grade pada snapshot tidak sesuai aturan mesin.",
     );
   }
-  if (snapshot.methodology?.model !== "v5_guardrailed") {
-    addIssue(issues, "error", "model_version", "Metodologi bukan v5_guardrailed.");
+  if (snapshot.methodology?.model !== "v6_personalized") {
+    addIssue(issues, "error", "model_version", "Metodologi bukan v6_personalized.");
   }
   if (snapshot.methodology?.uses_final_skb_result !== false) {
     addIssue(
@@ -462,9 +479,10 @@ function validateSnapshotContract(sample, snapshot, formation, issues) {
     guardrails?.minimum_passing_pool !== 3 ||
     guardrails?.minimum_historical_shortlist !== 1 ||
     guardrails?.maximum_limited_confidence !== 1 ||
-    guardrails?.maximum_cross_position_fallback !== 1
+    guardrails?.maximum_cross_position_fallback !== 1 ||
+    guardrails?.maximum_preferences !== 2
   ) {
-    addIssue(issues, "error", "quality_guardrails", "Guardrail kualitas v5 tidak lengkap.");
+    addIssue(issues, "error", "quality_guardrails", "Guardrail kualitas v6 tidak lengkap.");
   }
 
   const recommendations = snapshot.target_recommendations ?? [];
@@ -540,7 +558,15 @@ function expectedRecommendationScore(tier, confidence, relation, competitionRati
   return Math.min(100, tierScore + confidenceScore + relationScore + competitionScore + gapScore);
 }
 
-function validateRecommendations(sample, snapshot, contexts, statsMap, scoreMap, issues) {
+function validateRecommendations(
+  sample,
+  snapshot,
+  contexts,
+  statsMap,
+  scoreMap,
+  educationAliases,
+  issues,
+) {
   const recommendations = snapshot?.target_recommendations ?? [];
   const limitedConfidenceIds = [];
   const crossPositionIds = [];
@@ -581,19 +607,32 @@ function validateRecommendations(sample, snapshot, contexts, statsMap, scoreMap,
       addIssue(issues, "error", "target_type", "Formasi rekomendasi bukan UMUM.");
     }
     const educationOptions = context.pendidikan_options ?? [];
-    if (!educationOptions.some((option) => normalize(option) === normalize(sample.pendidikan))) {
+    const sampleEducation = canonicalEducation(sample.pendidikan, educationAliases);
+    const matchingOption = educationOptions.find(
+      (option) => canonicalEducation(option, educationAliases) === sampleEducation,
+    );
+    if (!matchingOption) {
       addIssue(
         issues,
         "error",
         "education_match",
-        "Pendidikan peserta tidak cocok persis dengan target.",
+        "Pendidikan peserta tidak cocok dengan target setelah normalisasi alias.",
         {
           formation_id: item.formation_id,
         },
       );
     }
-    if (item.education_match !== "exact") {
-      addIssue(issues, "error", "education_contract", "Label education_match bukan exact.");
+    const expectedEducationMatch =
+      matchingOption && normalize(matchingOption) === normalize(sample.pendidikan)
+        ? "exact"
+        : "equivalent";
+    if (item.education_match !== expectedEducationMatch) {
+      addIssue(
+        issues,
+        "error",
+        "education_contract",
+        "Label education_match tidak sesuai hasil normalisasi.",
+      );
     }
     if (item.eligible_pool !== stats.passing_count || item.passing_grade !== stats.passing_count) {
       addIssue(
@@ -608,7 +647,7 @@ function validateRecommendations(sample, snapshot, contexts, statsMap, scoreMap,
         issues,
         "error",
         "target_sample_too_thin",
-        "Target tidak memenuhi sampel minimum v5.",
+        "Target tidak memenuhi sampel minimum v6.",
       );
     }
     if (item.cutoff?.total !== stats.cutoff_total) {
@@ -644,7 +683,7 @@ function validateRecommendations(sample, snapshot, contexts, statsMap, scoreMap,
         issues,
         "error",
         "recommended_total",
-        "Target nilai rekomendasi tidak sesuai formula v5.",
+        "Target nilai rekomendasi tidak sesuai formula v6.",
       );
     }
     const expectedNeeded =
@@ -714,7 +753,7 @@ function validateRecommendations(sample, snapshot, contexts, statsMap, scoreMap,
           issues,
           "error",
           "recommendation_score",
-          "Skor kecocokan rekomendasi tidak sesuai formula v5.",
+          "Skor kecocokan rekomendasi tidak sesuai formula v6.",
           { rpc: item.recommendation_score, recomputed: recommendationScore },
         );
       }
@@ -776,7 +815,7 @@ function summarizeIssues(results) {
 
 function markdownReport(report) {
   const lines = [
-    "# Evaluasi Mesin Rasionalisasi SKD v5",
+    "# Evaluasi Mesin Rasionalisasi SKD v6",
     "",
     `Dibuat: ${report.generated_at}`,
     `Project: \`${report.project_ref}\``,
@@ -858,8 +897,9 @@ async function main() {
     fetchFormationContext(supabase, sourceFormationIds),
     fetchStoredStats(supabase, sourceFormationIds),
   ]);
+  const educationAliases = await fetchEducationAliases(supabase);
 
-  console.log(`Menjalankan RPC v5 dan audit independen untuk ${samples.length} sampel...`);
+  console.log(`Menjalankan RPC v6 dan audit independen untuk ${samples.length} sampel...`);
   const preliminary = await mapLimit(samples, 3, async (sample) => {
     const issues = [];
     const formation = sourceContexts.get(sample.formation_id);
@@ -867,16 +907,17 @@ async function main() {
     const expectedCount = storedStats?.participant_count ?? options.maxFormationRows + 1;
 
     const [{ data: snapshot, error: rpcError }, formationScores] = await Promise.all([
-      supabase.rpc("get_skd_rationalization_v5", {
+      supabase.rpc("get_skd_rationalization_v6", {
         p_score_id: sample.id,
-        p_recommendation_mode: "related",
+        p_analysis_goal: "related",
+        p_preference_flags: [],
         p_preferred_target_formation_id: null,
       }),
       fetchFormationScores(supabase, sample.formation_id, expectedCount, options.maxFormationRows),
     ]);
 
     if (rpcError) {
-      addIssue(issues, "error", "rpc_failed", `RPC v5 gagal: ${rpcError.message}`);
+      addIssue(issues, "error", "rpc_failed", `RPC v6 gagal: ${rpcError.message}`);
     } else {
       validateSnapshotContract(sample, snapshot, formation, issues);
     }
@@ -971,7 +1012,15 @@ async function main() {
 
   const results = preliminary.map(({ sample, snapshot, issues, independentAudit, recomputed }) => {
     if (snapshot) {
-      validateRecommendations(sample, snapshot, targetContexts, targetStats, targetScores, issues);
+      validateRecommendations(
+        sample,
+        snapshot,
+        targetContexts,
+        targetStats,
+        targetScores,
+        educationAliases,
+        issues,
+      );
     }
     return {
       score_id: sample.id,
@@ -1013,7 +1062,8 @@ async function main() {
     settings: {
       sample_size_requested: options.sampleSize,
       max_formation_rows: options.maxFormationRows,
-      recommendation_mode: "related",
+      analysis_goal: "related",
+      preference_flags: [],
     },
     coverage: {
       published_batches: batches.length,

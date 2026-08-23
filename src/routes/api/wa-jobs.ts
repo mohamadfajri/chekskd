@@ -125,15 +125,19 @@ export const Route = createFileRoute("/api/wa-jobs")({
           ? await sb
               .from("leads")
               .select(
-                "nama_panggilan, target_tahun, target_instansi, target_formasi, target_formation_id, recommendation_mode, rencana",
+                "nama_panggilan, target_tahun, target_instansi, target_formasi, target_formation_id, recommendation_mode, analysis_goal, preference_flags, rencana",
               )
               .eq("id", session.lead_id)
               .maybeSingle()
           : { data: null };
 
-        const rationalizationRequest = await sb.rpc("get_skd_rationalization_v5", {
+        const rationalizationRequest = await sb.rpc("get_skd_rationalization_v6", {
           p_score_id: job.score_id,
-          p_recommendation_mode: lead?.recommendation_mode === "all" ? "all" : "related",
+          p_analysis_goal:
+            lead?.analysis_goal === "opportunity" || lead?.analysis_goal === "target"
+              ? lead.analysis_goal
+              : "related",
+          p_preference_flags: Array.isArray(lead?.preference_flags) ? lead.preference_flags : [],
           p_preferred_target_formation_id: lead?.target_formation_id ?? null,
         });
         const { data: rationalization, error: rationalizationError } = rationalizationRequest;
@@ -191,6 +195,8 @@ export const Route = createFileRoute("/api/wa-jobs")({
                 model: snapshot.methodology?.model ?? `v${snapshot.version}`,
                 verdict: snapshot.verdict.code,
                 priority_subtest: snapshot.score_profile?.priority_subtest ?? null,
+                analysis_goal: snapshot.analysis_goal ?? "related",
+                preference_flags: snapshot.preference_flags ?? [],
                 recommendation_mode: snapshot.recommendation_mode ?? "related",
                 recommendation_count: recommendations.length,
                 top_institutions: recommendations.slice(0, 3).map((item) => item.institution),

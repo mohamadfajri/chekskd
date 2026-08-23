@@ -13,7 +13,8 @@ interface LeadInput {
   target_instansi?: string;
   target_formasi?: string;
   target_formation_id?: string;
-  recommendation_mode?: "related" | "all";
+  analysis_goal?: "opportunity" | "related" | "target";
+  preference_flags?: string[];
   rencana?: string;
   consent_whatsapp?: boolean;
   consent_marketing?: boolean;
@@ -39,10 +40,6 @@ function cleanUuid(value: unknown): string | null {
     : null;
 }
 
-function normalizedEducation(value: string): string {
-  return value.trim().replace(/\s+/g, " ").toUpperCase();
-}
-
 function asyncRationalizationEnabled(): boolean {
   return process.env.ASYNC_RATIONALIZATION_ENABLED?.trim().toLowerCase() === "true";
 }
@@ -58,11 +55,33 @@ export const Route = createFileRoute("/api/result-session")({
         const targetTahun = clean(leadInput?.target_tahun, 30);
         const rawTargetFormationId = leadInput?.target_formation_id?.trim() ?? "";
         const targetFormationId = cleanUuid(leadInput?.target_formation_id);
-        const recommendationMode = leadInput?.recommendation_mode === "all" ? "all" : "related";
+        const analysisGoal =
+          leadInput?.analysis_goal === "opportunity" || leadInput?.analysis_goal === "target"
+            ? leadInput.analysis_goal
+            : "related";
+        const recommendationMode = analysisGoal === "opportunity" ? "all" : "related";
+        const allowedPreferences = new Set(["low_competition", "large_quota", "strong_data"]);
+        const preferenceFlags = Array.from(
+          new Set(
+            (Array.isArray(leadInput?.preference_flags) ? leadInput.preference_flags : []).filter(
+              (value): value is string =>
+                typeof value === "string" && allowedPreferences.has(value),
+            ),
+          ),
+        );
         const rencana = clean(leadInput?.rencana, 50);
 
         if (rawTargetFormationId && !targetFormationId) {
           return jsonResponse({ message: "ID target formasi tidak valid." }, 400);
+        }
+        if (preferenceFlags.length > 2) {
+          return jsonResponse({ message: "Pilih maksimal dua prioritas tambahan." }, 400);
+        }
+        if (analysisGoal === "target" && !targetFormationId) {
+          return jsonResponse(
+            { message: "Pilih instansi atau jabatan target terlebih dahulu." },
+            400,
+          );
         }
 
         if (
@@ -128,22 +147,30 @@ export const Route = createFileRoute("/api/result-session")({
           if (targetError) return jsonResponse({ message: targetError.message }, 500);
           targetFormation = data;
 
-          const participantEducation = score.pendidikan
-            ? normalizedEducation(score.pendidikan)
-            : null;
           const acceptedEducations = Array.isArray(targetFormation?.pendidikan_options)
-            ? targetFormation.pendidikan_options.map((value) => normalizedEducation(value))
+            ? targetFormation.pendidikan_options
             : [];
-          const targetIsValid =
+          const targetBaseIsValid =
             targetFormation &&
             targetFormation.id !== score.formation_id &&
             targetFormation.quality_status === "verified" &&
-            normalizedEducation(targetFormation.jenis_formasi ?? "") === "UMUM" &&
-            participantEducation !== null &&
-            acceptedEducations.includes(participantEducation);
-          if (!targetIsValid) {
+            targetFormation.jenis_formasi?.trim().toUpperCase() === "UMUM" &&
+            Boolean(score.pendidikan);
+          const { data: educationMatches, error: educationMatchError } = targetBaseIsValid
+            ? await sb.rpc("skd_education_matches", {
+                p_participant_education: score.pendidikan,
+                p_accepted_educations: acceptedEducations,
+              })
+            : { data: false, error: null };
+          if (educationMatchError) {
+            return jsonResponse({ message: "Kecocokan pendidikan belum dapat diperiksa." }, 500);
+          }
+          if (!targetBaseIsValid || educationMatches !== true) {
             return jsonResponse(
-              { message: "Target harus berupa formasi UMUM yang menerima pendidikan peserta." },
+              {
+                message:
+                  "Target harus berupa formasi UMUM dengan pendidikan yang cocok persis atau memiliki alias terverifikasi.",
+              },
               400,
             );
           }
@@ -156,11 +183,23 @@ export const Route = createFileRoute("/api/result-session")({
               .maybeSingle(),
             sb
               .from("skd_formation_stats")
-              .select("formation_id")
+              .select(
+                "formation_id, attended_count, passing_count, shortlisted_count, shortlist_capacity, cutoff_total, cutoff_tkp, cutoff_tiu, cutoff_twk",
+              )
               .eq("formation_id", targetFormation.id)
               .maybeSingle(),
           ]);
-          if (targetBatch?.status !== "published" || !targetStats) {
+          const targetStatsReady =
+            targetStats &&
+            targetStats.attended_count > 0 &&
+            targetStats.passing_count >= 3 &&
+            targetStats.shortlisted_count >= 1 &&
+            targetStats.shortlist_capacity > 0 &&
+            targetStats.cutoff_total !== null &&
+            targetStats.cutoff_tkp !== null &&
+            targetStats.cutoff_tiu !== null &&
+            targetStats.cutoff_twk !== null;
+          if (targetBatch?.status !== "published" || !targetStatsReady) {
             return jsonResponse({ message: "Data historis target belum siap dianalisis." }, 400);
           }
         }
@@ -176,6 +215,8 @@ export const Route = createFileRoute("/api/result-session")({
             target_formasi: targetFormation?.jabatan ?? null,
             target_formation_id: targetFormation?.id ?? null,
             recommendation_mode: recommendationMode,
+            analysis_goal: analysisGoal,
+            preference_flags: preferenceFlags,
             rencana,
             consent_whatsapp: true,
             consent_marketing: leadInput?.consent_marketing === true,
@@ -197,7 +238,7 @@ export const Route = createFileRoute("/api/result-session")({
           target_instansi: targetFormation?.nama_instansi ?? "Rekomendasi otomatis",
           target_formasi:
             targetFormation?.jabatan ??
-            (recommendationMode === "related" ? "Jabatan sejenis" : "Semua sesuai pendidikan"),
+            (analysisGoal === "related" ? "Bidang sejenis" : "Peluang terbesar"),
           rencana,
         };
         const useQueue = asyncRationalizationEnabled();
@@ -250,6 +291,8 @@ export const Route = createFileRoute("/api/result-session")({
           metadata: {
             session_id: session.id,
             recommendation_mode: recommendationMode,
+            analysis_goal: analysisGoal,
+            preference_flags: preferenceFlags,
             has_preferred_target: Boolean(targetFormation?.id),
             target_year: targetTahun,
           },

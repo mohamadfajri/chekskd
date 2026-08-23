@@ -35,6 +35,7 @@ import {
   bulkVerifySkdBatch,
   getAdminMarketingInsights,
   getAdminResultSessions,
+  getEducationAliases,
   getPublishedDataOverview,
   getPublishedFormations,
   getSkdBatches,
@@ -43,10 +44,13 @@ import {
   getSkdReviewRows,
   importCsvRows,
   publishSkdBatch,
+  saveEducationAlias,
   validateAdminPassword,
   validateAdminSession,
   validateCsvRows,
   type CsvRow,
+  type EducationAlias,
+  type EducationAliasInput,
   type ImportProgress,
   type AdminMarketingInsights,
   type RowValidationIssue,
@@ -1745,13 +1749,24 @@ function ImportWorkspace({
 }
 
 function PublishedWorkspace({ adminPassword }: { adminPassword: string }) {
-  const [view, setView] = useState<"institutions" | "formations" | "participants">("institutions");
+  const [view, setView] = useState<"institutions" | "formations" | "participants" | "aliases">(
+    "institutions",
+  );
   const [batchId, setBatchId] = useState("");
   const [formationSearchInput, setFormationSearchInput] = useState("");
   const [formationSearch, setFormationSearch] = useState("");
   const [formationSort, setFormationSort] = useState("quota_desc");
   const [formationPage, setFormationPage] = useState(1);
   const [participantSearch, setParticipantSearch] = useState("");
+  const [aliasDraft, setAliasDraft] = useState<EducationAliasInput>({
+    normalized_label: "",
+    canonical_label: "",
+    degree_level: null,
+    major_family: "",
+    match_kind: "equivalent",
+    review_status: "pending",
+    notes: null,
+  });
   const participantMutation = useMutation({
     mutationFn: () => searchSkdScores({ nama: participantSearch, limit: 25 }),
   });
@@ -1778,6 +1793,19 @@ function PublishedWorkspace({ adminPassword }: { adminPassword: string }) {
       }),
     enabled: view === "formations",
     placeholderData: (previous) => previous,
+  });
+  const aliases = useQuery({
+    queryKey: ["admin-education-aliases", adminPassword],
+    queryFn: () => getEducationAliases(adminPassword),
+    enabled: view === "aliases",
+  });
+  const saveAlias = useMutation({
+    mutationFn: () => saveEducationAlias(adminPassword, aliasDraft),
+    onSuccess: async () => {
+      toast.success("Alias pendidikan tersimpan");
+      await aliases.refetch();
+    },
+    onError: (error: Error) => toast.error(error.message),
   });
 
   useEffect(() => {
@@ -1817,6 +1845,9 @@ function PublishedWorkspace({ adminPassword }: { adminPassword: string }) {
             onClick={() => setView("participants")}
           >
             Peserta
+          </PublishedViewButton>
+          <PublishedViewButton active={view === "aliases"} onClick={() => setView("aliases")}>
+            Pendidikan
           </PublishedViewButton>
         </div>
       </div>
@@ -2102,6 +2133,190 @@ function PublishedWorkspace({ adminPassword }: { adminPassword: string }) {
           )}
         </section>
       )}
+
+      {view === "aliases" && (
+        <section className="mt-5 overflow-hidden rounded-lg border border-[#d8e1ec] bg-white">
+          <form
+            className="grid gap-3 border-b border-[#e2e8f0] p-4 md:grid-cols-2 xl:grid-cols-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              saveAlias.mutate();
+            }}
+          >
+            <label className="text-xs font-semibold text-[#536579]">
+              Label sumber
+              <input
+                className="desk-input mt-1 h-9"
+                value={aliasDraft.normalized_label}
+                onChange={(event) =>
+                  setAliasDraft((current) => ({
+                    ...current,
+                    normalized_label: event.target.value,
+                  }))
+                }
+                placeholder="S-1 ILMU HUKUM"
+                required
+              />
+            </label>
+            <label className="text-xs font-semibold text-[#536579]">
+              Label kanonis
+              <input
+                className="desk-input mt-1 h-9"
+                value={aliasDraft.canonical_label}
+                onChange={(event) =>
+                  setAliasDraft((current) => ({
+                    ...current,
+                    canonical_label: event.target.value,
+                  }))
+                }
+                placeholder="S-1 HUKUM"
+                required
+              />
+            </label>
+            <label className="text-xs font-semibold text-[#536579]">
+              Jenjang
+              <input
+                className="desk-input mt-1 h-9"
+                value={aliasDraft.degree_level ?? ""}
+                onChange={(event) =>
+                  setAliasDraft((current) => ({
+                    ...current,
+                    degree_level: event.target.value || null,
+                  }))
+                }
+                placeholder="S-1"
+              />
+            </label>
+            <label className="text-xs font-semibold text-[#536579]">
+              Rumpun
+              <input
+                className="desk-input mt-1 h-9"
+                value={aliasDraft.major_family}
+                onChange={(event) =>
+                  setAliasDraft((current) => ({ ...current, major_family: event.target.value }))
+                }
+                placeholder="HUKUM"
+                required
+              />
+            </label>
+            <label className="text-xs font-semibold text-[#536579]">
+              Jenis kecocokan
+              <select
+                className="desk-input mt-1 h-9 bg-white"
+                value={aliasDraft.match_kind}
+                onChange={(event) =>
+                  setAliasDraft((current) => ({
+                    ...current,
+                    match_kind: event.target.value as EducationAliasInput["match_kind"],
+                  }))
+                }
+              >
+                <option value="exact">Persis</option>
+                <option value="equivalent">Ekuivalen</option>
+                <option value="family_only">Rumpun saja</option>
+              </select>
+            </label>
+            <label className="text-xs font-semibold text-[#536579]">
+              Status review
+              <select
+                className="desk-input mt-1 h-9 bg-white"
+                value={aliasDraft.review_status}
+                onChange={(event) =>
+                  setAliasDraft((current) => ({
+                    ...current,
+                    review_status: event.target.value as EducationAliasInput["review_status"],
+                  }))
+                }
+              >
+                <option value="pending">Menunggu review</option>
+                <option value="approved">Disetujui</option>
+                <option value="rejected">Ditolak</option>
+              </select>
+            </label>
+            <label className="text-xs font-semibold text-[#536579] xl:col-span-2">
+              Catatan bukti
+              <div className="mt-1 flex gap-2">
+                <input
+                  className="desk-input h-9"
+                  value={aliasDraft.notes ?? ""}
+                  onChange={(event) =>
+                    setAliasDraft((current) => ({ ...current, notes: event.target.value || null }))
+                  }
+                  placeholder="Contoh formasi atau dasar kesetaraan"
+                />
+                <button
+                  type="submit"
+                  disabled={saveAlias.isPending}
+                  className="inline-flex h-9 shrink-0 items-center gap-2 rounded-md bg-[#0d6cbd] px-4 text-xs font-semibold text-white disabled:opacity-50"
+                >
+                  {saveAlias.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  Simpan
+                </button>
+              </div>
+            </label>
+          </form>
+
+          {aliases.isLoading ? (
+            <LoadingRows />
+          ) : aliases.error ? (
+            <p className="p-8 text-center text-sm text-red-700">
+              {aliases.error instanceof Error ? aliases.error.message : "Alias gagal dimuat."}
+            </p>
+          ) : aliases.data?.length ? (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-xs">
+                <thead className="bg-[#f7f9fc] text-[#536579]">
+                  <tr>
+                    <TableHead>Label sumber</TableHead>
+                    <TableHead>Label kanonis</TableHead>
+                    <TableHead>Jenjang / rumpun</TableHead>
+                    <TableHead>Kecocokan</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Catatan</TableHead>
+                    <TableHead>Aksi</TableHead>
+                  </tr>
+                </thead>
+                <tbody>
+                  {aliases.data.map((alias) => (
+                    <tr
+                      key={alias.normalized_label}
+                      className="border-t border-[#edf1f5] align-top"
+                    >
+                      <td className="px-3 py-3 font-mono font-semibold">
+                        {alias.normalized_label}
+                      </td>
+                      <td className="px-3 py-3 font-mono">{alias.canonical_label}</td>
+                      <td className="px-3 py-3">
+                        {alias.degree_level ?? "Jenjang belum pasti"} / {alias.major_family}
+                      </td>
+                      <td className="px-3 py-3">{educationMatchLabel(alias.match_kind)}</td>
+                      <td className="px-3 py-3">
+                        <span className={educationReviewClass(alias.review_status)}>
+                          {educationReviewLabel(alias.review_status)}
+                        </span>
+                      </td>
+                      <td className="max-w-sm px-3 py-3 leading-5 text-[#65768a]">
+                        {alias.notes ?? "-"}
+                      </td>
+                      <td className="px-3 py-3">
+                        <button
+                          type="button"
+                          className="font-semibold text-[#0d6cbd] hover:underline"
+                          onClick={() => setAliasDraft(aliasToInput(alias))}
+                        >
+                          Edit
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="p-10 text-center text-sm text-[#718196]">Belum ada alias pendidikan.</p>
+          )}
+        </section>
+      )}
     </div>
   );
 }
@@ -2124,6 +2339,54 @@ function PublishedViewButton({
       {children}
     </button>
   );
+}
+
+function aliasToInput(alias: EducationAlias): EducationAliasInput {
+  return {
+    normalized_label: alias.normalized_label,
+    canonical_label: alias.canonical_label,
+    degree_level: alias.degree_level,
+    major_family: alias.major_family,
+    match_kind: alias.match_kind,
+    review_status: alias.review_status,
+    notes: alias.notes,
+  };
+}
+
+function educationMatchLabel(value: EducationAlias["match_kind"]): string {
+  return { exact: "Persis", equivalent: "Ekuivalen", family_only: "Rumpun saja" }[value];
+}
+
+function educationReviewLabel(value: EducationAlias["review_status"]): string {
+  return { pending: "Menunggu", approved: "Disetujui", rejected: "Ditolak" }[value];
+}
+
+function educationReviewClass(value: EducationAlias["review_status"]): string {
+  const color =
+    value === "approved"
+      ? "bg-emerald-50 text-emerald-700"
+      : value === "rejected"
+        ? "bg-red-50 text-red-700"
+        : "bg-amber-50 text-amber-700";
+  return `inline-flex rounded px-2 py-1 text-[10px] font-semibold ${color}`;
+}
+
+function analysisGoalLabel(value: "opportunity" | "related" | "target" | undefined): string {
+  return {
+    opportunity: "Peluang terbesar",
+    related: "Bidang sejenis",
+    target: "Analisis target",
+  }[value ?? "opportunity"];
+}
+
+function analysisPreferencesLabel(values: string[] | undefined): string | null {
+  if (!values?.length) return null;
+  const labels: Record<string, string> = {
+    low_competition: "persaingan rendah",
+    large_quota: "kuota besar",
+    strong_data: "data kuat",
+  };
+  return values.map((value) => labels[value] ?? value).join(" + ");
 }
 
 function PublishedMetric({ label, value }: { label: string; value: number }) {
@@ -2207,13 +2470,16 @@ function RationalizationWorkspaceLegacy({ adminPassword }: { adminPassword: stri
                     <td className="px-3 py-3">{session.leads?.nama_panggilan ?? "-"}</td>
                     <td className="max-w-72 px-3 py-3">
                       <span className="block font-medium">
-                        {session.leads?.recommendation_mode === "all"
-                          ? "Semua sesuai pendidikan"
-                          : "Jabatan sejenis"}
+                        {analysisGoalLabel(session.leads?.analysis_goal)}
                       </span>
+                      {analysisPreferencesLabel(session.leads?.preference_flags) ? (
+                        <span className="mt-0.5 block text-[11px] text-[#718196]">
+                          Prioritas: {analysisPreferencesLabel(session.leads?.preference_flags)}
+                        </span>
+                      ) : null}
                       {session.leads?.target_formasi ? (
                         <span className="mt-0.5 block text-[11px] text-[#718196]">
-                          Prioritas: {session.leads.target_formasi}
+                          Target: {session.leads.target_formasi}
                           {session.leads.target_instansi
                             ? ` - ${session.leads.target_instansi}`
                             : ""}
@@ -2669,13 +2935,16 @@ function RationalizationWorkspace({ adminPassword }: { adminPassword: string }) 
                     <td className="px-3 py-3">{session.leads?.nama_panggilan ?? "-"}</td>
                     <td className="max-w-72 px-3 py-3">
                       <span className="block font-medium">
-                        {session.leads?.recommendation_mode === "all"
-                          ? "Semua sesuai pendidikan"
-                          : "Jabatan sejenis"}
+                        {analysisGoalLabel(session.leads?.analysis_goal)}
                       </span>
+                      {analysisPreferencesLabel(session.leads?.preference_flags) ? (
+                        <span className="mt-0.5 block text-[11px] text-[#718196]">
+                          Prioritas: {analysisPreferencesLabel(session.leads?.preference_flags)}
+                        </span>
+                      ) : null}
                       {session.leads?.target_formasi ? (
                         <span className="mt-0.5 block text-[11px] text-[#718196]">
-                          Prioritas: {session.leads.target_formasi}
+                          Target: {session.leads.target_formasi}
                           {session.leads.target_instansi
                             ? ` - ${session.leads.target_instansi}`
                             : ""}

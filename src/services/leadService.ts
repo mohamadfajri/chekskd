@@ -1,3 +1,6 @@
+export type AnalysisGoal = "opportunity" | "related" | "target";
+export type PreferenceFlag = "low_competition" | "large_quota" | "strong_data";
+
 export interface LeadFormInput {
   nama_panggilan: string;
   target_tahun: "2026" | "2027" | "Belum tahu";
@@ -5,7 +8,8 @@ export interface LeadFormInput {
   target_instansi?: string;
   target_formasi?: string;
   target_formation_id?: string;
-  recommendation_mode: "related" | "all";
+  analysis_goal: AnalysisGoal;
+  preference_flags: PreferenceFlag[];
   consent_whatsapp: boolean;
   consent_marketing: boolean;
 }
@@ -17,6 +21,8 @@ export interface RationalizationTargetOption {
   location: string | null;
   formation_type: string;
   education_requirement: string | null;
+  matched_education?: string | null;
+  education_match?: "exact" | "equivalent";
   quota: number;
   attended: number;
   competition_ratio: number | null;
