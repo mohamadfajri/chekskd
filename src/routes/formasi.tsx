@@ -7,7 +7,7 @@ export const Route = createFileRoute("/formasi")({
 
 function FormationLayout() {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="public-page min-h-screen bg-background">
       <SiteHeader />
       <Outlet />
       <SiteFooter />

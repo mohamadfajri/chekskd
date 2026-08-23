@@ -125,30 +125,27 @@ export function FormationExplorer({
   const pagination = explorer.data?.pagination;
 
   return (
-    <div>
-      <section className="border-b border-border bg-muted">
-        <div className="mx-auto max-w-[1240px] px-4 py-9 sm:px-6 sm:py-11">
-          <p className="font-mono text-[11px] font-semibold uppercase text-primary">
-            Data formasi historis
-          </p>
+    <div className="public-workspace">
+      <section className="formation-workspace-heading">
+        <div>
+          <p className="public-kicker font-mono">Data formasi historis</p>
           <div className="mt-2 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
-              <h1 className="text-3xl font-extrabold text-[#071b36] sm:text-4xl">
-                Jelajahi persaingan formasi
-              </h1>
+              <h1>Jelajahi formasi</h1>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">
                 Bandingkan kuota, peserta hadir, dan batas nilai dari data SKD yang sudah
                 diverifikasi.
               </p>
             </div>
-            <p className="font-mono text-xs font-semibold text-[#476078]">
-              DATA {explorer.data?.available_filters.years.join(", ") || "HISTORIS"}
+            <p className="public-meta-badge font-mono">
+              <i />
+              {explorer.data?.available_filters.years.join(", ") || "DATA HISTORIS"}
             </p>
           </div>
         </div>
       </section>
 
-      <div className="mx-auto max-w-[1240px] px-4 py-6 sm:px-6 sm:py-8">
+      <div className="formation-workspace-body">
         <section
           aria-label="Filter formasi"
           className="overflow-hidden rounded-lg border border-border bg-white"

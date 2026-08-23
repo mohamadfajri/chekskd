@@ -55,7 +55,7 @@ export function SkdSearchTool({
   }
 
   return (
-    <div className="w-full">
+    <div className="skd-search-tool w-full">
       {!isSupabaseConfigured && (
         <div className="mb-4 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -68,7 +68,10 @@ export function SkdSearchTool({
         </div>
       )}
 
-      <form onSubmit={onSubmit} className="border-y border-border bg-white py-5 sm:py-6">
+      <form
+        onSubmit={onSubmit}
+        className="skd-search-form border-y border-border bg-white py-5 sm:py-6"
+      >
         <div className="flex flex-col gap-4">
           <div className="flex w-fit rounded-lg border border-border bg-muted p-1" role="tablist">
             <ModeButton active={mode === "name"} onClick={() => changeMode("name")}>
@@ -102,7 +105,7 @@ export function SkdSearchTool({
             <button
               type="submit"
               disabled={!canSearch || mutation.isPending}
-              className="mt-auto inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-primary px-6 text-sm font-bold text-white transition hover:bg-[#255de8] disabled:cursor-not-allowed disabled:opacity-45"
+              className="skd-search-submit mt-auto inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-primary px-6 text-sm font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-45"
             >
               {mutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -316,7 +319,7 @@ function SearchResultRow({
           to="/result/$scoreId"
           params={{ scoreId: result.id }}
           search={{ targetFormationId }}
-          className="inline-flex h-10 shrink-0 items-center justify-center rounded-lg bg-[#071b36] px-4 text-xs font-bold text-white transition hover:bg-[#11365f]"
+          className="search-result-select inline-flex h-10 shrink-0 items-center justify-center rounded-lg bg-primary px-4 text-xs font-bold text-white transition"
         >
           Ini data saya
         </Link>

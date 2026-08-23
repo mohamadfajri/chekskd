@@ -299,12 +299,12 @@ function ResultPage() {
           onSubmit={onSubmit}
           className="overflow-hidden rounded-lg border border-border bg-white shadow-lg shadow-[#071b36]/5 lg:sticky lg:top-20"
         >
-          <div className="border-b border-border bg-[#071b36] px-5 py-5 text-white">
-            <p className="font-mono text-[9px] font-semibold uppercase text-[#7f9bb8]">
+          <div className="border-b border-border bg-primary px-5 py-5 text-white">
+            <p className="font-mono text-[9px] font-semibold uppercase text-white/70">
               Siapkan rasionalisasi
             </p>
             <h2 className="mt-1 text-lg font-bold">Pilih tujuan analisis</h2>
-            <p className="mt-1 text-xs leading-5 text-[#a9b9cb]">
+            <p className="mt-1 text-xs leading-5 text-white/75">
               Hasil lengkap dikirim sebagai satu gambar melalui WhatsApp.
             </p>
           </div>
@@ -488,7 +488,7 @@ function ResultPage() {
             <button
               type="submit"
               disabled={createMutation.isPending}
-              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary px-5 text-sm font-bold text-white transition hover:bg-[#255de8] disabled:opacity-50"
+              className="public-primary-button h-12 w-full disabled:opacity-50"
             >
               {createMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -775,7 +775,7 @@ function ConsentRow({
 
 function PageShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="public-page min-h-screen bg-background">
       <SiteHeader />
       <main className="mx-auto max-w-[1180px] px-4 py-8 sm:px-6 sm:py-10">{children}</main>
       <SiteFooter />

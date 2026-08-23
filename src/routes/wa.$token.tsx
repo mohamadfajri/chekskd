@@ -31,7 +31,7 @@ function WaRedirectPage() {
   }
 
   return (
-    <div className="min-h-screen bg-muted">
+    <div className="public-page min-h-screen bg-muted">
       <SiteHeader />
       <main className="mx-auto max-w-[760px] px-4 py-10 sm:px-6 sm:py-14">
         <div className="text-center">

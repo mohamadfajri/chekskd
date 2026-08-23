@@ -31,21 +31,30 @@ function SearchPage() {
   });
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="public-page min-h-screen bg-background">
       <SiteHeader />
-      <main>
-        <section className="border-b border-border bg-muted">
-          <div className="mx-auto max-w-[960px] px-4 py-10 sm:px-6 sm:py-14">
-            <p className="font-mono text-[11px] font-semibold uppercase text-primary">
-              Data SKD historis
-            </p>
-            <h1 className="mt-2 text-3xl font-extrabold sm:text-4xl">Temukan data Anda</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Cari nama atau nomor peserta, lalu cocokkan instansi, formasi, dan nilai sebelum
-              melanjutkan ke analisis.
-            </p>
+      <main className="public-workspace">
+        <header className="public-page-heading">
+          <div>
+            <p className="public-kicker font-mono">Workspace pencarian</p>
+            <h1>Temukan posisi nilai SKD</h1>
+            <p>Cari peserta dari data PDF resmi dan lanjutkan ke analisis target.</p>
+          </div>
+          <span className="public-meta-badge font-mono">
+            <i />
+            EDISI SKD 2024
+          </span>
+        </header>
+
+        <section className="public-search-workbench">
+          <div className="public-search-main">
+            <p className="font-mono">Mulai dari data peserta</p>
+            <h2>
+              Cari nama, lalu lihat <span>posisinya dalam persaingan.</span>
+            </h2>
+            <p>Nama dapat dicari sebagian. Gunakan filter jika hasil terlalu banyak.</p>
             {targetFormationId ? (
-              <div className="mt-5 flex max-w-2xl items-start gap-3 border-l-2 border-[#39d4d8] bg-white px-4 py-3">
+              <div className="public-target-notice">
                 {target.isLoading ? (
                   <LoaderCircle className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-primary" />
                 ) : (
@@ -63,10 +72,39 @@ function SearchPage() {
                 </div>
               </div>
             ) : null}
-            <div className="mt-7">
+            <div className="mt-6">
               <SkdSearchTool compact targetFormationId={targetFormationId} />
             </div>
           </div>
+
+          <aside className="public-rank-preview" aria-label="Pratinjau peta data">
+            <div>
+              <p className="font-mono">Peta data aktif</p>
+              <span className="font-mono">LIVE</span>
+            </div>
+            <h2>Living Rankline</h2>
+            <svg viewBox="0 0 320 145" preserveAspectRatio="none" aria-hidden>
+              <path d="M0 128 C35 124,55 111,82 108 S128 91,160 81 S206 55,246 48 S282 24,320 18" />
+              <circle cx="52" cy="116" r="5" />
+              <circle cx="155" cy="83" r="5" />
+              <circle cx="244" cy="49" r="5" />
+              <circle cx="304" cy="25" r="5" />
+            </svg>
+            <div className="public-rank-summary">
+              <div>
+                <strong>SKD</strong>
+                <span className="font-mono">DATA</span>
+              </div>
+              <div>
+                <strong>2024</strong>
+                <span className="font-mono">TAHUN</span>
+              </div>
+              <div>
+                <strong>PDF</strong>
+                <span className="font-mono">SUMBER</span>
+              </div>
+            </div>
+          </aside>
         </section>
       </main>
       <SiteFooter />

@@ -10,7 +10,7 @@ export type AnalisaCPNSLogoProps = {
 
 const palette = {
   ink: "#071B36",
-  royal: "#2F6BFF",
+  royal: "#1058F5",
   signal: "#39D4D8",
   white: "#FFFFFF",
 };
@@ -89,7 +89,7 @@ export function AnalisaCPNSLogo({
           x={variant === "full" ? 60 : 0}
           y={hasEndorsement ? "26.2" : "32.8"}
           fill={wordColor}
-          fontFamily="'Plus Jakarta Sans', 'Segoe UI', sans-serif"
+          fontFamily="'Sora', 'Segoe UI', sans-serif"
           fontSize="25.2"
           fontWeight="760"
           letterSpacing="0"
@@ -103,7 +103,7 @@ export function AnalisaCPNSLogo({
             x={variant === "full" ? 60.5 : 0.5}
             y="42.4"
             fill={endorsementColor}
-            fontFamily="'Plus Jakarta Sans', 'Segoe UI', sans-serif"
+            fontFamily="'Manrope', 'Segoe UI', sans-serif"
             fontSize="8.8"
             fontWeight="600"
           >
@@ -112,12 +112,12 @@ export function AnalisaCPNSLogo({
           <text
             x={variant === "full" ? 73 : 12.5}
             y="42.4"
-            fontFamily="'Plus Jakarta Sans', 'Segoe UI', sans-serif"
+            fontFamily="'Manrope', 'Segoe UI', sans-serif"
             fontSize="8.8"
             fontWeight="750"
           >
-            <tspan fill="#697FE4">Mimin</tspan>
-            <tspan fill="#704F9E"> CPNS</tspan>
+            <tspan fill="#9EDCFF">Mimin</tspan>
+            <tspan fill="#D8DCFF"> CPNS</tspan>
           </text>
         </>
       )}
