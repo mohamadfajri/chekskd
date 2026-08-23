@@ -10,7 +10,9 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SearchRouteImport } from './routes/search'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as FormasiRouteImport } from './routes/formasi'
+import { Route as AkunRouteImport } from './routes/akun'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as FormasiIndexRouteImport } from './routes/formasi.index'
@@ -23,6 +25,13 @@ import { Route as ApiWaJobsRouteImport } from './routes/api/wa-jobs'
 import { Route as ApiResultSessionRouteImport } from './routes/api/result-session'
 import { Route as ApiResultCardRouteImport } from './routes/api/result-card'
 import { Route as ApiRationalizationTargetsRouteImport } from './routes/api/rationalization-targets'
+import { Route as ApiAuthResetRouteImport } from './routes/api/auth/reset'
+import { Route as ApiAuthRegisterRouteImport } from './routes/api/auth/register'
+import { Route as ApiAuthMeRouteImport } from './routes/api/auth/me'
+import { Route as ApiAuthLogoutRouteImport } from './routes/api/auth/logout'
+import { Route as ApiAuthLoginRouteImport } from './routes/api/auth/login'
+import { Route as ApiAuthHermesVerifyRouteImport } from './routes/api/auth/hermes-verify'
+import { Route as ApiAuthChallengeRouteImport } from './routes/api/auth/challenge'
 import { Route as ApiAdminSkdReviewRouteImport } from './routes/api/admin/skd-review'
 import { Route as ApiAdminSkdPdfRouteImport } from './routes/api/admin/skd-pdf'
 import { Route as ApiAdminSkdExplorerRouteImport } from './routes/api/admin/skd-explorer'
@@ -38,9 +47,19 @@ const SearchRoute = SearchRouteImport.update({
   path: '/search',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const FormasiRoute = FormasiRouteImport.update({
   id: '/formasi',
   path: '/formasi',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AkunRoute = AkunRouteImport.update({
+  id: '/akun',
+  path: '/akun',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRoute = AdminRouteImport.update({
@@ -104,6 +123,41 @@ const ApiRationalizationTargetsRoute =
     path: '/api/rationalization-targets',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiAuthResetRoute = ApiAuthResetRouteImport.update({
+  id: '/api/auth/reset',
+  path: '/api/auth/reset',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthRegisterRoute = ApiAuthRegisterRouteImport.update({
+  id: '/api/auth/register',
+  path: '/api/auth/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthMeRoute = ApiAuthMeRouteImport.update({
+  id: '/api/auth/me',
+  path: '/api/auth/me',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthLogoutRoute = ApiAuthLogoutRouteImport.update({
+  id: '/api/auth/logout',
+  path: '/api/auth/logout',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthLoginRoute = ApiAuthLoginRouteImport.update({
+  id: '/api/auth/login',
+  path: '/api/auth/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthHermesVerifyRoute = ApiAuthHermesVerifyRouteImport.update({
+  id: '/api/auth/hermes-verify',
+  path: '/api/auth/hermes-verify',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthChallengeRoute = ApiAuthChallengeRouteImport.update({
+  id: '/api/auth/challenge',
+  path: '/api/auth/challenge',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminSkdReviewRoute = ApiAdminSkdReviewRouteImport.update({
   id: '/api/admin/skd-review',
   path: '/api/admin/skd-review',
@@ -155,7 +209,9 @@ const ApiAdminEducationAliasesRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/akun': typeof AkunRoute
   '/formasi': typeof FormasiRouteWithChildren
+  '/login': typeof LoginRoute
   '/search': typeof SearchRoute
   '/api/rationalization-targets': typeof ApiRationalizationTargetsRoute
   '/api/result-card': typeof ApiResultCardRoute
@@ -176,10 +232,19 @@ export interface FileRoutesByFullPath {
   '/api/admin/skd-explorer': typeof ApiAdminSkdExplorerRoute
   '/api/admin/skd-pdf': typeof ApiAdminSkdPdfRoute
   '/api/admin/skd-review': typeof ApiAdminSkdReviewRoute
+  '/api/auth/challenge': typeof ApiAuthChallengeRoute
+  '/api/auth/hermes-verify': typeof ApiAuthHermesVerifyRoute
+  '/api/auth/login': typeof ApiAuthLoginRoute
+  '/api/auth/logout': typeof ApiAuthLogoutRoute
+  '/api/auth/me': typeof ApiAuthMeRoute
+  '/api/auth/register': typeof ApiAuthRegisterRoute
+  '/api/auth/reset': typeof ApiAuthResetRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/akun': typeof AkunRoute
+  '/login': typeof LoginRoute
   '/search': typeof SearchRoute
   '/api/rationalization-targets': typeof ApiRationalizationTargetsRoute
   '/api/result-card': typeof ApiResultCardRoute
@@ -200,12 +265,21 @@ export interface FileRoutesByTo {
   '/api/admin/skd-explorer': typeof ApiAdminSkdExplorerRoute
   '/api/admin/skd-pdf': typeof ApiAdminSkdPdfRoute
   '/api/admin/skd-review': typeof ApiAdminSkdReviewRoute
+  '/api/auth/challenge': typeof ApiAuthChallengeRoute
+  '/api/auth/hermes-verify': typeof ApiAuthHermesVerifyRoute
+  '/api/auth/login': typeof ApiAuthLoginRoute
+  '/api/auth/logout': typeof ApiAuthLogoutRoute
+  '/api/auth/me': typeof ApiAuthMeRoute
+  '/api/auth/register': typeof ApiAuthRegisterRoute
+  '/api/auth/reset': typeof ApiAuthResetRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/akun': typeof AkunRoute
   '/formasi': typeof FormasiRouteWithChildren
+  '/login': typeof LoginRoute
   '/search': typeof SearchRoute
   '/api/rationalization-targets': typeof ApiRationalizationTargetsRoute
   '/api/result-card': typeof ApiResultCardRoute
@@ -226,13 +300,22 @@ export interface FileRoutesById {
   '/api/admin/skd-explorer': typeof ApiAdminSkdExplorerRoute
   '/api/admin/skd-pdf': typeof ApiAdminSkdPdfRoute
   '/api/admin/skd-review': typeof ApiAdminSkdReviewRoute
+  '/api/auth/challenge': typeof ApiAuthChallengeRoute
+  '/api/auth/hermes-verify': typeof ApiAuthHermesVerifyRoute
+  '/api/auth/login': typeof ApiAuthLoginRoute
+  '/api/auth/logout': typeof ApiAuthLogoutRoute
+  '/api/auth/me': typeof ApiAuthMeRoute
+  '/api/auth/register': typeof ApiAuthRegisterRoute
+  '/api/auth/reset': typeof ApiAuthResetRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/admin'
+    | '/akun'
     | '/formasi'
+    | '/login'
     | '/search'
     | '/api/rationalization-targets'
     | '/api/result-card'
@@ -253,10 +336,19 @@ export interface FileRouteTypes {
     | '/api/admin/skd-explorer'
     | '/api/admin/skd-pdf'
     | '/api/admin/skd-review'
+    | '/api/auth/challenge'
+    | '/api/auth/hermes-verify'
+    | '/api/auth/login'
+    | '/api/auth/logout'
+    | '/api/auth/me'
+    | '/api/auth/register'
+    | '/api/auth/reset'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/admin'
+    | '/akun'
+    | '/login'
     | '/search'
     | '/api/rationalization-targets'
     | '/api/result-card'
@@ -277,11 +369,20 @@ export interface FileRouteTypes {
     | '/api/admin/skd-explorer'
     | '/api/admin/skd-pdf'
     | '/api/admin/skd-review'
+    | '/api/auth/challenge'
+    | '/api/auth/hermes-verify'
+    | '/api/auth/login'
+    | '/api/auth/logout'
+    | '/api/auth/me'
+    | '/api/auth/register'
+    | '/api/auth/reset'
   id:
     | '__root__'
     | '/'
     | '/admin'
+    | '/akun'
     | '/formasi'
+    | '/login'
     | '/search'
     | '/api/rationalization-targets'
     | '/api/result-card'
@@ -302,12 +403,21 @@ export interface FileRouteTypes {
     | '/api/admin/skd-explorer'
     | '/api/admin/skd-pdf'
     | '/api/admin/skd-review'
+    | '/api/auth/challenge'
+    | '/api/auth/hermes-verify'
+    | '/api/auth/login'
+    | '/api/auth/logout'
+    | '/api/auth/me'
+    | '/api/auth/register'
+    | '/api/auth/reset'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
+  AkunRoute: typeof AkunRoute
   FormasiRoute: typeof FormasiRouteWithChildren
+  LoginRoute: typeof LoginRoute
   SearchRoute: typeof SearchRoute
   ApiRationalizationTargetsRoute: typeof ApiRationalizationTargetsRoute
   ApiResultCardRoute: typeof ApiResultCardRoute
@@ -325,6 +435,13 @@ export interface RootRouteChildren {
   ApiAdminSkdExplorerRoute: typeof ApiAdminSkdExplorerRoute
   ApiAdminSkdPdfRoute: typeof ApiAdminSkdPdfRoute
   ApiAdminSkdReviewRoute: typeof ApiAdminSkdReviewRoute
+  ApiAuthChallengeRoute: typeof ApiAuthChallengeRoute
+  ApiAuthHermesVerifyRoute: typeof ApiAuthHermesVerifyRoute
+  ApiAuthLoginRoute: typeof ApiAuthLoginRoute
+  ApiAuthLogoutRoute: typeof ApiAuthLogoutRoute
+  ApiAuthMeRoute: typeof ApiAuthMeRoute
+  ApiAuthRegisterRoute: typeof ApiAuthRegisterRoute
+  ApiAuthResetRoute: typeof ApiAuthResetRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -336,11 +453,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SearchRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/formasi': {
       id: '/formasi'
       path: '/formasi'
       fullPath: '/formasi'
       preLoaderRoute: typeof FormasiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/akun': {
+      id: '/akun'
+      path: '/akun'
+      fullPath: '/akun'
+      preLoaderRoute: typeof AkunRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -427,6 +558,55 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiRationalizationTargetsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/auth/reset': {
+      id: '/api/auth/reset'
+      path: '/api/auth/reset'
+      fullPath: '/api/auth/reset'
+      preLoaderRoute: typeof ApiAuthResetRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/register': {
+      id: '/api/auth/register'
+      path: '/api/auth/register'
+      fullPath: '/api/auth/register'
+      preLoaderRoute: typeof ApiAuthRegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/me': {
+      id: '/api/auth/me'
+      path: '/api/auth/me'
+      fullPath: '/api/auth/me'
+      preLoaderRoute: typeof ApiAuthMeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/logout': {
+      id: '/api/auth/logout'
+      path: '/api/auth/logout'
+      fullPath: '/api/auth/logout'
+      preLoaderRoute: typeof ApiAuthLogoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/login': {
+      id: '/api/auth/login'
+      path: '/api/auth/login'
+      fullPath: '/api/auth/login'
+      preLoaderRoute: typeof ApiAuthLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/hermes-verify': {
+      id: '/api/auth/hermes-verify'
+      path: '/api/auth/hermes-verify'
+      fullPath: '/api/auth/hermes-verify'
+      preLoaderRoute: typeof ApiAuthHermesVerifyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/challenge': {
+      id: '/api/auth/challenge'
+      path: '/api/auth/challenge'
+      fullPath: '/api/auth/challenge'
+      preLoaderRoute: typeof ApiAuthChallengeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/skd-review': {
       id: '/api/admin/skd-review'
       path: '/api/admin/skd-review'
@@ -511,7 +691,9 @@ const FormasiRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
+  AkunRoute: AkunRoute,
   FormasiRoute: FormasiRouteWithChildren,
+  LoginRoute: LoginRoute,
   SearchRoute: SearchRoute,
   ApiRationalizationTargetsRoute: ApiRationalizationTargetsRoute,
   ApiResultCardRoute: ApiResultCardRoute,
@@ -529,6 +711,13 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminSkdExplorerRoute: ApiAdminSkdExplorerRoute,
   ApiAdminSkdPdfRoute: ApiAdminSkdPdfRoute,
   ApiAdminSkdReviewRoute: ApiAdminSkdReviewRoute,
+  ApiAuthChallengeRoute: ApiAuthChallengeRoute,
+  ApiAuthHermesVerifyRoute: ApiAuthHermesVerifyRoute,
+  ApiAuthLoginRoute: ApiAuthLoginRoute,
+  ApiAuthLogoutRoute: ApiAuthLogoutRoute,
+  ApiAuthMeRoute: ApiAuthMeRoute,
+  ApiAuthRegisterRoute: ApiAuthRegisterRoute,
+  ApiAuthResetRoute: ApiAuthResetRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

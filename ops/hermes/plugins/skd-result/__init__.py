@@ -15,6 +15,11 @@ from urllib.request import Request, urlopen
 
 TOKEN_RE = re.compile(r"^RSKD-[A-HJ-NP-Z2-9]{5,8}$")
 MESSAGE_RE = re.compile(r"^\s*CEK\s+(RSKD-[A-HJ-NP-Z2-9]{5,8})\s*$", re.IGNORECASE)
+AUTH_CODE_RE = re.compile(r"^AUTH-[A-HJ-NP-Z2-9]{8}$")
+VERIFY_MESSAGE_RE = re.compile(
+    r"^\s*VERIFIKASI\s+ANALISACPNS\s+(AUTH-[A-HJ-NP-Z2-9]{8})\s*$",
+    re.IGNORECASE,
+)
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
 MAX_AI_NOTE_CHARS = 320
 WORKER_ID = "hermes-cpnsguru-v1"
@@ -352,6 +357,34 @@ async def _handle_code(event, gateway, token: str) -> None:
     _ensure_worker(adapter)
 
 
+async def _handle_verification(event, gateway, code: str) -> None:
+    source = getattr(event, "source", None)
+    adapter = gateway.adapters.get(getattr(source, "platform", None))
+    chat_id = str(getattr(source, "chat_id", "") or "")
+    sender = _sender_number(event)
+    message_id = str(getattr(event, "message_id", "") or "")
+    if not adapter or not chat_id:
+        return
+    if not AUTH_CODE_RE.fullmatch(code) or not sender or not message_id:
+        await adapter.send(
+            chat_id,
+            "Pesan verifikasi belum dapat dibaca. Kembali ke website dan buat kode baru.",
+            reply_to=message_id or None,
+        )
+        return
+
+    payload = await asyncio.to_thread(
+        _api_request,
+        "/api/auth/hermes-verify",
+        {"code": code, "sender": sender, "message_id": message_id},
+    )
+    await adapter.send(
+        chat_id,
+        str(payload.get("message") or "Verifikasi akun belum dapat diproses."),
+        reply_to=message_id,
+    )
+
+
 def _pre_gateway_dispatch(*, event, gateway, **kwargs):
     del kwargs
     source = getattr(event, "source", None)
@@ -359,11 +392,22 @@ def _pre_gateway_dispatch(*, event, gateway, **kwargs):
     if platform != "whatsapp":
         return None
 
-    match = MESSAGE_RE.fullmatch(str(getattr(event, "text", "") or ""))
-    if not match:
+    message = str(getattr(event, "text", "") or "")
+    verification_match = VERIFY_MESSAGE_RE.fullmatch(message)
+    result_match = MESSAGE_RE.fullmatch(message)
+    if not verification_match and not result_match:
         return None
 
-    task = asyncio.create_task(_handle_code(event, gateway, match.group(1).upper()))
+    if verification_match:
+        task = asyncio.create_task(
+            _handle_verification(event, gateway, verification_match.group(1).upper())
+        )
+        reason = "account_verification_direct_handler"
+    else:
+        task = asyncio.create_task(
+            _handle_code(event, gateway, result_match.group(1).upper())
+        )
+        reason = "skd_result_direct_handler"
     task.add_done_callback(
         lambda finished: logger.error(
             "SKD direct handler failed", exc_info=finished.exception()
@@ -371,7 +415,7 @@ def _pre_gateway_dispatch(*, event, gateway, **kwargs):
         if not finished.cancelled() and finished.exception()
         else None
     )
-    return {"action": "skip", "reason": "skd_result_direct_handler"}
+    return {"action": "skip", "reason": reason}
 
 
 def register(ctx):

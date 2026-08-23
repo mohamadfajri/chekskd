@@ -1,14 +1,18 @@
 import { useEffect, useState, type ComponentType } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import {
   ArrowUpRight,
   BookOpen,
   ChartNoAxesCombined,
   Home,
   ListFilter,
+  LogIn,
   Search,
+  UserRound,
 } from "lucide-react";
 import { AnalisaCPNSLogo } from "@/components/brand/AnalisaCPNSLogo";
+import { getCurrentAccount } from "@/services/authService";
 
 type NavItem = {
   label: string;
@@ -64,6 +68,12 @@ const navItems: NavItem[] = [
 export function SiteHeader() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const [compact, setCompact] = useState(false);
+  const account = useQuery({
+    queryKey: ["current-account"],
+    queryFn: getCurrentAccount,
+    staleTime: 60_000,
+    retry: false,
+  });
 
   useEffect(() => {
     const update = () => setCompact(window.scrollY > 90);
@@ -107,10 +117,16 @@ export function SiteHeader() {
           </nav>
 
           <div className="public-nav-tail">
-            <span className="public-data-state font-mono">
-              <i />
-              DATA 2024
-            </span>
+            <Link
+              to={account.data ? "/akun" : "/login"}
+              search={account.data ? undefined : { next: "/akun" }}
+              className={`public-account-button ${pathname === "/akun" || pathname === "/login" ? "is-active" : ""}`}
+              aria-label={account.data ? "Buka akun" : "Masuk atau daftar"}
+              title={account.data ? "Akun" : "Masuk"}
+            >
+              {account.data ? <UserRound className="h-4 w-4" /> : <LogIn className="h-4 w-4" />}
+              <span>{account.data ? "Akun" : "Masuk"}</span>
+            </Link>
             <Link to="/search" className="public-primary-button public-nav-cta">
               <span>Cari peserta</span>
               <ArrowUpRight className="h-4 w-4" />

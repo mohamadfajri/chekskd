@@ -34,6 +34,7 @@ FILE SKD 2024/
 tmp/
 output/
 ops/hermes/data/
+supabase/.temp/
 
 # Wrangler / Cloudflare
 .wrangler/

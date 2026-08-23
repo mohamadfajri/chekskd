@@ -42,6 +42,12 @@ short coaching note is appended to the same image caption. If the provider is
 unavailable or its output fails the guard, Hermes sends the deterministic
 caption unchanged. `HERMES_API_SECRET` must match the server-only Vercel value.
 
+Account messages matching `VERIFIKASI ANALISACPNS AUTH-XXXXXXXX` use the same
+plugin and WhatsApp number. The plugin sends the sender number and one-time code
+to the authenticated application endpoint, then replies with the deterministic
+verification result. This path never invokes the AI provider. Passwords stay in
+the website and are never included in WhatsApp messages.
+
 Other conversations can still use the named `custom:sumopod`
 OpenAI-compatible endpoint with the `deepseek-v4-flash` model. Store its
 secret only in `data/.env`:
