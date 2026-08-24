@@ -51,8 +51,11 @@ export async function createLeadAndSession(
     body: JSON.stringify({ score_id: input.score_id, lead: input.lead }),
   });
   const body = (await response.json().catch(() => null)) as
-    (CreateSessionResult & { message?: string }) | null;
+    (CreateSessionResult & { message?: string; code?: string }) | null;
   if (!response.ok || !body) {
+    if (response.status === 401 || body?.code === "AUTH_REQUIRED") {
+      throw new Error("AUTH_REQUIRED");
+    }
     throw new Error(body?.message ?? `Gagal membuat kode hasil (${response.status}).`);
   }
   return body;
@@ -67,8 +70,12 @@ export async function searchRationalizationTargets(
   const body = (await response.json().catch(() => null)) as {
     items?: RationalizationTargetOption[];
     message?: string;
+    code?: string;
   } | null;
   if (!response.ok || !body) {
+    if (response.status === 401 || body?.code === "AUTH_REQUIRED") {
+      throw new Error("AUTH_REQUIRED");
+    }
     throw new Error(body?.message ?? `Gagal mencari target (${response.status}).`);
   }
   return body.items ?? [];

@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { getAuthenticatedUser } from "@/lib/auth/server";
 import { getServerSupabase, jsonResponse } from "@/lib/supabase/server";
 
 function validUuid(value: string | null): string | null {
@@ -12,17 +13,24 @@ export const Route = createFileRoute("/api/rationalization-targets")({
   server: {
     handlers: {
       GET: async ({ request }: { request: Request }) => {
+        const { client: sb, error: configError } = getServerSupabase();
+        if (!sb) {
+          return jsonResponse({ message: `Supabase server belum siap: ${configError}` }, 503);
+        }
+        const auth = await getAuthenticatedUser(request, sb);
+        if (!auth) {
+          return jsonResponse(
+            { code: "AUTH_REQUIRED", message: "Masuk untuk mencari target rasionalisasi." },
+            401,
+          );
+        }
+
         const url = new URL(request.url);
         const scoreId = validUuid(url.searchParams.get("score_id"));
         const query = (url.searchParams.get("q") ?? "").trim().slice(0, 100);
 
         if (!scoreId || query.length < 2) {
           return jsonResponse({ items: [] });
-        }
-
-        const { client: sb, error: configError } = getServerSupabase();
-        if (!sb) {
-          return jsonResponse({ message: `Supabase server belum siap: ${configError}` }, 503);
         }
 
         const { data, error } = await sb.rpc("search_skd_target_formations", {

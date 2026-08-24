@@ -11,8 +11,13 @@ import {
   Users,
   X,
 } from "lucide-react";
+import { LoginGate } from "@/components/public/LoginGate";
 import { serializeFormationIds } from "@/lib/formationSelection";
-import { getPublicFormationDetail, type PublicFormationDetail } from "@/services/formationService";
+import {
+  getPublicFormationDetail,
+  isFormationAuthRequired,
+  type PublicFormationDetail,
+} from "@/services/formationService";
 
 export function FormationComparison({ formationIds }: { formationIds: string[] }) {
   const queries = useQueries({
@@ -28,6 +33,18 @@ export function FormationComparison({ formationIds }: { formationIds: string[] }
 
   if (!formationIds.length) return <EmptyComparison />;
   if (isLoading) return <ComparisonLoading />;
+  if (queries.some((query) => isFormationAuthRequired(query.error))) {
+    const search = serializeFormationIds(formationIds);
+    return (
+      <div className="mx-auto max-w-[900px] px-4 py-16 sm:px-6 sm:py-24">
+        <LoginGate
+          next={`/formasi/banding${search ? `?ids=${encodeURIComponent(search)}` : ""}`}
+          title="Masuk untuk membandingkan formasi"
+          description="Bandingkan kuota, persaingan, batas historis, dan pendidikan hingga tiga formasi."
+        />
+      </div>
+    );
+  }
   if (isError) return <ComparisonError />;
   if (!details.length) return <EmptyComparison />;
 

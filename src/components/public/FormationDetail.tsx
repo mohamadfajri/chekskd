@@ -17,8 +17,10 @@ import {
   Target,
   Users,
 } from "lucide-react";
+import { LoginGate } from "@/components/public/LoginGate";
 import {
   getPublicFormationDetail,
+  isFormationAuthRequired,
   type PublicFormationDetail as FormationDetailData,
 } from "@/services/formationService";
 
@@ -29,6 +31,17 @@ export function FormationDetail({ formationId }: { formationId: string }) {
   });
 
   if (detail.isLoading) return <DetailLoading />;
+  if (isFormationAuthRequired(detail.error)) {
+    return (
+      <div className="mx-auto max-w-[900px] px-4 py-16 sm:px-6 sm:py-24">
+        <LoginGate
+          next={`/formasi/${formationId}`}
+          title="Masuk untuk membuka detail formasi"
+          description="Lihat sebaran nilai, batas historis, pendidikan yang diterima, dan dokumen sumber setelah login."
+        />
+      </div>
+    );
+  }
   if (detail.isError) return <DetailError message={readError(detail.error)} />;
   if (!detail.data) return <DetailNotFound />;
 

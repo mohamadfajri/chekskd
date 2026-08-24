@@ -529,6 +529,22 @@
 .account-dialog > div:last-child button { align-items: center; border-radius: 7px; display: flex; font-size: 10px; font-weight: 700; gap: 7px; height: 42px; padding: 0 14px; }
 .account-dialog-cancel { background: #fff; border: 1px solid #cbd7e9; color: #3f4d65; }
 .account-dialog-delete { background: #a53f3f; border: 1px solid #a53f3f; color: #fff; }
+.formation-preview-notice { align-items: center; background: #e9f0ff; border-left: 2px solid #1058f5; color: #36506f; display: flex; font-size: 11px; gap: 9px; margin-bottom: 12px; min-height: 44px; padding: 9px 13px; }
+.formation-preview-notice svg { color: #1058f5; flex: 0 0 auto; }
+.formation-workspace-body fieldset:disabled { background: #f8faff; }
+.formation-workspace-body fieldset:disabled input,.formation-workspace-body fieldset:disabled select,.formation-workspace-body fieldset:disabled button { cursor: not-allowed; opacity: .62; }
+.public-login-gate { align-items: center; background: #1058f5; border-radius: 8px; color: #fff; display: grid; gap: 18px; grid-template-columns: 48px minmax(0,1fr) auto; margin: 0 auto; overflow: hidden; padding: 25px; position: relative; }
+.public-login-gate::before { background-image: linear-gradient(rgba(255,255,255,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.06) 1px,transparent 1px); background-size: 28px 28px; content: ""; inset: 0; position: absolute; }
+.public-login-gate > * { position: relative; z-index: 1; }
+.public-login-gate.is-compact { margin-top: 14px; }
+.public-login-gate-icon { align-items: center; background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.18); border-radius: 7px; display: flex; height: 48px; justify-content: center; width: 48px; }
+.public-login-gate-copy > p:first-child { color: #9edcff; font-size: 8px; font-weight: 600; margin: 0 0 4px; }
+.public-login-gate-copy h2 { font-size: 17px; line-height: 1.3; margin: 0; }
+.public-login-gate-copy h2 + p { color: rgba(255,255,255,.75); font-size: 10px; line-height: 1.6; margin: 5px 0 0; max-width: 620px; }
+.public-login-gate-copy > div { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
+.public-login-gate-copy > div span { align-items: center; color: rgba(255,255,255,.78); display: inline-flex; font-size: 8px; gap: 5px; }
+.public-login-gate-action { align-items: center; background: #f3846b; border-radius: 7px; color: #16213d; display: inline-flex; font-size: 10px; font-weight: 700; gap: 12px; height: 44px; justify-content: center; padding: 0 15px; white-space: nowrap; }
+.public-login-gate-action:hover { background: #ff9a83; }
 
 @media (max-width: 980px) {
   .public-nav { grid-template-columns: 160px minmax(0,1fr) 150px; }
@@ -629,4 +645,9 @@
   .account-password-form { grid-template-columns: 1fr; }
   .account-password-form .account-save { grid-column: auto; }
   .account-danger-row { padding-inline: 2px; }
+  .formation-preview-notice { align-items: flex-start; font-size: 10px; line-height: 1.55; }
+  .public-login-gate,.public-login-gate.is-compact { display: block; padding: 22px; }
+  .public-login-gate-icon { margin-bottom: 17px; }
+  .public-login-gate-copy h2 { font-size: 18px; }
+  .public-login-gate-action { margin-top: 20px; width: 100%; }
 }

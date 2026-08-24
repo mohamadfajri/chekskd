@@ -1,5 +1,3 @@
-import { requireSupabase } from "@/lib/supabase/client";
-
 export type FormationCompetitionLevel = "quiet" | "low" | "medium" | "high";
 export type FormationDataConfidence = "high" | "medium" | "limited";
 export type FormationSort =
@@ -46,7 +44,16 @@ export interface FormationFilterOption {
   count: number;
 }
 
+export interface FormationFilterOptions {
+  institutions: FormationFilterOption[];
+  formation_types: FormationFilterOption[];
+  education_options: FormationFilterOption[];
+  education_total: number;
+  years: number[];
+}
+
 export interface FormationExplorerResponse {
+  access: "preview" | "full";
   formations: PublicFormation[];
   pagination: {
     page: number;
@@ -59,6 +66,29 @@ export interface FormationExplorerResponse {
     formation_types: FormationFilterOption[];
     years: number[];
   };
+}
+
+export class FormationAuthRequiredError extends Error {
+  constructor(message = "Masuk untuk membuka data formasi lengkap.") {
+    super(message);
+    this.name = "FormationAuthRequiredError";
+  }
+}
+
+export function isFormationAuthRequired(error: unknown): boolean {
+  return error instanceof FormationAuthRequiredError;
+}
+
+async function readResponse<T>(response: Response): Promise<T> {
+  const body = (await response.json().catch(() => null)) as
+    (T & { message?: string; code?: string }) | null;
+  if (response.status === 401 || body?.code === "AUTH_REQUIRED") {
+    throw new FormationAuthRequiredError(body?.message);
+  }
+  if (!response.ok || !body) {
+    throw new Error(body?.message ?? `Data formasi belum dapat dimuat (${response.status}).`);
+  }
+  return body;
 }
 
 export interface FormationScoreBucket {
@@ -115,22 +145,36 @@ export interface PublicFormationDetail {
 export async function searchPublicFormations(
   params: FormationExplorerParams,
 ): Promise<FormationExplorerResponse> {
-  const sb = requireSupabase();
-  const { data, error } = await sb.rpc("search_public_skd_formations", {
-    p_query: params.query?.trim() || null,
-    p_instansi: params.institution?.trim() || null,
-    p_pendidikan: params.education?.trim() || null,
-    p_jenis_formasi: params.formationType?.trim() || null,
-    p_competition_level: params.competitionLevel || null,
-    p_sort: params.sort ?? "competition_desc",
-    p_page: params.page ?? 1,
-    p_page_size: params.pageSize ?? 24,
+  const query = new URLSearchParams({
+    sort: params.sort ?? "competition_desc",
+    page: String(params.page ?? 1),
+    page_size: String(params.pageSize ?? 24),
   });
-  if (error) throw error;
+  if (params.query?.trim()) query.set("query", params.query.trim());
+  if (params.institution?.trim()) query.set("institution", params.institution.trim());
+  if (params.education?.trim()) query.set("education", params.education.trim());
+  if (params.formationType?.trim()) query.set("formation_type", params.formationType.trim());
+  if (params.competitionLevel) query.set("competition_level", params.competitionLevel);
 
-  const response = data as FormationExplorerResponse | null;
+  const response = await readResponse<FormationExplorerResponse>(
+    await fetch(`/api/formations?${query.toString()}`),
+  );
   if (!response || !Array.isArray(response.formations)) {
     throw new Error("Respons data formasi tidak valid.");
+  }
+  return response;
+}
+
+export async function getFormationFilterOptions(): Promise<FormationFilterOptions> {
+  const response = await readResponse<FormationFilterOptions>(
+    await fetch("/api/formation-filters"),
+  );
+  if (
+    !Array.isArray(response.institutions) ||
+    !Array.isArray(response.formation_types) ||
+    !Array.isArray(response.education_options)
+  ) {
+    throw new Error("Respons pilihan filter tidak valid.");
   }
   return response;
 }
@@ -138,10 +182,8 @@ export async function searchPublicFormations(
 export async function getPublicFormationDetail(
   formationId: string,
 ): Promise<PublicFormationDetail | null> {
-  const sb = requireSupabase();
-  const { data, error } = await sb.rpc("get_public_skd_formation_detail", {
-    p_formation_id: formationId,
-  });
-  if (error) throw error;
-  return (data as PublicFormationDetail | null) ?? null;
+  const response = await readResponse<{ formation: PublicFormationDetail | null }>(
+    await fetch(`/api/formations/${encodeURIComponent(formationId)}`),
+  );
+  return response.formation;
 }

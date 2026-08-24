@@ -25,6 +25,9 @@ import { Route as ApiWaJobsRouteImport } from './routes/api/wa-jobs'
 import { Route as ApiResultSessionRouteImport } from './routes/api/result-session'
 import { Route as ApiResultCardRouteImport } from './routes/api/result-card'
 import { Route as ApiRationalizationTargetsRouteImport } from './routes/api/rationalization-targets'
+import { Route as ApiFormationsRouteImport } from './routes/api/formations'
+import { Route as ApiFormationFiltersRouteImport } from './routes/api/formation-filters'
+import { Route as ApiFormationsFormationIdRouteImport } from './routes/api/formations.$formationId'
 import { Route as ApiAuthResetRouteImport } from './routes/api/auth/reset'
 import { Route as ApiAuthRegisterRouteImport } from './routes/api/auth/register'
 import { Route as ApiAuthMeRouteImport } from './routes/api/auth/me'
@@ -123,6 +126,22 @@ const ApiRationalizationTargetsRoute =
     path: '/api/rationalization-targets',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiFormationsRoute = ApiFormationsRouteImport.update({
+  id: '/api/formations',
+  path: '/api/formations',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiFormationFiltersRoute = ApiFormationFiltersRouteImport.update({
+  id: '/api/formation-filters',
+  path: '/api/formation-filters',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiFormationsFormationIdRoute =
+  ApiFormationsFormationIdRouteImport.update({
+    id: '/$formationId',
+    path: '/$formationId',
+    getParentRoute: () => ApiFormationsRoute,
+  } as any)
 const ApiAuthResetRoute = ApiAuthResetRouteImport.update({
   id: '/api/auth/reset',
   path: '/api/auth/reset',
@@ -213,6 +232,8 @@ export interface FileRoutesByFullPath {
   '/formasi': typeof FormasiRouteWithChildren
   '/login': typeof LoginRoute
   '/search': typeof SearchRoute
+  '/api/formation-filters': typeof ApiFormationFiltersRoute
+  '/api/formations': typeof ApiFormationsRouteWithChildren
   '/api/rationalization-targets': typeof ApiRationalizationTargetsRoute
   '/api/result-card': typeof ApiResultCardRoute
   '/api/result-session': typeof ApiResultSessionRoute
@@ -239,6 +260,7 @@ export interface FileRoutesByFullPath {
   '/api/auth/me': typeof ApiAuthMeRoute
   '/api/auth/register': typeof ApiAuthRegisterRoute
   '/api/auth/reset': typeof ApiAuthResetRoute
+  '/api/formations/$formationId': typeof ApiFormationsFormationIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -246,6 +268,8 @@ export interface FileRoutesByTo {
   '/akun': typeof AkunRoute
   '/login': typeof LoginRoute
   '/search': typeof SearchRoute
+  '/api/formation-filters': typeof ApiFormationFiltersRoute
+  '/api/formations': typeof ApiFormationsRouteWithChildren
   '/api/rationalization-targets': typeof ApiRationalizationTargetsRoute
   '/api/result-card': typeof ApiResultCardRoute
   '/api/result-session': typeof ApiResultSessionRoute
@@ -272,6 +296,7 @@ export interface FileRoutesByTo {
   '/api/auth/me': typeof ApiAuthMeRoute
   '/api/auth/register': typeof ApiAuthRegisterRoute
   '/api/auth/reset': typeof ApiAuthResetRoute
+  '/api/formations/$formationId': typeof ApiFormationsFormationIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -281,6 +306,8 @@ export interface FileRoutesById {
   '/formasi': typeof FormasiRouteWithChildren
   '/login': typeof LoginRoute
   '/search': typeof SearchRoute
+  '/api/formation-filters': typeof ApiFormationFiltersRoute
+  '/api/formations': typeof ApiFormationsRouteWithChildren
   '/api/rationalization-targets': typeof ApiRationalizationTargetsRoute
   '/api/result-card': typeof ApiResultCardRoute
   '/api/result-session': typeof ApiResultSessionRoute
@@ -307,6 +334,7 @@ export interface FileRoutesById {
   '/api/auth/me': typeof ApiAuthMeRoute
   '/api/auth/register': typeof ApiAuthRegisterRoute
   '/api/auth/reset': typeof ApiAuthResetRoute
+  '/api/formations/$formationId': typeof ApiFormationsFormationIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -317,6 +345,8 @@ export interface FileRouteTypes {
     | '/formasi'
     | '/login'
     | '/search'
+    | '/api/formation-filters'
+    | '/api/formations'
     | '/api/rationalization-targets'
     | '/api/result-card'
     | '/api/result-session'
@@ -343,6 +373,7 @@ export interface FileRouteTypes {
     | '/api/auth/me'
     | '/api/auth/register'
     | '/api/auth/reset'
+    | '/api/formations/$formationId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -350,6 +381,8 @@ export interface FileRouteTypes {
     | '/akun'
     | '/login'
     | '/search'
+    | '/api/formation-filters'
+    | '/api/formations'
     | '/api/rationalization-targets'
     | '/api/result-card'
     | '/api/result-session'
@@ -376,6 +409,7 @@ export interface FileRouteTypes {
     | '/api/auth/me'
     | '/api/auth/register'
     | '/api/auth/reset'
+    | '/api/formations/$formationId'
   id:
     | '__root__'
     | '/'
@@ -384,6 +418,8 @@ export interface FileRouteTypes {
     | '/formasi'
     | '/login'
     | '/search'
+    | '/api/formation-filters'
+    | '/api/formations'
     | '/api/rationalization-targets'
     | '/api/result-card'
     | '/api/result-session'
@@ -410,6 +446,7 @@ export interface FileRouteTypes {
     | '/api/auth/me'
     | '/api/auth/register'
     | '/api/auth/reset'
+    | '/api/formations/$formationId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -419,6 +456,8 @@ export interface RootRouteChildren {
   FormasiRoute: typeof FormasiRouteWithChildren
   LoginRoute: typeof LoginRoute
   SearchRoute: typeof SearchRoute
+  ApiFormationFiltersRoute: typeof ApiFormationFiltersRoute
+  ApiFormationsRoute: typeof ApiFormationsRouteWithChildren
   ApiRationalizationTargetsRoute: typeof ApiRationalizationTargetsRoute
   ApiResultCardRoute: typeof ApiResultCardRoute
   ApiResultSessionRoute: typeof ApiResultSessionRoute
@@ -558,6 +597,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiRationalizationTargetsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/formations': {
+      id: '/api/formations'
+      path: '/api/formations'
+      fullPath: '/api/formations'
+      preLoaderRoute: typeof ApiFormationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/formation-filters': {
+      id: '/api/formation-filters'
+      path: '/api/formation-filters'
+      fullPath: '/api/formation-filters'
+      preLoaderRoute: typeof ApiFormationFiltersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/formations/$formationId': {
+      id: '/api/formations/$formationId'
+      path: '/$formationId'
+      fullPath: '/api/formations/$formationId'
+      preLoaderRoute: typeof ApiFormationsFormationIdRouteImport
+      parentRoute: typeof ApiFormationsRoute
+    }
     '/api/auth/reset': {
       id: '/api/auth/reset'
       path: '/api/auth/reset'
@@ -688,6 +748,18 @@ const FormasiRouteChildren: FormasiRouteChildren = {
 const FormasiRouteWithChildren =
   FormasiRoute._addFileChildren(FormasiRouteChildren)
 
+interface ApiFormationsRouteChildren {
+  ApiFormationsFormationIdRoute: typeof ApiFormationsFormationIdRoute
+}
+
+const ApiFormationsRouteChildren: ApiFormationsRouteChildren = {
+  ApiFormationsFormationIdRoute: ApiFormationsFormationIdRoute,
+}
+
+const ApiFormationsRouteWithChildren = ApiFormationsRoute._addFileChildren(
+  ApiFormationsRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
@@ -695,6 +767,8 @@ const rootRouteChildren: RootRouteChildren = {
   FormasiRoute: FormasiRouteWithChildren,
   LoginRoute: LoginRoute,
   SearchRoute: SearchRoute,
+  ApiFormationFiltersRoute: ApiFormationFiltersRoute,
+  ApiFormationsRoute: ApiFormationsRouteWithChildren,
   ApiRationalizationTargetsRoute: ApiRationalizationTargetsRoute,
   ApiResultCardRoute: ApiResultCardRoute,
   ApiResultSessionRoute: ApiResultSessionRoute,

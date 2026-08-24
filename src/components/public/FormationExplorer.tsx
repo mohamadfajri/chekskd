@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
@@ -15,8 +15,10 @@ import {
   ShieldCheck,
   Users,
 } from "lucide-react";
+import { LoginGate } from "@/components/public/LoginGate";
 import { MAX_COMPARISON_FORMATIONS, serializeFormationIds } from "@/lib/formationSelection";
 import {
+  getFormationFilterOptions,
   searchPublicFormations,
   type FormationCompetitionLevel,
   type FormationSort,
@@ -35,17 +37,29 @@ const sortOptions: Array<{ value: FormationSort; label: string }> = [
 
 export function FormationExplorer({
   initialComparisonIds = [],
+  initialFilters = {},
 }: {
   initialComparisonIds?: string[];
+  initialFilters?: {
+    query?: string;
+    institution?: string;
+    education?: string;
+    formationType?: string;
+    competitionLevel?: FormationCompetitionLevel | "";
+    sort?: FormationSort;
+  };
 }) {
-  const [queryInput, setQueryInput] = useState("");
-  const [educationInput, setEducationInput] = useState("");
-  const [query, setQuery] = useState("");
-  const [education, setEducation] = useState("");
-  const [institution, setInstitution] = useState("");
-  const [formationType, setFormationType] = useState("");
-  const [competitionLevel, setCompetitionLevel] = useState<FormationCompetitionLevel | "">("");
-  const [sort, setSort] = useState<FormationSort>("competition_desc");
+  const navigate = useNavigate();
+  const [queryInput, setQueryInput] = useState(initialFilters.query ?? "");
+  const [educationInput, setEducationInput] = useState(initialFilters.education ?? "");
+  const [query, setQuery] = useState(initialFilters.query ?? "");
+  const [education, setEducation] = useState(initialFilters.education ?? "");
+  const [institution, setInstitution] = useState(initialFilters.institution ?? "");
+  const [formationType, setFormationType] = useState(initialFilters.formationType ?? "");
+  const [competitionLevel, setCompetitionLevel] = useState<FormationCompetitionLevel | "">(
+    initialFilters.competitionLevel ?? "",
+  );
+  const [sort, setSort] = useState<FormationSort>(initialFilters.sort ?? "competition_desc");
   const [page, setPage] = useState(1);
   const [comparisonIds, setComparisonIds] = useState(initialComparisonIds.slice(0, 3));
   const initialComparisonKey = serializeFormationIds(initialComparisonIds) ?? "";
@@ -53,15 +67,6 @@ export function FormationExplorer({
   useEffect(() => {
     setComparisonIds(initialComparisonKey ? initialComparisonKey.split(",") : []);
   }, [initialComparisonKey]);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setQuery(queryInput.trim());
-      setEducation(educationInput.trim());
-      setPage(1);
-    }, 350);
-    return () => window.clearTimeout(timer);
-  }, [educationInput, queryInput]);
 
   const explorer = useQuery({
     queryKey: [
@@ -88,10 +93,64 @@ export function FormationExplorer({
     placeholderData: (previous) => previous,
   });
 
+  const filters = useQuery({
+    queryKey: ["formation-filter-options"],
+    queryFn: getFormationFilterOptions,
+    staleTime: 30 * 60 * 1_000,
+  });
+  const hasFullAccess = explorer.data?.access === "full";
+  const isPreview = !hasFullAccess;
+
+  useEffect(() => {
+    if (!hasFullAccess) return;
+    const timer = window.setTimeout(() => {
+      setQuery(queryInput.trim());
+      setEducation(educationInput.trim());
+      setPage(1);
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [educationInput, hasFullAccess, queryInput]);
+
   const activeFilterCount = useMemo(
     () => [query, institution, education, formationType, competitionLevel].filter(Boolean).length,
     [competitionLevel, education, formationType, institution, query],
   );
+  const educationOptionValues = useMemo(
+    () => new Set((filters.data?.education_options ?? []).map((option) => option.value)),
+    [filters.data?.education_options],
+  );
+
+  function requestLogin(
+    overrides: {
+      query?: string;
+      institution?: string;
+      education?: string;
+      formationType?: string;
+      competitionLevel?: FormationCompetitionLevel | "";
+      sort?: FormationSort;
+    } = {},
+  ) {
+    const nextParams = new URLSearchParams();
+    const nextQuery = overrides.query ?? queryInput.trim();
+    const nextInstitution = overrides.institution ?? institution;
+    const nextEducation = overrides.education ?? educationInput.trim();
+    const nextFormationType = overrides.formationType ?? formationType;
+    const nextCompetition = overrides.competitionLevel ?? competitionLevel;
+    const nextSort = overrides.sort ?? sort;
+
+    if (nextQuery) nextParams.set("q", nextQuery);
+    if (nextInstitution) nextParams.set("instansi", nextInstitution);
+    if (nextEducation) nextParams.set("pendidikan", nextEducation);
+    if (nextFormationType) nextParams.set("jenis", nextFormationType);
+    if (nextCompetition) nextParams.set("persaingan", nextCompetition);
+    if (nextSort !== "competition_desc") nextParams.set("urut", nextSort);
+
+    const suffix = nextParams.toString();
+    void navigate({
+      to: "/login",
+      search: { next: suffix ? `/formasi?${suffix}` : "/formasi" },
+    });
+  }
 
   function resetFilters() {
     setQueryInput("");
@@ -117,6 +176,10 @@ export function FormationExplorer({
 
   function toggleQuietFormations() {
     const enable = competitionLevel !== "quiet";
+    if (isPreview) {
+      requestLogin({ competitionLevel: enable ? "quiet" : "", sort: "competition_asc" });
+      return;
+    }
     setCompetitionLevel(enable ? "quiet" : "");
     if (enable) setSort("competition_asc");
     setPage(1);
@@ -139,25 +202,42 @@ export function FormationExplorer({
             </div>
             <p className="public-meta-badge font-mono">
               <i />
-              {explorer.data?.available_filters.years.join(", ") || "DATA HISTORIS"}
+              {filters.data?.years.join(", ") || "DATA HISTORIS"}
             </p>
           </div>
         </div>
       </section>
 
       <div className="formation-workspace-body">
-        <section
+        {isPreview ? (
+          <div className="formation-preview-notice">
+            <ShieldCheck className="h-4 w-4" />
+            <span>
+              Pratinjau 6 formasi. Jelajahi {formatNumber(filters.data?.institutions.length ?? 0)}{" "}
+              instansi dan {formatNumber(filters.data?.education_total ?? 0)} pilihan pendidikan;
+              pilih filter untuk masuk.
+            </span>
+          </div>
+        ) : null}
+
+        <fieldset
           aria-label="Filter formasi"
           className="overflow-hidden rounded-lg border border-border bg-white"
         >
           <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-6">
             <label className="xl:col-span-2">
-              <FilterLabel>Jabatan, lokasi, atau pendidikan</FilterLabel>
+              <FilterLabel>Jabatan atau lokasi</FilterLabel>
               <div className="relative mt-1.5">
                 <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                 <input
                   value={queryInput}
                   onChange={(event) => setQueryInput(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && isPreview) {
+                      event.preventDefault();
+                      requestLogin({ query: queryInput.trim() });
+                    }
+                  }}
                   className="h-10 w-full rounded-md border border-input bg-background pl-9 pr-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
                   placeholder="Contoh: analis hukum"
                 />
@@ -169,13 +249,18 @@ export function FormationExplorer({
               <select
                 value={institution}
                 onChange={(event) => {
-                  setInstitution(event.target.value);
+                  const value = event.target.value;
+                  if (isPreview && value) {
+                    requestLogin({ institution: value });
+                    return;
+                  }
+                  setInstitution(value);
                   setPage(1);
                 }}
                 className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
               >
                 <option value="">Semua instansi</option>
-                {explorer.data?.available_filters.institutions.map((option) => (
+                {filters.data?.institutions.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.value} ({formatNumber(option.count)})
                   </option>
@@ -188,11 +273,31 @@ export function FormationExplorer({
               <div className="relative mt-1.5">
                 <GraduationCap className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                 <input
+                  list="formation-education-options"
                   value={educationInput}
-                  onChange={(event) => setEducationInput(event.target.value)}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setEducationInput(value);
+                    if (isPreview && educationOptionValues.has(value)) {
+                      requestLogin({ education: value });
+                    }
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && isPreview) {
+                      event.preventDefault();
+                      requestLogin({ education: educationInput.trim() });
+                    }
+                  }}
                   className="h-10 w-full rounded-md border border-input bg-background pl-9 pr-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
-                  placeholder="Contoh: S-1 Hukum"
+                  placeholder={`Cari ${formatNumber(filters.data?.education_total ?? 0)} pilihan`}
                 />
+                <datalist id="formation-education-options">
+                  {filters.data?.education_options.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {formatNumber(option.count)} formasi
+                    </option>
+                  ))}
+                </datalist>
               </div>
             </label>
 
@@ -201,13 +306,18 @@ export function FormationExplorer({
               <select
                 value={formationType}
                 onChange={(event) => {
-                  setFormationType(event.target.value);
+                  const value = event.target.value;
+                  if (isPreview && value) {
+                    requestLogin({ formationType: value });
+                    return;
+                  }
+                  setFormationType(value);
                   setPage(1);
                 }}
                 className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
               >
                 <option value="">Semua jenis</option>
-                {explorer.data?.available_filters.formation_types.map((option) => (
+                {filters.data?.formation_types.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.value} ({formatNumber(option.count)})
                   </option>
@@ -220,7 +330,12 @@ export function FormationExplorer({
               <select
                 value={competitionLevel}
                 onChange={(event) => {
-                  setCompetitionLevel(event.target.value as FormationCompetitionLevel | "");
+                  const value = event.target.value as FormationCompetitionLevel | "";
+                  if (isPreview && value) {
+                    requestLogin({ competitionLevel: value });
+                    return;
+                  }
+                  setCompetitionLevel(value);
                   setPage(1);
                 }}
                 className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
@@ -271,7 +386,12 @@ export function FormationExplorer({
                 aria-label="Urutkan formasi"
                 value={sort}
                 onChange={(event) => {
-                  setSort(event.target.value as FormationSort);
+                  const value = event.target.value as FormationSort;
+                  if (isPreview && value !== "competition_desc") {
+                    requestLogin({ sort: value });
+                    return;
+                  }
+                  setSort(value);
                   setPage(1);
                 }}
                 className="h-9 min-w-0 flex-1 rounded-md border border-input bg-white px-3 text-xs font-semibold outline-none focus:border-primary sm:min-w-52"
@@ -294,9 +414,9 @@ export function FormationExplorer({
               </button>
             </div>
           </div>
-        </section>
+        </fieldset>
 
-        {comparisonIds.length > 0 ? (
+        {!isPreview && comparisonIds.length > 0 ? (
           <ComparisonSelectionBar ids={comparisonIds} onClear={() => setComparisonIds([])} />
         ) : null}
 
@@ -325,18 +445,22 @@ export function FormationExplorer({
               formations={explorer.data.formations}
               comparisonIds={comparisonIds}
               onToggleComparison={toggleComparison}
+              locked={isPreview}
             />
             <MobileFormationList
               formations={explorer.data.formations}
               comparisonIds={comparisonIds}
               onToggleComparison={toggleComparison}
+              locked={isPreview}
             />
-            <PaginationBar
-              page={pagination?.page ?? 1}
-              totalPages={pagination?.total_pages ?? 1}
-              total={pagination?.total ?? 0}
-              onPageChange={setPage}
-            />
+            {isPreview ? null : (
+              <PaginationBar
+                page={pagination?.page ?? 1}
+                totalPages={pagination?.total_pages ?? 1}
+                total={pagination?.total ?? 0}
+                onPageChange={setPage}
+              />
+            )}
           </section>
         ) : (
           <div className="mt-5 border-y border-border bg-white px-4 py-14 text-center">
@@ -356,6 +480,15 @@ export function FormationExplorer({
           </div>
         )}
 
+        {isPreview ? (
+          <LoginGate
+            next="/formasi"
+            title={`Buka ${formatNumber(Math.max(0, (pagination?.total ?? 0) - 6))} formasi lainnya`}
+            description="Gunakan filter instansi dan pendidikan, buka detail, lalu bandingkan sampai tiga formasi setelah login."
+            compact
+          />
+        ) : null}
+
         <div className="mt-5 flex gap-3 border-l-2 border-[#39d4d8] bg-[#f4f8ff] px-4 py-3 text-xs leading-5 text-[#476078]">
           <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#16805c]" />
           <p>
@@ -372,10 +505,12 @@ function DesktopFormationTable({
   formations,
   comparisonIds,
   onToggleComparison,
+  locked,
 }: {
   formations: PublicFormation[];
   comparisonIds: string[];
   onToggleComparison: (formationId: string) => void;
+  locked: boolean;
 }) {
   return (
     <div className="hidden overflow-x-auto lg:block">
@@ -436,24 +571,36 @@ function DesktopFormationTable({
               </td>
               <td className="px-4 py-4">
                 <div className="flex justify-end gap-1">
-                  <ComparisonToggle
-                    formation={formation}
-                    selected={comparisonIds.includes(formation.id)}
-                    disabled={
-                      comparisonIds.length >= MAX_COMPARISON_FORMATIONS &&
-                      !comparisonIds.includes(formation.id)
-                    }
-                    onToggle={onToggleComparison}
-                  />
-                  <Link
-                    to="/formasi/$formationId"
-                    params={{ formationId: formation.id }}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-md text-primary transition hover:bg-[#edf3ff]"
-                    aria-label={`Lihat detail ${formation.jabatan}`}
-                    title="Lihat detail"
-                  >
-                    <ArrowRight className="h-4 w-4" />
-                  </Link>
+                  {locked ? (
+                    <Link
+                      to="/login"
+                      search={{ next: `/formasi/${formation.id}` }}
+                      className="inline-flex h-8 items-center justify-center gap-1 rounded-md px-2 text-[10px] font-bold text-primary transition hover:bg-[#edf3ff]"
+                    >
+                      Masuk <ArrowRight className="h-3.5 w-3.5" />
+                    </Link>
+                  ) : (
+                    <>
+                      <ComparisonToggle
+                        formation={formation}
+                        selected={comparisonIds.includes(formation.id)}
+                        disabled={
+                          comparisonIds.length >= MAX_COMPARISON_FORMATIONS &&
+                          !comparisonIds.includes(formation.id)
+                        }
+                        onToggle={onToggleComparison}
+                      />
+                      <Link
+                        to="/formasi/$formationId"
+                        params={{ formationId: formation.id }}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-primary transition hover:bg-[#edf3ff]"
+                        aria-label={`Lihat detail ${formation.jabatan}`}
+                        title="Lihat detail"
+                      >
+                        <ArrowRight className="h-4 w-4" />
+                      </Link>
+                    </>
+                  )}
                 </div>
               </td>
             </tr>
@@ -468,10 +615,12 @@ function MobileFormationList({
   formations,
   comparisonIds,
   onToggleComparison,
+  locked,
 }: {
   formations: PublicFormation[];
   comparisonIds: string[];
   onToggleComparison: (formationId: string) => void;
+  locked: boolean;
 }) {
   return (
     <div className="lg:hidden">
@@ -513,33 +662,43 @@ function MobileFormationList({
           </div>
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
             <CompetitionLabel ratio={formation.competition_ratio} />
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => onToggleComparison(formation.id)}
-                disabled={
-                  comparisonIds.length >= MAX_COMPARISON_FORMATIONS &&
-                  !comparisonIds.includes(formation.id)
-                }
-                className="inline-flex items-center gap-1 text-xs font-bold text-[#476078] disabled:cursor-not-allowed disabled:opacity-35"
-                aria-pressed={comparisonIds.includes(formation.id)}
-              >
-                {comparisonIds.includes(formation.id) ? (
-                  <Check className="h-3.5 w-3.5 text-[#16805c]" />
-                ) : (
-                  <Columns3 className="h-3.5 w-3.5" />
-                )}
-                {comparisonIds.includes(formation.id) ? "Dipilih" : "Bandingkan"}
-              </button>
+            {locked ? (
               <Link
-                to="/formasi/$formationId"
-                params={{ formationId: formation.id }}
+                to="/login"
+                search={{ next: `/formasi/${formation.id}` }}
                 className="inline-flex items-center gap-1 text-xs font-bold text-primary"
               >
-                Detail
-                <ArrowRight className="h-3.5 w-3.5" />
+                Masuk untuk detail <ArrowRight className="h-3.5 w-3.5" />
               </Link>
-            </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => onToggleComparison(formation.id)}
+                  disabled={
+                    comparisonIds.length >= MAX_COMPARISON_FORMATIONS &&
+                    !comparisonIds.includes(formation.id)
+                  }
+                  className="inline-flex items-center gap-1 text-xs font-bold text-[#476078] disabled:cursor-not-allowed disabled:opacity-35"
+                  aria-pressed={comparisonIds.includes(formation.id)}
+                >
+                  {comparisonIds.includes(formation.id) ? (
+                    <Check className="h-3.5 w-3.5 text-[#16805c]" />
+                  ) : (
+                    <Columns3 className="h-3.5 w-3.5" />
+                  )}
+                  {comparisonIds.includes(formation.id) ? "Dipilih" : "Bandingkan"}
+                </button>
+                <Link
+                  to="/formasi/$formationId"
+                  params={{ formationId: formation.id }}
+                  className="inline-flex items-center gap-1 text-xs font-bold text-primary"
+                >
+                  Detail
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </div>
+            )}
           </div>
         </article>
       ))}

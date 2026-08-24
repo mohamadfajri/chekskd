@@ -21,6 +21,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { LoginGate } from "@/components/public/LoginGate";
 import { SiteFooter, SiteHeader } from "@/components/SiteHeader";
 import { getZona, lolosPassingGrade, zonaLabel } from "@/lib/analysis";
 import { cleanFormationId } from "@/lib/formationSelection";
@@ -34,6 +35,7 @@ import {
   type RationalizationTargetOption,
 } from "@/services/leadService";
 import { getPublicFormationDetail, type PublicFormationDetail } from "@/services/formationService";
+import { getCurrentAccount } from "@/services/authService";
 import { getSkdScoreById } from "@/services/skdService";
 
 export const Route = createFileRoute("/result/$scoreId")({
@@ -60,10 +62,16 @@ function ResultPage() {
     queryKey: ["skd-score", scoreId],
     queryFn: () => getSkdScoreById(scoreId),
   });
+  const accountQuery = useQuery({
+    queryKey: ["current-account"],
+    queryFn: getCurrentAccount,
+    staleTime: 60_000,
+    retry: false,
+  });
   const preferredTargetQuery = useQuery({
     queryKey: ["public-formation-detail", targetFormationId],
     queryFn: () => getPublicFormationDetail(targetFormationId!),
-    enabled: Boolean(targetFormationId),
+    enabled: Boolean(targetFormationId && accountQuery.data),
     staleTime: 60_000,
   });
   const [form, setForm] = useState<LeadFormInput>({
@@ -86,7 +94,11 @@ function ResultPage() {
   const targetQuery = useQuery({
     queryKey: ["rationalization-targets", scoreId, deferredTargetSearch],
     queryFn: () => searchRationalizationTargets(scoreId, deferredTargetSearch),
-    enabled: form.analysis_goal === "target" && !selectedTarget && deferredTargetSearch.length >= 2,
+    enabled:
+      Boolean(accountQuery.data) &&
+      form.analysis_goal === "target" &&
+      !selectedTarget &&
+      deferredTargetSearch.length >= 2,
     staleTime: 30_000,
   });
   const createMutation = useMutation({
@@ -99,7 +111,13 @@ function ResultPage() {
       toast.success("Kode analisis berhasil dibuat");
       navigate({ to: "/wa/$token", params: { token: result.token } });
     },
-    onError: (error: Error) => toast.error(`Kode belum berhasil dibuat: ${error.message}`),
+    onError: (error: Error) => {
+      if (error.message === "AUTH_REQUIRED") {
+        window.location.assign(`/login?next=${encodeURIComponent(`/result/${scoreId}`)}`);
+        return;
+      }
+      toast.error(`Kode belum berhasil dibuat: ${error.message}`);
+    },
   });
 
   useEffect(() => {
@@ -336,243 +354,262 @@ function ResultPage() {
           </section>
         </div>
 
-        <form
-          onSubmit={onSubmit}
-          className="overflow-hidden rounded-lg border border-border bg-white shadow-lg shadow-[#071b36]/5 lg:sticky lg:top-20"
-        >
-          <div className="border-b border-border bg-primary px-5 py-5 text-white">
-            <p className="font-mono text-[9px] font-semibold uppercase text-white/70">
-              Siapkan rasionalisasi
-            </p>
-            <h2 className="mt-1 text-lg font-bold">Pilih tujuan analisis</h2>
-            <p className="mt-1 text-xs leading-5 text-white/75">
-              Hasil lengkap dikirim sebagai satu gambar melalui WhatsApp.
-            </p>
+        {accountQuery.isLoading ? (
+          <div className="flex min-h-72 items-center justify-center text-sm text-muted-foreground">
+            <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Memeriksa akun
           </div>
+        ) : accountQuery.data ? (
+          <form
+            onSubmit={onSubmit}
+            className="overflow-hidden rounded-lg border border-border bg-white shadow-lg shadow-[#071b36]/5 lg:sticky lg:top-20"
+          >
+            <div className="border-b border-border bg-primary px-5 py-5 text-white">
+              <p className="font-mono text-[9px] font-semibold uppercase text-white/70">
+                Siapkan rasionalisasi
+              </p>
+              <h2 className="mt-1 text-lg font-bold">Pilih tujuan analisis</h2>
+              <p className="mt-1 text-xs leading-5 text-white/75">
+                Hasil lengkap dikirim sebagai satu gambar melalui WhatsApp.
+              </p>
+            </div>
 
-          <div className="space-y-6 p-5">
-            <FormSection icon={UserRound} number="01" title="Tujuan Anda">
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-                <InputField label="Nama panggilan" required>
-                  <input
-                    value={form.nama_panggilan}
-                    onChange={(event) =>
-                      setForm((current) => ({ ...current, nama_panggilan: event.target.value }))
-                    }
-                    className="result-input"
-                    placeholder="Nama untuk hasil"
-                    required
-                  />
-                </InputField>
-                <InputField label="Target seleksi" required>
+            <div className="space-y-6 p-5">
+              <FormSection icon={UserRound} number="01" title="Tujuan Anda">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                  <InputField label="Nama panggilan" required>
+                    <input
+                      value={form.nama_panggilan}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, nama_panggilan: event.target.value }))
+                      }
+                      className="result-input"
+                      placeholder="Nama untuk hasil"
+                      required
+                    />
+                  </InputField>
+                  <InputField label="Target seleksi" required>
+                    <select
+                      value={form.target_tahun}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          target_tahun: event.target.value as LeadFormInput["target_tahun"],
+                        }))
+                      }
+                      className="result-input"
+                    >
+                      <option value="2026">2026</option>
+                      <option value="2027">2027</option>
+                      <option value="Belum tahu">Belum tahu</option>
+                    </select>
+                  </InputField>
+                </div>
+                <InputField label="Rencana saat ini" required>
                   <select
-                    value={form.target_tahun}
+                    value={form.rencana}
                     onChange={(event) =>
                       setForm((current) => ({
                         ...current,
-                        target_tahun: event.target.value as LeadFormInput["target_tahun"],
+                        rencana: event.target.value as LeadFormInput["rencana"],
                       }))
                     }
                     className="result-input"
                   >
-                    <option value="2026">2026</option>
-                    <option value="2027">2027</option>
-                    <option value="Belum tahu">Belum tahu</option>
+                    <option value="Pakai nilai lama">Pakai nilai lama</option>
+                    <option value="Tes ulang">Tes ulang</option>
+                    <option value="Belum yakin">Belum yakin</option>
                   </select>
                 </InputField>
-              </div>
-              <InputField label="Rencana saat ini" required>
-                <select
-                  value={form.rencana}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      rencana: event.target.value as LeadFormInput["rencana"],
-                    }))
-                  }
-                  className="result-input"
-                >
-                  <option value="Pakai nilai lama">Pakai nilai lama</option>
-                  <option value="Tes ulang">Tes ulang</option>
-                  <option value="Belum yakin">Belum yakin</option>
-                </select>
-              </InputField>
-            </FormSection>
+              </FormSection>
 
-            <FormSection icon={BarChart3} number="02" title="Tujuan analisis">
-              <div className="space-y-2" role="radiogroup" aria-label="Tujuan analisis">
-                <GoalButton
-                  icon={Trophy}
-                  active={form.analysis_goal === "opportunity"}
-                  title="Peluang terbesar"
-                  description="Cari posisi historis terbaik dari seluruh formasi yang sesuai."
-                  onClick={() => chooseAnalysisGoal("opportunity")}
-                />
-                <GoalButton
-                  icon={BriefcaseBusiness}
-                  active={form.analysis_goal === "related"}
-                  title="Bidang sejenis"
-                  description="Utamakan jabatan yang masih satu rumpun pekerjaan."
-                  onClick={() => chooseAnalysisGoal("related")}
-                />
-                <GoalButton
-                  icon={Crosshair}
-                  active={form.analysis_goal === "target"}
-                  title="Analisis target saya"
-                  description="Bedah satu instansi atau jabatan yang sudah Anda incar."
-                  onClick={() => chooseAnalysisGoal("target")}
-                />
-              </div>
-            </FormSection>
-
-            {form.analysis_goal === "target" ? (
-              <FormSection icon={Target} number="03" title="Target pilihan">
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <input
-                    value={targetSearch}
-                    onChange={(event) => {
-                      if (selectedTarget) clearTarget();
-                      setTargetSearch(event.target.value);
-                    }}
-                    className="result-input pl-9 pr-9"
-                    placeholder="Cari instansi atau jabatan"
-                    autoComplete="off"
+              <FormSection icon={BarChart3} number="02" title="Tujuan analisis">
+                <div className="space-y-2" role="radiogroup" aria-label="Tujuan analisis">
+                  <GoalButton
+                    icon={Trophy}
+                    active={form.analysis_goal === "opportunity"}
+                    title="Peluang terbesar"
+                    description="Cari posisi historis terbaik dari seluruh formasi yang sesuai."
+                    onClick={() => chooseAnalysisGoal("opportunity")}
                   />
-                  {targetQuery.isFetching ? (
-                    <Loader2 className="absolute right-3 top-3 h-4 w-4 animate-spin text-muted-foreground" />
-                  ) : targetSearch ? (
-                    <button
-                      type="button"
-                      onClick={clearTarget}
-                      title="Hapus target"
-                      aria-label="Hapus target"
-                      className="absolute right-2 top-1.5 grid h-7 w-7 place-items-center rounded-md text-muted-foreground hover:bg-muted"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  ) : null}
+                  <GoalButton
+                    icon={BriefcaseBusiness}
+                    active={form.analysis_goal === "related"}
+                    title="Bidang sejenis"
+                    description="Utamakan jabatan yang masih satu rumpun pekerjaan."
+                    onClick={() => chooseAnalysisGoal("related")}
+                  />
+                  <GoalButton
+                    icon={Crosshair}
+                    active={form.analysis_goal === "target"}
+                    title="Analisis target saya"
+                    description="Bedah satu instansi atau jabatan yang sudah Anda incar."
+                    onClick={() => chooseAnalysisGoal("target")}
+                  />
+                </div>
+              </FormSection>
 
-                  {!selectedTarget && deferredTargetSearch.length >= 2 && (
-                    <div className="absolute z-20 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-border bg-white shadow-xl">
-                      {targetQuery.isError ? (
-                        <p className="p-3 text-xs text-destructive">Target belum dapat dimuat.</p>
-                      ) : targetQuery.data?.length ? (
-                        targetQuery.data.map((target) => (
-                          <button
-                            key={target.id}
-                            type="button"
-                            onClick={() => chooseTarget(target)}
-                            className="block w-full border-b border-border px-3 py-3 text-left last:border-b-0 hover:bg-muted"
-                          >
-                            <span className="block text-xs font-bold">{target.position}</span>
-                            <span className="mt-0.5 block text-[11px] text-muted-foreground">
-                              {target.institution}
-                            </span>
-                            <span className="mt-1 block font-mono text-[9px] text-muted-foreground">
-                              Kuota {target.quota} · hadir {target.attended} · batas{" "}
-                              {target.cutoff_total ?? "-"}
-                            </span>
-                          </button>
-                        ))
-                      ) : !targetQuery.isFetching ? (
-                        <p className="p-3 text-xs text-muted-foreground">
-                          Tidak ada target yang cocok dengan pencarian ini.
+              {form.analysis_goal === "target" ? (
+                <FormSection icon={Target} number="03" title="Target pilihan">
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <input
+                      value={targetSearch}
+                      onChange={(event) => {
+                        if (selectedTarget) clearTarget();
+                        setTargetSearch(event.target.value);
+                      }}
+                      className="result-input pl-9 pr-9"
+                      placeholder="Cari instansi atau jabatan"
+                      autoComplete="off"
+                    />
+                    {targetQuery.isFetching ? (
+                      <Loader2 className="absolute right-3 top-3 h-4 w-4 animate-spin text-muted-foreground" />
+                    ) : targetSearch ? (
+                      <button
+                        type="button"
+                        onClick={clearTarget}
+                        title="Hapus target"
+                        aria-label="Hapus target"
+                        className="absolute right-2 top-1.5 grid h-7 w-7 place-items-center rounded-md text-muted-foreground hover:bg-muted"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    ) : null}
+
+                    {!selectedTarget && deferredTargetSearch.length >= 2 && (
+                      <div className="absolute z-20 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-border bg-white shadow-xl">
+                        {targetQuery.isError ? (
+                          <p className="p-3 text-xs text-destructive">Target belum dapat dimuat.</p>
+                        ) : targetQuery.data?.length ? (
+                          targetQuery.data.map((target) => (
+                            <button
+                              key={target.id}
+                              type="button"
+                              onClick={() => chooseTarget(target)}
+                              className="block w-full border-b border-border px-3 py-3 text-left last:border-b-0 hover:bg-muted"
+                            >
+                              <span className="block text-xs font-bold">{target.position}</span>
+                              <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                                {target.institution}
+                              </span>
+                              <span className="mt-1 block font-mono text-[9px] text-muted-foreground">
+                                Kuota {target.quota} · hadir {target.attended} · batas{" "}
+                                {target.cutoff_total ?? "-"}
+                              </span>
+                            </button>
+                          ))
+                        ) : !targetQuery.isFetching ? (
+                          <p className="p-3 text-xs text-muted-foreground">
+                            Tidak ada target yang cocok dengan pencarian ini.
+                          </p>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
+
+                  {selectedTarget ? (
+                    <TargetPreview target={selectedTarget} />
+                  ) : (
+                    <>
+                      {targetFormationId && preferredTargetQuery.isLoading ? (
+                        <p className="mt-2 flex items-center gap-2 text-[11px] leading-5 text-muted-foreground">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Memeriksa kecocokan
+                          target
                         </p>
                       ) : null}
-                    </div>
+                      {preferredTargetMessage ? (
+                        <div className="mt-3 flex gap-2 border-l-2 border-[#a45e00] bg-[#fff8eb] p-3 text-[11px] leading-5 text-[#7a4b08]">
+                          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                          <p>{preferredTargetMessage}</p>
+                        </div>
+                      ) : null}
+                      {!preferredTargetMessage ? (
+                        <p className="mt-2 text-[11px] leading-5 text-muted-foreground">
+                          Mesin akan membedah target ini dan menambahkan dua alternatif yang lebih
+                          rasional.
+                        </p>
+                      ) : null}
+                    </>
                   )}
-                </div>
-
-                {selectedTarget ? (
-                  <TargetPreview target={selectedTarget} />
-                ) : (
-                  <>
-                    {targetFormationId && preferredTargetQuery.isLoading ? (
-                      <p className="mt-2 flex items-center gap-2 text-[11px] leading-5 text-muted-foreground">
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Memeriksa kecocokan target
-                      </p>
-                    ) : null}
-                    {preferredTargetMessage ? (
-                      <div className="mt-3 flex gap-2 border-l-2 border-[#a45e00] bg-[#fff8eb] p-3 text-[11px] leading-5 text-[#7a4b08]">
-                        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                        <p>{preferredTargetMessage}</p>
-                      </div>
-                    ) : null}
-                    {!preferredTargetMessage ? (
-                      <p className="mt-2 text-[11px] leading-5 text-muted-foreground">
-                        Mesin akan membedah target ini dan menambahkan dua alternatif yang lebih
-                        rasional.
-                      </p>
-                    ) : null}
-                  </>
-                )}
-              </FormSection>
-            ) : (
-              <FormSection icon={SlidersHorizontal} number="03" title="Prioritas tambahan">
-                <div className="flex flex-wrap gap-2" role="group" aria-label="Prioritas tambahan">
-                  <PreferenceChip
-                    icon={Gauge}
-                    selected={form.preference_flags.includes("low_competition")}
-                    label="Persaingan rendah"
-                    onClick={() => togglePreference("low_competition")}
-                  />
-                  <PreferenceChip
-                    icon={Trophy}
-                    selected={form.preference_flags.includes("large_quota")}
-                    label="Kuota lebih besar"
-                    onClick={() => togglePreference("large_quota")}
-                  />
-                  <PreferenceChip
-                    icon={ShieldCheck}
-                    selected={form.preference_flags.includes("strong_data")}
-                    label="Data paling kuat"
-                    onClick={() => togglePreference("strong_data")}
-                  />
-                </div>
-                <p className="text-[10px] leading-5 text-muted-foreground">
-                  Opsional, maksimal dua. Hasil tetap berisi pilihan pengaman, seimbang, dan
-                  ambisius.
-                </p>
-              </FormSection>
-            )}
-
-            <div className="space-y-3 border-t border-border pt-5">
-              <ConsentRow
-                checked={form.consent_whatsapp}
-                onChange={(checked) =>
-                  setForm((current) => ({ ...current, consent_whatsapp: checked }))
-                }
-                required
-              >
-                Kirim kartu hasil analisis melalui WhatsApp.
-              </ConsentRow>
-              <ConsentRow
-                checked={form.consent_marketing}
-                onChange={(checked) =>
-                  setForm((current) => ({ ...current, consent_marketing: checked }))
-                }
-              >
-                Saya bersedia menerima informasi CPNS dan tryout. Pilihan ini tidak wajib.
-              </ConsentRow>
-            </div>
-          </div>
-
-          <div className="border-t border-border bg-muted px-5 py-4">
-            <button
-              type="submit"
-              disabled={createMutation.isPending}
-              className="public-primary-button h-12 w-full disabled:opacity-50"
-            >
-              {createMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                </FormSection>
               ) : (
-                <MessageCircle className="h-4 w-4" />
+                <FormSection icon={SlidersHorizontal} number="03" title="Prioritas tambahan">
+                  <div
+                    className="flex flex-wrap gap-2"
+                    role="group"
+                    aria-label="Prioritas tambahan"
+                  >
+                    <PreferenceChip
+                      icon={Gauge}
+                      selected={form.preference_flags.includes("low_competition")}
+                      label="Persaingan rendah"
+                      onClick={() => togglePreference("low_competition")}
+                    />
+                    <PreferenceChip
+                      icon={Trophy}
+                      selected={form.preference_flags.includes("large_quota")}
+                      label="Kuota lebih besar"
+                      onClick={() => togglePreference("large_quota")}
+                    />
+                    <PreferenceChip
+                      icon={ShieldCheck}
+                      selected={form.preference_flags.includes("strong_data")}
+                      label="Data paling kuat"
+                      onClick={() => togglePreference("strong_data")}
+                    />
+                  </div>
+                  <p className="text-[10px] leading-5 text-muted-foreground">
+                    Opsional, maksimal dua. Hasil tetap berisi pilihan pengaman, seimbang, dan
+                    ambisius.
+                  </p>
+                </FormSection>
               )}
-              Buat kode analisis
-            </button>
+
+              <div className="space-y-3 border-t border-border pt-5">
+                <ConsentRow
+                  checked={form.consent_whatsapp}
+                  onChange={(checked) =>
+                    setForm((current) => ({ ...current, consent_whatsapp: checked }))
+                  }
+                  required
+                >
+                  Kirim kartu hasil analisis melalui WhatsApp.
+                </ConsentRow>
+                <ConsentRow
+                  checked={form.consent_marketing}
+                  onChange={(checked) =>
+                    setForm((current) => ({ ...current, consent_marketing: checked }))
+                  }
+                >
+                  Saya bersedia menerima informasi CPNS dan tryout. Pilihan ini tidak wajib.
+                </ConsentRow>
+              </div>
+            </div>
+
+            <div className="border-t border-border bg-muted px-5 py-4">
+              <button
+                type="submit"
+                disabled={createMutation.isPending}
+                className="public-primary-button h-12 w-full disabled:opacity-50"
+              >
+                {createMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <MessageCircle className="h-4 w-4" />
+                )}
+                Buat kode analisis
+              </button>
+            </div>
+          </form>
+        ) : (
+          <div className="lg:sticky lg:top-20">
+            <LoginGate
+              next={`/result/${scoreId}`}
+              title="Masuk untuk merasionalisasi nilai"
+              description="Nilai peserta tetap dapat diperiksa tanpa akun. Login diperlukan saat mesin membandingkan formasi dan membuat kode RSKD."
+            />
           </div>
-        </form>
+        )}
       </div>
 
       <style>{`

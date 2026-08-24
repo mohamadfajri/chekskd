@@ -5,6 +5,7 @@ import {
   generateToken,
   type AnalysisContext,
 } from "@/lib/analysis";
+import { getAuthenticatedUser } from "@/lib/auth/server";
 import { getServerSupabase, jsonResponse } from "@/lib/supabase/server";
 
 interface LeadInput {
@@ -48,6 +49,21 @@ export const Route = createFileRoute("/api/result-session")({
   server: {
     handlers: {
       POST: async ({ request }: { request: Request }) => {
+        const { client: sb, error: configError } = getServerSupabase();
+        if (!sb) {
+          return jsonResponse({ message: `Supabase server belum siap: ${configError}` }, 503);
+        }
+        const auth = await getAuthenticatedUser(request, sb);
+        if (!auth) {
+          return jsonResponse(
+            {
+              code: "AUTH_REQUIRED",
+              message: "Masuk dengan nomor WhatsApp terverifikasi untuk membuat kode hasil.",
+            },
+            401,
+          );
+        }
+
         const body = (await request.json().catch(() => null)) as CreateBody | null;
         const scoreId = clean(body?.score_id, 100);
         const leadInput = body?.lead;
@@ -95,11 +111,6 @@ export const Route = createFileRoute("/api/result-session")({
             { message: "Data form belum lengkap atau persetujuan hasil belum diberikan." },
             400,
           );
-        }
-
-        const { client: sb, error: configError } = getServerSupabase();
-        if (!sb) {
-          return jsonResponse({ message: `Supabase server belum siap: ${configError}` }, 503);
         }
 
         const { data: score, error: scoreError } = await sb
@@ -209,7 +220,7 @@ export const Route = createFileRoute("/api/result-session")({
           .insert({
             score_id: score.id,
             nama_panggilan: namaPanggilan,
-            whatsapp: null,
+            whatsapp: auth.user.whatsapp,
             target_tahun: targetTahun,
             target_instansi: targetFormation?.nama_instansi ?? null,
             target_formasi: targetFormation?.jabatan ?? null,
