@@ -44,10 +44,14 @@ export interface FormationFilterOption {
   count: number;
 }
 
+export interface FormationEducationFilterOption extends FormationFilterOption {
+  aliases?: string[];
+}
+
 export interface FormationFilterOptions {
   institutions: FormationFilterOption[];
   formation_types: FormationFilterOption[];
-  education_options: FormationFilterOption[];
+  education_options: FormationEducationFilterOption[];
   education_total: number;
   years: number[];
 }

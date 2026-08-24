@@ -274,7 +274,6 @@ export function FormationExplorer({
                 <GraduationCap className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                 <input
                   list="formation-education-options"
-                  aria-describedby="formation-education-help"
                   value={educationInput}
                   onChange={(event) => {
                     const value = event.target.value;
@@ -294,19 +293,14 @@ export function FormationExplorer({
                 />
                 <datalist id="formation-education-options">
                   {filters.data?.education_options.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {formatNumber(option.count)} formasi
-                    </option>
+                    <option
+                      key={option.value}
+                      value={option.value}
+                      label={educationOptionLabel(option)}
+                    />
                   ))}
                 </datalist>
               </div>
-              <p
-                id="formation-education-help"
-                className="mt-1.5 text-[10px] leading-4 text-muted-foreground"
-              >
-                Nama setara digabung. Contoh: S-1 Ilmu Hukum dan S1 Hukum dikenali sebagai S-1
-                Hukum.
-              </p>
             </label>
 
             <label>
@@ -934,6 +928,15 @@ function formatNumber(value: number): string {
 
 function formatRatio(value: number): string {
   return new Intl.NumberFormat("id-ID", { maximumFractionDigits: 1 }).format(value);
+}
+
+function educationOptionLabel(option: { count: number; aliases?: string[] }): string {
+  const aliases = option.aliases?.filter(Boolean) ?? [];
+  if (aliases.length === 0) return `${formatNumber(option.count)} formasi`;
+
+  const visible = aliases.slice(0, 2).join(", ");
+  const remaining = aliases.length > 2 ? ` +${aliases.length - 2}` : "";
+  return `Termasuk: ${visible}${remaining} | ${formatNumber(option.count)} formasi`;
 }
 
 function summarizeValue(
