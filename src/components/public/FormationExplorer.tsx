@@ -269,11 +269,12 @@ export function FormationExplorer({
             </label>
 
             <label>
-              <FilterLabel>Pendidikan</FilterLabel>
+              <FilterLabel>Pendidikan / jurusan</FilterLabel>
               <div className="relative mt-1.5">
                 <GraduationCap className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                 <input
                   list="formation-education-options"
+                  aria-describedby="formation-education-help"
                   value={educationInput}
                   onChange={(event) => {
                     const value = event.target.value;
@@ -289,7 +290,7 @@ export function FormationExplorer({
                     }
                   }}
                   className="h-10 w-full rounded-md border border-input bg-background pl-9 pr-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
-                  placeholder={`Cari ${formatNumber(filters.data?.education_total ?? 0)} pilihan`}
+                  placeholder="Ketik sesuai nama ijazah"
                 />
                 <datalist id="formation-education-options">
                   {filters.data?.education_options.map((option) => (
@@ -299,6 +300,13 @@ export function FormationExplorer({
                   ))}
                 </datalist>
               </div>
+              <p
+                id="formation-education-help"
+                className="mt-1.5 text-[10px] leading-4 text-muted-foreground"
+              >
+                Nama setara digabung. Contoh: S-1 Ilmu Hukum dan S1 Hukum dikenali sebagai S-1
+                Hukum.
+              </p>
             </label>
 
             <label>
