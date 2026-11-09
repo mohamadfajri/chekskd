@@ -1,13 +1,12 @@
-import { requireSupabase } from "@/lib/supabase/client";
 import type { SkdScoreWithFormation } from "@/lib/supabase/types";
 import { MIN_NAME_SEARCH_LENGTH, normalizeNameForSearch } from "@/lib/skdSearch";
 
 export const useLocalSkdPreview = import.meta.env.DEV && import.meta.env.VITE_SKD_LOCAL_PREVIEW === "true";
 
-async function previewRead<T>(params: Record<string, string>): Promise<T> {
-  const response = await fetch(`/api/skd-preview?${new URLSearchParams(params)}`);
+async function readSkd<T>(params: Record<string, string>): Promise<T> {
+  const response = await fetch(`/api/skd-data?${new URLSearchParams(params)}`);
   const body = await response.json().catch(() => null);
-  if (!response.ok) throw new Error(body?.message ?? "Data SKD SumoPod belum tersedia.");
+  if (!response.ok) throw new Error(body?.message ?? "Data SKD belum tersedia.");
   return body as T;
 }
 
@@ -57,26 +56,12 @@ export async function searchSkdScores(params: SearchParams): Promise<SkdScoreWit
     throw new Error(`Nama peserta minimal ${MIN_NAME_SEARCH_LENGTH} karakter.`);
   }
 
-  const args = {
-    p_nama: normalizedName || null,
-    p_no_peserta: params.no_peserta?.trim() || null,
-    p_instansi: params.instansi?.trim() || null,
-    p_formasi: params.formasi?.trim() || null,
-    p_limit: limit,
-  };
-  let data: unknown;
-  if (useLocalSkdPreview) {
-    data = await previewRead<PublicSkdSearchRow[]>({
-      type: "search", nama: normalizedName, no_peserta: args.p_no_peserta ?? "",
-      instansi: args.p_instansi ?? "", formasi: args.p_formasi ?? "", limit: String(limit),
-    });
-  } else {
-    const result = await requireSupabase().rpc("search_public_skd_scores", args);
-    if (result.error) throw result.error;
-    data = result.data;
-  }
+  const data = await readSkd<PublicSkdSearchRow[]>({
+    type: "search", nama: normalizedName, no_peserta: params.no_peserta?.trim() ?? "",
+    instansi: params.instansi?.trim() ?? "", formasi: params.formasi?.trim() ?? "", limit: String(limit),
+  });
 
-  return ((data ?? []) as PublicSkdSearchRow[]).map(
+  return data.map(
     (row) =>
       ({
         id: row.score_id,
@@ -114,32 +99,9 @@ export async function searchSkdScores(params: SearchParams): Promise<SkdScoreWit
 }
 
 export async function getSkdScoreById(id: string): Promise<SkdScoreWithFormation | null> {
-  if (useLocalSkdPreview) return previewRead({ type: "detail", id });
-  const sb = requireSupabase();
-  const { data, error } = await sb
-    .from("skd_scores")
-    .select(
-      "id, no_peserta, nama, pendidikan, tahun_skd, twk, tiu, tkp, total, keterangan, formation_id, source_page, created_at, nama_normalized, skd_formations(id, nama_instansi, jabatan, kode_instansi, kode_jabatan, tahun, lokasi_formasi, jenis_formasi, pendidikan, jumlah_formasi, source_id, kode_lokasi, page_number, created_at)",
-    )
-    .eq("id", id)
-    .maybeSingle();
-  if (error) throw error;
-  return data as unknown as SkdScoreWithFormation | null;
+  return readSkd({ type: "detail", id });
 }
 
 export async function countStats(): Promise<{ scores: number; formations: number }> {
-  if (useLocalSkdPreview) return previewRead({ type: "stats" });
-  const sb = requireSupabase();
-  const { data, error } = await sb
-    .from("skd_batches")
-    .select("participant_count, formation_count")
-    .eq("status", "published");
-  if (error) throw error;
-  return (data ?? []).reduce(
-    (totals, batch) => ({
-      scores: totals.scores + Number(batch.participant_count ?? 0),
-      formations: totals.formations + Number(batch.formation_count ?? 0),
-    }),
-    { scores: 0, formations: 0 },
-  );
+  return readSkd({ type: "stats" });
 }

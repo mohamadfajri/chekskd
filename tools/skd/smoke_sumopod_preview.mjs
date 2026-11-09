@@ -15,9 +15,11 @@ const sb = createClient(url, key, { auth: { persistSession: false, autoRefreshTo
 const request = (path, options) => fetch(new URL(path, local), {
   ...options, signal: AbortSignal.timeout(20_000),
 });
-const [score] = await (await request("/api/skd-preview?type=search&nama=Fadila+Bijaksana")).json();
+const scoreResponse = await request("/api/skd-data?type=search&nama=Fadila+Bijaksana");
+assert.equal(scoreResponse.headers.get("x-skd-backend"), "sumopod");
+const [score] = await scoreResponse.json();
 assert.equal(score?.total, 382);
-const detail = await (await request(`/api/skd-preview?type=detail&id=${score.score_id}`)).json();
+const detail = await (await request(`/api/skd-data?type=detail&id=${score.score_id}`)).json();
 assert.equal(detail.id, score.score_id);
 assert.equal(detail.total, score.total);
 assert.equal((await request("/api/result-session", {

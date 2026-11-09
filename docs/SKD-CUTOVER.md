@@ -4,6 +4,20 @@ Salinan SumoPod dan preview lokal bukan pengganti produksi. Jangan kosongkan
 tabel SKD Supabase selama aplikasi produksi atau admin masih memakainya.
 Jangan hapus proyek Supabase, akun, lead, riwayat kode, atau Storage PDF.
 
+## Tahap baca yang dapat dibalik
+
+Setelah fungsi baca dipasang di database tujuan, set `SKD_DATABASE_URL` di
+environment server Vercel dan `SKD_READ_BACKEND=sumopod` pada Preview dahulu.
+Jangan beri awalan `VITE_` pada URL. Endpoint `/api/skd-data?type=stats`
+menyertakan header `x-skd-backend` untuk memastikan server membaca sumber
+yang benar. Nilai `supabase` mengembalikan jalur baca lama setelah redeploy.
+
+Flag ini mencakup pencarian, detail, jumlah publik, pencarian target, dan
+perhitungan v6 pada worker Hermes. Flag tidak mengalihkan formulir pembuatan
+kode yang masih memeriksa ID dan kelayakan di Supabase, impor, review/publikasi,
+katalog/formasi historis, atau simulasi manual. Tabel sumber belum boleh
+dikosongkan.
+
 ## Pemeriksaan sebelum peralihan
 
 - Cek ulang jumlah tabel dan status batch dengan

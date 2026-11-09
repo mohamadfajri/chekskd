@@ -92,6 +92,18 @@ export function getServerSupabase() {
   };
 }
 
+export function getPublicServerSupabase() {
+  const env = validateSupabaseEnv(
+    process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL,
+    process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.VITE_SUPABASE_ANON_KEY,
+    { urlName: "SUPABASE_URL", anonKeyName: "SUPABASE_PUBLISHABLE_KEY atau VITE_SUPABASE_ANON_KEY" },
+  );
+  if (!env.ok) return null;
+  return createClient(env.url, env.anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+
 export function requireServerSupabase() {
   const result = getServerSupabase();
   if (!result.client) {

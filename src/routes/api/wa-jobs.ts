@@ -6,6 +6,7 @@ import {
 } from "@/lib/rationalization";
 import { getServerSupabase, jsonResponse } from "@/lib/supabase/server";
 import { getSscasnContext } from "@/server/sscasn";
+import { getPreviewRationalization, useSumopodSkdReads } from "@/server/skdPreview";
 
 interface WorkerRequest {
   action?: "process_next" | "mark_delivered";
@@ -132,16 +133,22 @@ export const Route = createFileRoute("/api/wa-jobs")({
               .maybeSingle()
           : { data: null };
 
-        const rationalizationRequest = await sb.rpc("get_skd_rationalization_v6", {
-          p_score_id: job.score_id,
-          p_analysis_goal:
-            lead?.analysis_goal === "opportunity" || lead?.analysis_goal === "target"
-              ? lead.analysis_goal
-              : "related",
-          p_preference_flags: Array.isArray(lead?.preference_flags) ? lead.preference_flags : [],
-          p_preferred_target_formation_id: lead?.target_formation_id ?? null,
-        });
-        const { data: rationalization, error: rationalizationError } = rationalizationRequest;
+        const sumopod = useSumopodSkdReads(request);
+        const targetId = lead?.target_formation_id ?? null;
+        const goal = lead?.analysis_goal === "opportunity"
+          ? "opportunity"
+          : lead?.analysis_goal === "target" && targetId ? "target" : "related";
+        const flags = Array.isArray(lead?.preference_flags) ? lead.preference_flags : [];
+        const { data: rationalization, error: rationalizationError } = sumopod
+          ? await getPreviewRationalization(job.score_id, goal, flags, targetId)
+              .then((data) => ({ data, error: null }))
+              .catch(() => ({ data: null, error: { message: "sumopod_rationalization_unavailable" } }))
+          : await sb.rpc("get_skd_rationalization_v6", {
+              p_score_id: job.score_id,
+              p_analysis_goal: goal,
+              p_preference_flags: flags,
+              p_preferred_target_formation_id: targetId,
+            });
         if (rationalizationError || !rationalization) {
           await failJob(
             sb,
@@ -178,7 +185,7 @@ export const Route = createFileRoute("/api/wa-jobs")({
           snapshot.target_simulation?.formation_id,
           ...(snapshot.target_recommendations ?? []).map((target) => target.formation_id),
         ].filter((id): id is string => typeof id === "string");
-        snapshot.sscasn_context = await getSscasnContext(sb, contextIds);
+        if (!sumopod) snapshot.sscasn_context = await getSscasnContext(sb, contextIds);
 
         const { data: completed, error: completeError } = await sb.rpc(
           "complete_skd_analysis_job",

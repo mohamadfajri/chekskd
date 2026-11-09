@@ -14,6 +14,10 @@ export function isLocalSkdPreview(request: Request): boolean {
     ["127.0.0.1", "localhost", "[::1]"].includes(new URL(request.url).hostname);
 }
 
+export function useSumopodSkdReads(request: Request): boolean {
+  return process.env.SKD_READ_BACKEND === "sumopod" || isLocalSkdPreview(request);
+}
+
 function previewPool() {
   if (!pool) {
     const url = process.env.SKD_DATABASE_URL?.trim();

@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getAuthenticatedUser } from "@/lib/auth/server";
 import { getServerSupabase, jsonResponse } from "@/lib/supabase/server";
-import { isLocalSkdPreview, searchPreviewTargets } from "@/server/skdPreview";
+import { searchPreviewTargets, useSumopodSkdReads } from "@/server/skdPreview";
 
 function validUuid(value: string | null): string | null {
   const cleaned = value?.trim() ?? "";
@@ -34,7 +34,7 @@ export const Route = createFileRoute("/api/rationalization-targets")({
           return jsonResponse({ items: [] });
         }
 
-        if (isLocalSkdPreview(request)) {
+        if (useSumopodSkdReads(request)) {
           try {
             return jsonResponse({ items: await searchPreviewTargets(scoreId, query) });
           } catch {

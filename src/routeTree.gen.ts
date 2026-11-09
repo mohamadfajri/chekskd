@@ -23,7 +23,7 @@ import { Route as FormasiBandingRouteImport } from './routes/formasi.banding'
 import { Route as FormasiFormationIdRouteImport } from './routes/formasi.$formationId'
 import { Route as ApiWaResultRouteImport } from './routes/api/wa-result'
 import { Route as ApiWaJobsRouteImport } from './routes/api/wa-jobs'
-import { Route as ApiSkdPreviewRouteImport } from './routes/api/skd-preview'
+import { Route as ApiSkdDataRouteImport } from './routes/api/skd-data'
 import { Route as ApiResultSessionRouteImport } from './routes/api/result-session'
 import { Route as ApiResultCardRouteImport } from './routes/api/result-card'
 import { Route as ApiRationalizationTargetsRouteImport } from './routes/api/rationalization-targets'
@@ -120,9 +120,9 @@ const ApiWaJobsRoute = ApiWaJobsRouteImport.update({
   path: '/api/wa-jobs',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiSkdPreviewRoute = ApiSkdPreviewRouteImport.update({
-  id: '/api/skd-preview',
-  path: '/api/skd-preview',
+const ApiSkdDataRoute = ApiSkdDataRouteImport.update({
+  id: '/api/skd-data',
+  path: '/api/skd-data',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiResultSessionRoute = ApiResultSessionRouteImport.update({
@@ -270,7 +270,7 @@ export interface FileRoutesByFullPath {
   '/api/rationalization-targets': typeof ApiRationalizationTargetsRoute
   '/api/result-card': typeof ApiResultCardRoute
   '/api/result-session': typeof ApiResultSessionRoute
-  '/api/skd-preview': typeof ApiSkdPreviewRoute
+  '/api/skd-data': typeof ApiSkdDataRoute
   '/api/wa-jobs': typeof ApiWaJobsRoute
   '/api/wa-result': typeof ApiWaResultRoute
   '/formasi/$formationId': typeof FormasiFormationIdRoute
@@ -311,7 +311,7 @@ export interface FileRoutesByTo {
   '/api/rationalization-targets': typeof ApiRationalizationTargetsRoute
   '/api/result-card': typeof ApiResultCardRoute
   '/api/result-session': typeof ApiResultSessionRoute
-  '/api/skd-preview': typeof ApiSkdPreviewRoute
+  '/api/skd-data': typeof ApiSkdDataRoute
   '/api/wa-jobs': typeof ApiWaJobsRoute
   '/api/wa-result': typeof ApiWaResultRoute
   '/formasi/$formationId': typeof FormasiFormationIdRoute
@@ -354,7 +354,7 @@ export interface FileRoutesById {
   '/api/rationalization-targets': typeof ApiRationalizationTargetsRoute
   '/api/result-card': typeof ApiResultCardRoute
   '/api/result-session': typeof ApiResultSessionRoute
-  '/api/skd-preview': typeof ApiSkdPreviewRoute
+  '/api/skd-data': typeof ApiSkdDataRoute
   '/api/wa-jobs': typeof ApiWaJobsRoute
   '/api/wa-result': typeof ApiWaResultRoute
   '/formasi/$formationId': typeof FormasiFormationIdRoute
@@ -398,7 +398,7 @@ export interface FileRouteTypes {
     | '/api/rationalization-targets'
     | '/api/result-card'
     | '/api/result-session'
-    | '/api/skd-preview'
+    | '/api/skd-data'
     | '/api/wa-jobs'
     | '/api/wa-result'
     | '/formasi/$formationId'
@@ -439,7 +439,7 @@ export interface FileRouteTypes {
     | '/api/rationalization-targets'
     | '/api/result-card'
     | '/api/result-session'
-    | '/api/skd-preview'
+    | '/api/skd-data'
     | '/api/wa-jobs'
     | '/api/wa-result'
     | '/formasi/$formationId'
@@ -481,7 +481,7 @@ export interface FileRouteTypes {
     | '/api/rationalization-targets'
     | '/api/result-card'
     | '/api/result-session'
-    | '/api/skd-preview'
+    | '/api/skd-data'
     | '/api/wa-jobs'
     | '/api/wa-result'
     | '/formasi/$formationId'
@@ -524,7 +524,7 @@ export interface RootRouteChildren {
   ApiRationalizationTargetsRoute: typeof ApiRationalizationTargetsRoute
   ApiResultCardRoute: typeof ApiResultCardRoute
   ApiResultSessionRoute: typeof ApiResultSessionRoute
-  ApiSkdPreviewRoute: typeof ApiSkdPreviewRoute
+  ApiSkdDataRoute: typeof ApiSkdDataRoute
   ApiWaJobsRoute: typeof ApiWaJobsRoute
   ApiWaResultRoute: typeof ApiWaResultRoute
   ResultScoreIdRoute: typeof ResultScoreIdRoute
@@ -648,11 +648,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWaJobsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/skd-preview': {
-      id: '/api/skd-preview'
-      path: '/api/skd-preview'
-      fullPath: '/api/skd-preview'
-      preLoaderRoute: typeof ApiSkdPreviewRouteImport
+    '/api/skd-data': {
+      id: '/api/skd-data'
+      path: '/api/skd-data'
+      fullPath: '/api/skd-data'
+      preLoaderRoute: typeof ApiSkdDataRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/result-session': {
@@ -875,7 +875,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiRationalizationTargetsRoute: ApiRationalizationTargetsRoute,
   ApiResultCardRoute: ApiResultCardRoute,
   ApiResultSessionRoute: ApiResultSessionRoute,
-  ApiSkdPreviewRoute: ApiSkdPreviewRoute,
+  ApiSkdDataRoute: ApiSkdDataRoute,
   ApiWaJobsRoute: ApiWaJobsRoute,
   ApiWaResultRoute: ApiWaResultRoute,
   ResultScoreIdRoute: ResultScoreIdRoute,
