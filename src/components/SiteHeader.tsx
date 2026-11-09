@@ -1,4 +1,4 @@
-﻿import { type ComponentType } from "react";
+import { useEffect, useState, type ComponentType } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -37,7 +37,11 @@ const navItems: NavItem[] = [
     shortLabel: "Cek",
     to: "/search",
     icon: Search,
-    matches: (path) => path === "/search" || path.startsWith("/result/") || path.startsWith("/wa/"),
+    matches: (path) =>
+      path === "/search" ||
+      path === "/simulasi-skd" ||
+      path.startsWith("/result/") ||
+      path.startsWith("/wa/"),
   },
   {
     label: "Formasi",
@@ -66,7 +70,8 @@ const navItems: NavItem[] = [
 ];
 
 export function SiteHeader() {
-  const pathname = useRouterState().location.pathname;
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const [compact, setCompact] = useState(false);
 
   const account = useQuery({
     queryKey: ["current-account"],
@@ -75,12 +80,19 @@ export function SiteHeader() {
     retry: false,
   });
 
+  useEffect(() => {
+    const update = () => setCompact(window.scrollY > 90);
+    update();
+    window.addEventListener("scroll", update, { passive: true });
+    return () => window.removeEventListener("scroll", update);
+  }, []);
+
   return (
     <>
-      <header className="public-nav-shell">
+      <header className={`public-nav-shell ${compact ? "is-compact" : ""}`}>
         <div className="public-nav">
           <Link to="/" aria-label="AnalisaCPNS - beranda" className="public-nav-brand">
-            <AnalisaCPNSLogo theme="light" size={38} className="public-nav-logo-full" />
+            <AnalisaCPNSLogo theme="dark" size={38} className="public-nav-logo-full" />
             <AnalisaCPNSLogo
               variant="icon"
               theme="dark"

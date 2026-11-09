@@ -1,4 +1,4 @@
-﻿import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { LoaderCircle, Target } from "lucide-react";
 import { SiteFooter, SiteHeader } from "@/components/SiteHeader";
@@ -46,13 +46,17 @@ function SearchPage() {
           >
             Cari nilai saya
           </Link>
-          <Link to="/simulasi-skd" className="py-3 text-muted-foreground hover:text-primary">
+          <Link
+            to="/simulasi-skd"
+            search={{ targetFormationId }}
+            className="py-3 text-muted-foreground hover:text-primary"
+          >
             Masukkan nilai sendiri
           </Link>
         </nav>
         <header className="public-page-heading">
           <div>
-            <p className="public-kicker font-mono">Pencarian peserta</p>
+            <p className="public-kicker font-mono">Workspace pencarian</p>
             <h1>Temukan posisi nilai SKD</h1>
             <p>Cari peserta dari data PDF resmi dan lanjutkan ke analisis target.</p>
           </div>
@@ -93,31 +97,33 @@ function SearchPage() {
             </div>
           </div>
 
-          <aside className="search-guide">
-            <span>DARI NILAI KE PILIHAN</span>
-            <h2>
-              Langkah kecil.
-              <br />
-              Gambaran lebih jelas.
-            </h2>
-            <ol>
-              <li>
-                <strong>Temukan peserta</strong>
-                <p>
-                  Gunakan sebagian nama atau nomor peserta. Tambahkan instansi jika nama serupa
-                  muncul.
-                </p>
-              </li>
-              <li>
-                <strong>Baca hasil SKD</strong>
-                <p>Lihat komponen nilai dan posisi dalam kelompok formasi pada halaman hasil.</p>
-              </li>
-              <li>
-                <strong>Pertimbangkan target</strong>
-                <p>Bandingkan nilai dengan formasi pilihan sebelum melanjutkan analisis.</p>
-              </li>
-            </ol>
-            <p>Data historis 2024. Selalu rujuk pengumuman instansi untuk hasil resmi.</p>
+          <aside className="public-rank-preview" aria-label="Pratinjau peta data">
+            <div>
+              <p className="font-mono">Peta data aktif</p>
+              <span className="font-mono">LIVE</span>
+            </div>
+            <h2>Living Rankline</h2>
+            <svg viewBox="0 0 320 145" preserveAspectRatio="none" aria-hidden>
+              <path d="M0 128 C35 124,55 111,82 108 S128 91,160 81 S206 55,246 48 S282 24,320 18" />
+              <circle cx="52" cy="116" r="5" />
+              <circle cx="155" cy="83" r="5" />
+              <circle cx="244" cy="49" r="5" />
+              <circle cx="304" cy="25" r="5" />
+            </svg>
+            <div className="public-rank-summary">
+              <div>
+                <strong>SKD</strong>
+                <span className="font-mono">DATA</span>
+              </div>
+              <div>
+                <strong>2024</strong>
+                <span className="font-mono">TAHUN</span>
+              </div>
+              <div>
+                <strong>PDF</strong>
+                <span className="font-mono">SUMBER</span>
+              </div>
+            </div>
           </aside>
         </section>
       </main>

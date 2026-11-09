@@ -59,7 +59,7 @@ function ManualSkdPage() {
         >
           <Link
             to="/search"
-            search={{ targetFormationId: undefined }}
+            search={{ targetFormationId }}
             className="py-3 text-muted-foreground hover:text-primary"
           >
             Cari nilai saya

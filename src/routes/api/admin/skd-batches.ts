@@ -5,6 +5,7 @@ import {
   jsonResponse,
   requireAdmin,
 } from "@/lib/supabase/server";
+import { useSumopodSkdReads as readsSkdFromSumopod } from "@/server/skdPreview";
 
 type CsvValue = string | undefined;
 
@@ -191,6 +192,16 @@ export const Route = createFileRoute("/api/admin/skd-batches")({
           }
           if (body.confirmation !== "PUBLISH_BATCH") {
             return jsonResponse({ message: "Konfirmasi publikasi belum diberikan." }, 400);
+          }
+
+          if (readsSkdFromSumopod(request)) {
+            return jsonResponse(
+              {
+                message:
+                  "Publikasi sementara dijeda. Batch tetap tersimpan, tetapi belum dapat diterbitkan ke database SKD publik.",
+              },
+              409,
+            );
           }
 
           const { data, error } = await sb.rpc("publish_skd_batch", {

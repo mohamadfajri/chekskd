@@ -18,6 +18,10 @@ kode yang masih memeriksa ID dan kelayakan di Supabase, impor, review/publikasi,
 katalog/formasi historis, atau simulasi manual. Tabel sumber belum boleh
 dikosongkan.
 
+Selama pembacaan publik menggunakan SumoPod dan admin masih menyimpan batch
+di Supabase, endpoint publikasi menolak batch baru. Ini mencegah batch terlihat
+terbit di admin tetapi tidak muncul di pencarian dan mesin rasionalisasi.
+
 ## Pemeriksaan sebelum peralihan
 
 - Cek ulang jumlah tabel dan status batch dengan
