@@ -7,8 +7,17 @@ import {
 } from "@/lib/analysis";
 import { getAuthenticatedUser } from "@/lib/auth/server";
 import { getServerSupabase, jsonResponse } from "@/lib/supabase/server";
-import { getPreviewRationalization, isLocalSkdPreview } from "@/server/skdPreview";
+import {
+  getPreviewRationalization,
+  isLocalSkdPreview,
+  useSumopodSkdReads as readsSkdFromSumopod,
+} from "@/server/skdPreview";
 import { createSkdPreviewSession } from "@/server/skdPreviewSession";
+import {
+  readSumopodSkdSessionSource,
+  readSupabaseSkdSessionSource,
+  type SkdSessionSource,
+} from "@/server/skdSessionSource";
 
 interface LeadInput {
   nama_panggilan?: string;
@@ -67,11 +76,11 @@ export const Route = createFileRoute("/api/result-session")({
         }
 
         const body = (await request.json().catch(() => null)) as CreateBody | null;
-        const scoreId = clean(body?.score_id, 100);
+        const scoreId = cleanUuid(body?.score_id);
         const leadInput = body?.lead;
         const namaPanggilan = clean(leadInput?.nama_panggilan, 80);
         const targetTahun = clean(leadInput?.target_tahun, 30);
-        const rawTargetFormationId = leadInput?.target_formation_id?.trim() ?? "";
+        const rawTargetFormationId: unknown = leadInput?.target_formation_id;
         const targetFormationId = cleanUuid(leadInput?.target_formation_id);
         const analysisGoal =
           leadInput?.analysis_goal === "opportunity" || leadInput?.analysis_goal === "target"
@@ -89,7 +98,11 @@ export const Route = createFileRoute("/api/result-session")({
         );
         const rencana = clean(leadInput?.rencana, 50);
 
-        if (rawTargetFormationId && !targetFormationId) {
+        if (
+          rawTargetFormationId != null &&
+          (typeof rawTargetFormationId !== "string" ||
+            (rawTargetFormationId.trim() && !targetFormationId))
+        ) {
           return jsonResponse({ message: "ID target formasi tidak valid." }, 400);
         }
         if (preferenceFlags.length > 2) {
@@ -115,128 +128,78 @@ export const Route = createFileRoute("/api/result-session")({
           );
         }
 
-        const { data: score, error: scoreError } = await sb
-          .from("skd_scores")
-          .select(
-            "id, batch_id, formation_id, nama, pendidikan, twk, tiu, tkp, total, quality_status",
-          )
-          .eq("id", scoreId)
-          .maybeSingle();
-        if (scoreError) return jsonResponse({ message: scoreError.message }, 500);
-        if (!score || score.quality_status !== "verified") {
-          return jsonResponse({ message: "Data SKD tidak tersedia untuk dianalisis." }, 404);
+        const localPreview = isLocalSkdPreview(request);
+        let source: SkdSessionSource;
+        try {
+          // Local parity testing still compares SumoPod results against the original score.
+          source =
+            readsSkdFromSumopod(request) && !localPreview
+              ? await readSumopodSkdSessionSource(scoreId, targetFormationId)
+              : await readSupabaseSkdSessionSource(sb, scoreId, targetFormationId);
+        } catch (error) {
+          console.error(
+            "skd_session_source_failed",
+            (error as { code?: string })?.code ?? "unknown",
+          );
+          return jsonResponse({ message: "Data SKD belum dapat diperiksa. Coba lagi." }, 503);
         }
-
-        const [{ data: batch }, { data: formation }] = await Promise.all([
-          sb.from("skd_batches").select("status").eq("id", score.batch_id).maybeSingle(),
-          sb
-            .from("skd_formations")
-            .select("jabatan, nama_instansi, quality_status")
-            .eq("id", score.formation_id)
-            .maybeSingle(),
-        ]);
-        if (batch?.status !== "published" || formation?.quality_status !== "verified") {
-          return jsonResponse({ message: "Batch SKD belum dipublikasikan." }, 404);
-        }
-
-        let targetFormation: {
-          id: string;
-          batch_id: string;
-          nama_instansi: string;
-          jabatan: string;
-          jenis_formasi: string | null;
-          pendidikan_options: string[] | null;
-          quality_status: string;
-        } | null = null;
-
-        if (targetFormationId) {
-          const { data, error: targetError } = await sb
-            .from("skd_formations")
-            .select(
-              "id, batch_id, nama_instansi, jabatan, jenis_formasi, pendidikan_options, quality_status",
-            )
-            .eq("id", targetFormationId)
-            .maybeSingle();
-          if (targetError) return jsonResponse({ message: targetError.message }, 500);
-          targetFormation = data;
-
-          const acceptedEducations = Array.isArray(targetFormation?.pendidikan_options)
-            ? targetFormation.pendidikan_options
-            : [];
-          const targetBaseIsValid =
-            targetFormation &&
-            targetFormation.id !== score.formation_id &&
-            targetFormation.quality_status === "verified" &&
-            targetFormation.jenis_formasi?.trim().toUpperCase() === "UMUM" &&
-            Boolean(score.pendidikan);
-          const { data: educationMatches, error: educationMatchError } = targetBaseIsValid
-            ? await sb.rpc("skd_education_matches", {
-                p_participant_education: score.pendidikan,
-                p_accepted_educations: acceptedEducations,
-              })
-            : { data: false, error: null };
-          if (educationMatchError) {
-            return jsonResponse({ message: "Kecocokan pendidikan belum dapat diperiksa." }, 500);
-          }
-          if (!targetFormation || !targetBaseIsValid || educationMatches !== true) {
-            return jsonResponse(
-              {
-                message:
-                  "Target harus berupa formasi UMUM dengan pendidikan yang cocok persis atau memiliki alias terverifikasi.",
-              },
+        if (source.status !== "ready") {
+          const errors = {
+            missing_score: [404, "Data SKD tidak tersedia untuk dianalisis."],
+            unpublished: [404, "Batch SKD belum dipublikasikan."],
+            ineligible_target: [
               400,
-            );
-          }
-
-          const [{ data: targetBatch }, { data: targetStats }] = await Promise.all([
-            sb
-              .from("skd_batches")
-              .select("status")
-              .eq("id", targetFormation.batch_id)
-              .maybeSingle(),
-            sb
-              .from("skd_formation_stats")
-              .select(
-                "formation_id, attended_count, passing_count, shortlisted_count, shortlist_capacity, cutoff_total, cutoff_tkp, cutoff_tiu, cutoff_twk",
-              )
-              .eq("formation_id", targetFormation.id)
-              .maybeSingle(),
-          ]);
-          const targetStatsReady =
-            targetStats &&
-            targetStats.attended_count > 0 &&
-            targetStats.passing_count >= 3 &&
-            targetStats.shortlisted_count >= 1 &&
-            targetStats.shortlist_capacity > 0 &&
-            targetStats.cutoff_total !== null &&
-            targetStats.cutoff_tkp !== null &&
-            targetStats.cutoff_tiu !== null &&
-            targetStats.cutoff_twk !== null;
-          if (targetBatch?.status !== "published" || !targetStatsReady) {
-            return jsonResponse({ message: "Data historis target belum siap dianalisis." }, 400);
-          }
+              "Target harus berupa formasi UMUM dengan pendidikan yang cocok persis atau memiliki alias terverifikasi.",
+            ],
+            missing_history: [400, "Data historis target belum siap dianalisis."],
+          } as const;
+          const [status, message] = errors[source.status];
+          return jsonResponse({ message }, status);
         }
+        const { score, formation, target: targetFormation } = source;
 
-        if (isLocalSkdPreview(request)) {
+        if (localPreview) {
           try {
-            const snapshot = await getPreviewRationalization(score.id, analysisGoal, preferenceFlags, targetFormationId);
-            if (!snapshot || snapshot.formation_id !== score.formation_id ||
-                snapshot.participant.name !== score.nama || snapshot.participant.twk !== score.twk ||
-                snapshot.participant.tiu !== score.tiu || snapshot.participant.tkp !== score.tkp ||
-                snapshot.participant.total !== score.total) {
-              return jsonResponse({ message: "Data peserta di SumoPod belum cocok dengan sumber." }, 409);
+            const snapshot = await getPreviewRationalization(
+              score.id,
+              analysisGoal,
+              preferenceFlags,
+              targetFormationId,
+            );
+            if (
+              !snapshot ||
+              snapshot.formation_id !== score.formation_id ||
+              snapshot.participant.name !== score.nama ||
+              snapshot.participant.twk !== score.twk ||
+              snapshot.participant.tiu !== score.tiu ||
+              snapshot.participant.tkp !== score.tkp ||
+              snapshot.participant.total !== score.total
+            ) {
+              return jsonResponse(
+                { message: "Data peserta di SumoPod belum cocok dengan sumber." },
+                409,
+              );
             }
-            const session = await createSkdPreviewSession(sb, {
-              ...snapshot,
-              request: {
-                nickname: namaPanggilan, target_year: targetTahun,
-                target_institution: targetFormation?.nama_instansi ?? null,
-                target_formation: targetFormation?.jabatan ?? null, plan: rencana,
+            const session = await createSkdPreviewSession(
+              sb,
+              {
+                ...snapshot,
+                request: {
+                  nickname: namaPanggilan,
+                  target_year: targetTahun,
+                  target_institution: targetFormation?.nama_instansi ?? null,
+                  target_formation: targetFormation?.jabatan ?? null,
+                  plan: rencana,
+                },
               },
-            }, auth.user.whatsapp);
+              auth.user.whatsapp,
+            );
             return jsonResponse(session, 201);
           } catch (error) {
-            console.error("skd_preview_session_failed", (error as { code?: string })?.code ?? "unknown");
+            console.error(
+              "skd_preview_session_failed",
+              (error as { code?: string })?.code ?? "unknown",
+            );
             return jsonResponse({ message: "Kode uji SumoPod belum dapat dibuat." }, 503);
           }
         }

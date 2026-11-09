@@ -3,6 +3,7 @@ import { getAuthenticatedUser } from "@/lib/auth/server";
 import { catalogCompetition, catalogLevel, catalogSort, catalogText } from "@/lib/formationCatalog";
 import { getServerSupabase, jsonResponse } from "@/lib/supabase/server";
 import { browseFormationCatalog, getUnifiedFormationCatalog } from "@/server/formationCatalog";
+import { useSumopodSkdReads as readsSkdFromSumopod } from "@/server/skdPreview";
 
 export const Route = createFileRoute("/api/formation-catalog")({
   server: {
@@ -28,6 +29,7 @@ export const Route = createFileRoute("/api/formation-catalog")({
                 sort: catalogSort(params.get("sort")),
               },
               Boolean(auth),
+              readsSkdFromSumopod(request),
             ),
           );
         } catch {

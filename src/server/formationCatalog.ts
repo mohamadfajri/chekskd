@@ -9,6 +9,7 @@ import {
 import { normalizeSscasnText, sscasnEducationKey } from "../lib/sscasn.ts";
 import { canManuallyLinkSscasn, SSCASN_MANUAL_NOTE_PREFIX } from "../lib/sscasnReconciliation.ts";
 import { approvedEducationLabels } from "./manualSkd.ts";
+import { getSkdDatabase } from "./skdPreview.ts";
 import {
   aesenCatalogEnabled,
   countAesenFormations,
@@ -135,7 +136,15 @@ export function institutionLevel(name: string): CatalogFormation["level"] {
   return null;
 }
 
-export async function publishedSkdInstitutions(sb: SupabaseClient) {
+export async function publishedSkdInstitutions(sb: SupabaseClient, fromSumopod = false) {
+  if (fromSumopod) {
+    const { rows } = await getSkdDatabase().query<{ institution_name: string }>(
+      `select distinct institution_name from public.skd_batches
+      where status = 'published' and selection_year = $1`,
+      [catalogYear],
+    );
+    return new Set(rows.map(({ institution_name }) => institution_name));
+  }
   const { data, error } = await sb
     .from("skd_batches")
     .select("institution_name")
@@ -145,7 +154,33 @@ export async function publishedSkdInstitutions(sb: SupabaseClient) {
   return new Set<string>(data.map((row) => row.institution_name));
 }
 
-export async function getSkdComparisonCoverage(sb: SupabaseClient) {
+function summarizeCoverage(names: Set<string>) {
+  return {
+    year: catalogYear,
+    pusat: [...names].filter((name) => institutionLevel(name) === "pusat").length,
+    daerah: [...names].filter((name) => institutionLevel(name) === "daerah").length,
+    other: [...names].filter((name) => !institutionLevel(name)).length,
+  };
+}
+
+export async function getSkdComparisonCoverage(sb: SupabaseClient, fromSumopod = false) {
+  if (fromSumopod) {
+    const { rows } = await getSkdDatabase().query<{ institution_name: string }>(
+      `select distinct b.institution_name from public.skd_batches b
+      where b.status = 'published' and b.selection_year = $1
+      and exists (
+        select 1 from public.skd_formation_stats st
+        join public.skd_formations f on f.id = st.formation_id and f.batch_id = b.id
+        where st.batch_id = b.id and f.tahun = $1 and f.quality_status = 'verified'
+          and f.jenis_formasi ilike 'UMUM' and cardinality(f.pendidikan_options) > 0
+          and st.attended_count > 0 and st.passing_count >= 3 and st.shortlisted_count >= 1
+          and st.shortlist_capacity > 0 and st.cutoff_total is not null and st.cutoff_tkp is not null
+          and st.cutoff_tiu is not null and st.cutoff_twk is not null
+      )`,
+      [catalogYear],
+    );
+    return summarizeCoverage(new Set(rows.map(({ institution_name }) => institution_name)));
+  }
   const { data, error } = await sb
     .from("skd_batches")
     .select("institution_name,skd_formation_stats!inner(formation_id,skd_formations!inner(id))")
@@ -165,13 +200,7 @@ export async function getSkdComparisonCoverage(sb: SupabaseClient) {
     .not("skd_formation_stats.cutoff_twk", "is", null)
     .limit(1, { referencedTable: "skd_formation_stats" });
   if (error) throw new Error("Cakupan simulasi belum dapat dibaca.");
-  const names = new Set<string>(data.map((row) => row.institution_name));
-  return {
-    year: catalogYear,
-    pusat: [...names].filter((name) => institutionLevel(name) === "pusat").length,
-    daerah: [...names].filter((name) => institutionLevel(name) === "daerah").length,
-    other: [...names].filter((name) => !institutionLevel(name)).length,
-  };
+  return summarizeCoverage(new Set<string>(data.map((row) => row.institution_name)));
 }
 
 const OFFICIAL_FIELDS =
@@ -279,6 +308,7 @@ async function catalogLinks(
   sb: SupabaseClient,
   useAesen: boolean,
   scope: { rows?: AesenFormation[]; institution?: string },
+  fromSumopod: boolean,
 ): Promise<Map<string, CatalogSkd>> {
   const scoped = scope.rows ? new Map(scope.rows.map((row) => [row.id, row])) : null;
   const ids = scoped ? [...scoped.keys()] : undefined;
@@ -341,10 +371,27 @@ async function catalogLinks(
   const byFormation = new Map(unique.map((pair) => [pair.formationId, pair]));
   const official: OfficialCatalogRow[] = [];
   for (let offset = 0; offset < unique.length; offset += batchSize) {
-    const { data, error } = await officialQuery(sb).in(
-      "formation_id",
-      unique.slice(offset, offset + batchSize).map((pair) => pair.formationId),
-    );
+    const formationIds = unique.slice(offset, offset + batchSize).map((pair) => pair.formationId);
+    if (fromSumopod) {
+      const { rows } = await getSkdDatabase().query<OfficialCatalogRow>(
+        `select st.formation_id, st.quota, st.participant_count, st.attended_count,
+          st.passing_count, st.shortlisted_count, st.shortlist_capacity, st.cutoff_total,
+          st.cutoff_tkp, st.cutoff_tiu, st.cutoff_twk,
+          jsonb_build_object('nama_instansi', f.nama_instansi, 'jabatan', f.jabatan,
+            'jenis_formasi', f.jenis_formasi, 'pendidikan_options', f.pendidikan_options,
+            'lokasi_formasi', f.lokasi_formasi, 'pendidikan', f.pendidikan,
+            'jumlah_formasi', f.jumlah_formasi, 'page_number', f.page_number) as skd_formations
+        from public.skd_formation_stats st
+        join public.skd_formations f on f.id = st.formation_id
+        join public.skd_batches b on b.id = st.batch_id and b.id = f.batch_id
+        where b.status = 'published' and b.selection_year = $1 and f.tahun = $1
+          and f.quality_status = 'verified' and st.formation_id = any($2::uuid[])`,
+        [catalogYear, formationIds],
+      );
+      official.push(...rows);
+      continue;
+    }
+    const { data, error } = await officialQuery(sb).in("formation_id", formationIds);
     if (error) throw new Error("Pasangan SKD belum dapat divalidasi.");
     official.push(...((data ?? []) as unknown as OfficialCatalogRow[]));
   }
@@ -391,12 +438,13 @@ export async function getUnifiedFormationCatalog(
   sb: SupabaseClient,
   requested: CatalogFilters,
   fullAccess: boolean,
+  fromSumopod = false,
 ): Promise<CatalogResponse> {
   const filters = fullAccess ? requested : {};
   const useAesen = aesenCatalogEnabled();
   const [published, labels, aesen] = await Promise.all([
-    publishedSkdInstitutions(sb),
-    filters.education ? approvedEducationLabels(sb, filters.education) : [],
+    publishedSkdInstitutions(sb, fromSumopod),
+    filters.education ? approvedEducationLabels(sb, filters.education, fromSumopod) : [],
     useAesen ? getAesenMetadata() : null,
   ]);
   const publishedKeys = new Set([...published].map(normalizeSscasnText));
@@ -406,7 +454,7 @@ export async function getUnifiedFormationCatalog(
   const sortByCutoff = filters.sort === "cutoff_desc";
   const scopedLinks =
     skdOnly || sortByCutoff
-      ? await catalogLinks(sb, useAesen, { institution: filters.institution })
+      ? await catalogLinks(sb, useAesen, { institution: filters.institution }, fromSumopod)
       : null;
   const sourceIds =
     skdOnly && scopedLinks
@@ -457,7 +505,7 @@ export async function getUnifiedFormationCatalog(
   }
   // Ordinary catalogue requests validate only links for the rows on this page.
   const [links, categories] = await Promise.all([
-    scopedLinks ?? catalogLinks(sb, useAesen, { rows }),
+    scopedLinks ?? catalogLinks(sb, useAesen, { rows }, fromSumopod),
     useAesen ? getAesenCategoryLabels(rows.map(({ id }) => id)) : new Map<string, string>(),
   ]);
   return {

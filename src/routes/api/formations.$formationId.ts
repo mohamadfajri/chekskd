@@ -1,6 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getAuthenticatedUser } from "@/lib/auth/server";
 import { getServerSupabase, jsonResponse } from "@/lib/supabase/server";
+import {
+  getSumopodSkdFormationDetail,
+  useSumopodSkdReads as readsSkdFromSumopod,
+} from "@/server/skdPreview";
 import { getSscasnContext } from "@/server/sscasn";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -23,10 +27,20 @@ export const Route = createFileRoute("/api/formations/$formationId")({
         if (!UUID_RE.test(formationId)) {
           return jsonResponse({ message: "ID formasi tidak valid." }, 400);
         }
-        const { data, error } = await sb.rpc("get_public_skd_formation_detail", {
-          p_formation_id: formationId,
-        });
-        if (error) return jsonResponse({ message: "Detail formasi belum dapat dimuat." }, 500);
+        let data: Record<string, unknown> | null;
+        try {
+          if (readsSkdFromSumopod(request)) {
+            data = await getSumopodSkdFormationDetail(formationId);
+          } else {
+            const result = await sb.rpc("get_public_skd_formation_detail", {
+              p_formation_id: formationId,
+            });
+            if (result.error) throw result.error;
+            data = result.data;
+          }
+        } catch {
+          return jsonResponse({ message: "Detail formasi belum dapat dimuat." }, 500);
+        }
         const context = data ? await getSscasnContext(sb, [formationId]) : {};
         return jsonResponse({
           formation: data ? { ...data, sscasn: context[formationId] ?? null } : null,

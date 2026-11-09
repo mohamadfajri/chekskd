@@ -12,11 +12,12 @@ Jangan beri awalan `VITE_` pada URL. Endpoint `/api/skd-data?type=stats`
 menyertakan header `x-skd-backend` untuk memastikan server membaca sumber
 yang benar. Nilai `supabase` mengembalikan jalur baca lama setelah redeploy.
 
-Flag ini mencakup pencarian, detail, jumlah publik, pencarian target, dan
-perhitungan v6 pada worker Hermes. Flag tidak mengalihkan formulir pembuatan
-kode yang masih memeriksa ID dan kelayakan di Supabase, impor, review/publikasi,
-katalog/formasi historis, atau simulasi manual. Tabel sumber belum boleh
-dikosongkan.
+Flag ini mencakup pencarian dan detail peserta, jumlah publik, pencarian
+target, validasi skor dan target saat membuat kode, daftar/detail/filter
+formasi SKD, statistik pembanding untuk katalog, simulasi manual, dan
+perhitungan v6 pada worker Hermes. Penyimpanan kode, akun, dan antrean tetap
+di Supabase. Pencocokan SSCASN serta impor, review dan publikasi admin masih
+perlu dialihkan sebelum tabel SKD sumber boleh dikosongkan.
 
 Selama pembacaan publik menggunakan SumoPod dan admin masih menyimpan batch
 di Supabase, endpoint publikasi menolak batch baru. Ini mencegah batch terlihat
@@ -24,6 +25,9 @@ terbit di admin tetapi tidak muncul di pencarian dan mesin rasionalisasi.
 
 ## Pemeriksaan sebelum peralihan
 
+- Jalankan [inventaris relasi](../tools/skd/cutover/inspect_supabase_skd_links.sql)
+  di SQL Editor Supabase. Hasilnya hanya ukuran tabel dan nama relasi, tanpa
+  mengubah data atau menampilkan informasi akun.
 - Cek ulang jumlah tabel dan status batch dengan
   `node --env-file=.env --env-file=.env.local --experimental-strip-types tools/skd/check_cutover_readiness.mjs`
   setelah URL tujuan disetel di environment lokal. Perintah hanya membaca kedua
@@ -36,7 +40,9 @@ terbit di admin tetapi tidak muncul di pencarian dan mesin rasionalisasi.
   terpisah dari dump database. Simpan rahasia di server, bukan di Git.
 - Jaga ID nilai dan formasi. Sebelum data lama dibersihkan, lepaskan
   ketergantungan `leads`, `result_sessions`, dan `skd_analysis_jobs` dengan
-  perubahan yang eksplisit dan teruji. Jangan pakai `TRUNCATE CASCADE`.
+  [SQL khusus](../tools/skd/cutover/detach_supabase_skd_foreign_keys.sql).
+  SQL hanya melepaskan relasi antar database, bukan menghapus UUID atau baris.
+  Jangan pakai `TRUNCATE CASCADE`.
 - Saat pindah, hentikan sementara impor dan publikasi, sinkronkan perubahan
   terakhir, uji dari deployment Vercel dan Hermes, dan siapkan cara mengembalikan
   pembacaan ke Supabase. Jangan hapus data sumber sampai jalur baru dan

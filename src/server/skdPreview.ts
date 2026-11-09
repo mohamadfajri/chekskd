@@ -9,16 +9,18 @@ import { aesenConnection } from "./aesenConnection.ts";
 let pool: pg.Pool | undefined;
 
 export function isLocalSkdPreview(request: Request): boolean {
-  return process.env.NODE_ENV === "development" &&
+  return (
+    process.env.NODE_ENV === "development" &&
     process.env.VITE_SKD_LOCAL_PREVIEW === "true" &&
-    ["127.0.0.1", "localhost", "[::1]"].includes(new URL(request.url).hostname);
+    ["127.0.0.1", "localhost", "[::1]"].includes(new URL(request.url).hostname)
+  );
 }
 
 export function useSumopodSkdReads(request: Request): boolean {
   return process.env.SKD_READ_BACKEND === "sumopod" || isLocalSkdPreview(request);
 }
 
-function previewPool() {
+export function getSkdDatabase() {
   if (!pool) {
     const url = process.env.SKD_DATABASE_URL?.trim();
     if (!url) throw new Error("SKD_DATABASE_URL belum disetel.");
@@ -35,10 +37,10 @@ function previewPool() {
   return pool;
 }
 
-export async function searchPreviewScores(args: [
-  string | null, string | null, string | null, string | null, number,
-]) {
-  const { rows } = await previewPool().query(
+export async function searchPreviewScores(
+  args: [string | null, string | null, string | null, string | null, number],
+) {
+  const { rows } = await getSkdDatabase().query(
     "select * from public.search_public_skd_scores($1,$2,$3,$4,$5)",
     args,
   );
@@ -46,7 +48,7 @@ export async function searchPreviewScores(args: [
 }
 
 export async function getPreviewScore(id: string) {
-  const { rows } = await previewPool().query(
+  const { rows } = await getSkdDatabase().query(
     `select s.id, s.no_peserta, s.nama, s.pendidikan, s.tahun_skd, s.twk, s.tiu, s.tkp,
       s.total, s.keterangan, s.formation_id, s.source_page, s.created_at, s.nama_normalized,
       jsonb_build_object(
@@ -67,7 +69,7 @@ export async function getPreviewScore(id: string) {
 }
 
 export async function getPreviewStats() {
-  const { rows } = await previewPool().query(
+  const { rows } = await getSkdDatabase().query(
     `select coalesce(sum(participant_count),0)::int as scores,
       coalesce(sum(formation_count),0)::int as formations
     from public.skd_batches where status='published'`,
@@ -76,11 +78,47 @@ export async function getPreviewStats() {
 }
 
 export async function searchPreviewTargets(scoreId: string, query: string) {
-  const { rows } = await previewPool().query(
+  const { rows } = await getSkdDatabase().query(
     "select public.search_skd_target_formations($1,$2,20) as value",
     [scoreId, query],
   );
   return Array.isArray(rows[0]?.value) ? rows[0].value : [];
+}
+
+type SkdFormationDocument = Record<string, unknown>;
+
+export async function searchSumopodSkdFormations(
+  args: [
+    string | null,
+    string | null,
+    string | null,
+    string | null,
+    string | null,
+    string,
+    number,
+    number,
+  ],
+) {
+  const { rows } = await getSkdDatabase().query<{ value: SkdFormationDocument | null }>(
+    "select api_private.search_public_skd_formations($1,$2,$3,$4,$5,$6,$7,$8) as value",
+    args,
+  );
+  return rows[0]?.value ?? null;
+}
+
+export async function getSumopodSkdFormationDetail(formationId: string) {
+  const { rows } = await getSkdDatabase().query<{ value: SkdFormationDocument | null }>(
+    "select api_private.get_public_skd_formation_detail($1) as value",
+    [formationId],
+  );
+  return rows[0]?.value ?? null;
+}
+
+export async function getSumopodSkdFormationFilters() {
+  const { rows } = await getSkdDatabase().query<{ value: SkdFormationDocument | null }>(
+    "select api_private.get_skd_formation_filter_options() as value",
+  );
+  return rows[0]?.value ?? null;
 }
 
 export async function getPreviewRationalization(
@@ -89,18 +127,21 @@ export async function getPreviewRationalization(
   flags: string[],
   targetId: string | null,
 ): Promise<RationalizationSnapshot | null> {
-  const { rows } = await previewPool().query(
+  const { rows } = await getSkdDatabase().query(
     "select public.get_skd_rationalization_v6($1,$2,$3,$4) as value",
     [scoreId, goal, flags, targetId],
   );
   const snapshot = { ...rows[0]?.value, kind: "skd_rationalization" };
   if (!isRationalizationSnapshot(snapshot) || snapshot.score_id !== scoreId) return null;
   if (snapshot.analysis_goal !== goal) return null;
-  const ids = [snapshot.formation_id, snapshot.target_simulation?.formation_id,
-    ...(snapshot.target_recommendations ?? []).map(({ formation_id }) => formation_id)]
-    .filter((id): id is string => typeof id === "string");
-  const context = await previewPool().query(
-    "select public.get_approved_sscasn_context($1::uuid[]) as value", [[...new Set(ids)]],
+  const ids = [
+    snapshot.formation_id,
+    snapshot.target_simulation?.formation_id,
+    ...(snapshot.target_recommendations ?? []).map(({ formation_id }) => formation_id),
+  ].filter((id): id is string => typeof id === "string");
+  const context = await getSkdDatabase().query(
+    "select public.get_approved_sscasn_context($1::uuid[]) as value",
+    [[...new Set(ids)]],
   );
   return { ...snapshot, sscasn_context: context.rows[0]?.value ?? {} };
 }

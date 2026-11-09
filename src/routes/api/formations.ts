@@ -1,6 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getAuthenticatedUser } from "@/lib/auth/server";
 import { getServerSupabase, jsonResponse } from "@/lib/supabase/server";
+import {
+  searchSumopodSkdFormations,
+  useSumopodSkdReads as readsSkdFromSumopod,
+} from "@/server/skdPreview";
 import { getSscasnContext } from "@/server/sscasn";
 
 const SORTS = new Set([
@@ -35,7 +39,7 @@ export const Route = createFileRoute("/api/formations")({
         const requestedSort = textParam(url, "sort", 40);
         const requestedCompetition = textParam(url, "competition_level", 20);
 
-        const { data, error } = await sb.rpc("search_public_skd_formations", {
+        const args = {
           p_query: fullAccess ? textParam(url, "query") : null,
           p_instansi: fullAccess ? textParam(url, "institution", 160) : null,
           p_pendidikan: fullAccess ? textParam(url, "education", 160) : null,
@@ -50,8 +54,28 @@ export const Route = createFileRoute("/api/formations")({
               : "competition_desc",
           p_page: fullAccess ? integerParam(url, "page", 1, 10_000) : 1,
           p_page_size: fullAccess ? integerParam(url, "page_size", 24, 24) : 6,
-        });
-        if (error) return jsonResponse({ message: "Data formasi belum dapat dimuat." }, 500);
+        };
+        let data: unknown;
+        try {
+          if (readsSkdFromSumopod(request)) {
+            data = await searchSumopodSkdFormations([
+              args.p_query,
+              args.p_instansi,
+              args.p_pendidikan,
+              args.p_jenis_formasi,
+              args.p_competition_level,
+              args.p_sort,
+              args.p_page,
+              args.p_page_size,
+            ]);
+          } else {
+            const result = await sb.rpc("search_public_skd_formations", args);
+            if (result.error) throw result.error;
+            data = result.data;
+          }
+        } catch {
+          return jsonResponse({ message: "Data formasi belum dapat dimuat." }, 500);
+        }
         if (!data || typeof data !== "object") {
           return jsonResponse({ message: "Respons data formasi tidak valid." }, 500);
         }
