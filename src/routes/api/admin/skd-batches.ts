@@ -6,6 +6,14 @@ import {
   requireAdmin,
 } from "@/lib/supabase/server";
 import { useSumopodSkdReads as readsSkdFromSumopod } from "@/server/skdPreview";
+import {
+  skdAdminError,
+  skdAdminTransaction,
+  skdAdminUsesSumopod,
+  SkdAdminConflict,
+  sumopodSkdAdminRows,
+  writeSumopodSkdImport,
+} from "@/server/skdAdminStore";
 
 type CsvValue = string | undefined;
 
@@ -76,6 +84,8 @@ const QUALITY_STATUSES = new Set([
   "verified",
   "rejected",
 ]);
+const BATCH_FIELDS =
+  "id, slug, institution_code, institution_name, selection_year, parser_family, parser_version, status, source_count, source_page_count, formation_count, participant_count, review_issue_count, created_at, updated_at";
 
 function toInt(value: CsvValue): number | null {
   if (value == null || value.trim() === "") return null;
@@ -161,15 +171,24 @@ export const Route = createFileRoute("/api/admin/skd-batches")({
       GET: async ({ request }: { request: Request }) => {
         const authError = requireAdmin(request);
         if (authError) return authError;
+        if (skdAdminUsesSumopod()) {
+          try {
+            const batches = await sumopodSkdAdminRows(
+              `select ${BATCH_FIELDS} from public.skd_batches order by created_at desc, id`,
+            );
+            return jsonResponse({ batches });
+          } catch (error) {
+            const { message, status } = skdAdminError(error);
+            return jsonResponse({ message }, status);
+          }
+        }
         const { client: sb, error: configError } = getServerSupabase();
         if (!sb)
           return jsonResponse({ message: `Supabase server belum siap: ${configError}` }, 503);
 
         const { data, error } = await sb
           .from("skd_batches")
-          .select(
-            "id, slug, institution_code, institution_name, selection_year, parser_family, parser_version, status, source_count, source_page_count, formation_count, participant_count, review_issue_count, created_at, updated_at",
-          )
+          .select(BATCH_FIELDS)
           .order("created_at", { ascending: false });
         if (error) return jsonResponse({ message: error.message }, 500);
         return jsonResponse({ batches: data ?? [] });
@@ -181,316 +200,484 @@ export const Route = createFileRoute("/api/admin/skd-batches")({
         const authError = requireAdmin(request, body);
         if (authError) return authError;
         if (body.action === "validate") return createAdminSessionResponse();
+        const fromSumopod = skdAdminUsesSumopod();
 
         const { client: sb, error: configError } = getServerSupabase();
         if (!sb)
           return jsonResponse({ message: `Supabase server belum siap: ${configError}` }, 503);
 
-        if (body.action === "publish") {
-          if (!body.batchId?.trim()) {
-            return jsonResponse({ message: "batchId wajib diisi." }, 400);
-          }
-          if (body.confirmation !== "PUBLISH_BATCH") {
-            return jsonResponse({ message: "Konfirmasi publikasi belum diberikan." }, 400);
-          }
+        try {
+          if (body.action === "publish") {
+            if (!body.batchId?.trim()) {
+              return jsonResponse({ message: "batchId wajib diisi." }, 400);
+            }
+            if (body.confirmation !== "PUBLISH_BATCH") {
+              return jsonResponse({ message: "Konfirmasi publikasi belum diberikan." }, 400);
+            }
 
-          if (readsSkdFromSumopod(request)) {
-            return jsonResponse(
-              {
-                message:
-                  "Publikasi sementara dijeda. Batch tetap tersimpan, tetapi belum dapat diterbitkan ke database SKD publik.",
-              },
-              409,
-            );
-          }
-
-          const { data, error } = await sb.rpc("publish_skd_batch", {
-            p_batch_id: body.batchId,
-          });
-          if (error?.code === "57014") {
-            return jsonResponse(
-              {
-                message:
-                  "Publikasi melewati batas waktu database. Batch masih terverifikasi; tidak perlu verifikasi atau impor ulang.",
-              },
-              504,
-            );
-          }
-          if (error) return jsonResponse({ message: error.message }, 400);
-
-          const result = Array.isArray(data) ? data[0] : data;
-          if (result?.batch_status !== "published") {
-            return jsonResponse({ message: "Status publikasi dari database tidak valid." }, 502);
-          }
-          return jsonResponse({
-            participantCount: Number(result?.participant_count ?? 0),
-            formationCount: Number(result?.formation_count ?? 0),
-            batchStatus: result.batch_status,
-            publishedAt: result?.published_at ?? null,
-          });
-        }
-
-        if (body.action === "create") {
-          const batch = body.batch;
-          const source = body.source;
-          if (
-            !batch?.slug ||
-            !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(batch.slug) ||
-            !batch.institutionName?.trim() ||
-            !batch.selectionYear ||
-            !batch.parserFamily?.trim() ||
-            !batch.parserVersion?.trim() ||
-            !source?.fileName?.trim()
-          ) {
-            return jsonResponse({ message: "Metadata batch atau sumber belum lengkap." }, 400);
-          }
-          if (!/^3(?:\.|$)/.test(batch.parserVersion.trim())) {
-            return jsonResponse(
-              { message: "Hanya output parser versi 3 yang boleh distaging." },
-              400,
-            );
-          }
-
-          const { data: existing } = await sb
-            .from("skd_batches")
-            .select("id")
-            .eq("slug", batch.slug)
-            .maybeSingle();
-          if (existing) return jsonResponse({ message: `Batch ${batch.slug} sudah ada.` }, 409);
-
-          const { data: createdBatch, error: batchError } = await sb
-            .from("skd_batches")
-            .insert({
-              slug: batch.slug,
-              institution_code: batch.institutionCode?.trim() || null,
-              institution_name: batch.institutionName.trim(),
-              selection_year: batch.selectionYear,
-              parser_family: batch.parserFamily.trim(),
-              parser_version: batch.parserVersion.trim(),
-              status: "importing",
-              source_count: 1,
-              source_page_count: batch.sourcePageCount ?? source.totalPages ?? 0,
-            })
-            .select("id")
-            .single();
-          if (batchError) return jsonResponse({ message: batchError.message }, 500);
-
-          const { data: createdSource, error: sourceError } = await sb
-            .from("skd_sources")
-            .insert({
-              batch_id: createdBatch.id,
-              sheet_row: source.sheetRow ?? null,
-              file_name: source.fileName.trim(),
-              drive_file_id: source.driveFileId?.trim() || null,
-              source_url: source.sourceUrl?.trim() || null,
-              total_pages: source.totalPages ?? null,
-              document_type: source.documentType ?? "skd",
-              has_text_layer: source.hasTextLayer ?? null,
-            })
-            .select("id")
-            .single();
-          if (sourceError) {
-            await sb.from("skd_batches").delete().eq("id", createdBatch.id);
-            return jsonResponse({ message: sourceError.message }, 500);
-          }
-
-          return jsonResponse({ batchId: createdBatch.id, sourceId: createdSource.id }, 201);
-        }
-
-        if (!body.batchId || !body.sourceId) {
-          return jsonResponse({ message: "batchId dan sourceId wajib diisi." }, 400);
-        }
-        if (!Array.isArray(body.rows) && body.action !== "finalize") {
-          return jsonResponse({ message: "rows wajib berupa array." }, 400);
-        }
-        if ((body.rows?.length ?? 0) > 500) {
-          return jsonResponse({ message: "Maksimal 500 baris per request." }, 400);
-        }
-
-        if (body.action === "import_formations") {
-          const rows = body.rows ?? [];
-          const errors = rows.flatMap(validateFormationRow);
-          if (errors.length) return jsonResponse({ message: errors.slice(0, 20).join("; ") }, 400);
-
-          const payload = rows.map((row) => {
-            const status = qualityStatus(row.formation_quality_status);
-            return {
-              batch_id: body.batchId,
-              source_id: body.sourceId,
-              formation_key: clean(row.formation_instance_id),
-              tahun: toInt(row.tahun),
-              kode_instansi: clean(row.kode_instansi),
-              nama_instansi: clean(row.nama_instansi),
-              kode_jabatan: clean(row.kode_jabatan),
-              jabatan: clean(row.jabatan),
-              kode_lokasi: clean(row.kode_lokasi),
-              lokasi_formasi: clean(row.lokasi_formasi),
-              kode_jenis_formasi: clean(row.kode_jenis_formasi),
-              jenis_formasi: clean(row.jenis_formasi),
-              pendidikan: clean(row.pendidikan_formasi),
-              pendidikan_options: (clean(row.pendidikan_formasi) ?? "")
-                .split(/\s+\/\s+/)
-                .map((item) => item.trim())
-                .filter(Boolean),
-              jumlah_formasi: toInt(row.jumlah_formasi) ?? 0,
-              page_number: toInt(row.source_page_formasi),
-              quality_status: status,
-              parser_confidence: toConfidence(row.parser_confidence),
-              raw_payload: compactAuditPayload(row, status),
-            };
-          });
-          const { data, error } = await sb
-            .from("skd_formations")
-            .upsert(payload, { onConflict: "batch_id,formation_key" })
-            .select("id, formation_key, quality_status");
-          if (error) return jsonResponse({ message: error.message }, 500);
-
-          const issuePayload = (data ?? [])
-            .filter((row) => row.quality_status === "needs_review")
-            .map((row) => {
-              const sourceRow = rows.find(
-                (item) => clean(item.formation_instance_id) === row.formation_key,
+            if (fromSumopod) {
+              const readiness = await sb.rpc("skd_cross_database_ready");
+              if (readiness.error || readiness.data !== true) {
+                return jsonResponse(
+                  {
+                    message:
+                      "Publikasi dijeda sampai relasi SKD di Supabase siap untuk ID dari SumoPod.",
+                  },
+                  409,
+                );
+              }
+              const [result] = await sumopodSkdAdminRows<{
+                participant_count: number;
+                formation_count: number;
+                batch_status: string;
+                published_at: Date;
+              }>("select * from public.publish_skd_batch($1)", [body.batchId]);
+              if (result?.batch_status !== "published") {
+                return jsonResponse(
+                  { message: "Status publikasi dari database tidak valid." },
+                  502,
+                );
+              }
+              return jsonResponse({
+                participantCount: result.participant_count,
+                formationCount: result.formation_count,
+                batchStatus: result.batch_status,
+                publishedAt: result.published_at,
+              });
+            }
+            if (readsSkdFromSumopod(request)) {
+              return jsonResponse(
+                {
+                  message:
+                    "Publikasi sementara dijeda. Batch tetap tersimpan, tetapi belum dapat diterbitkan ke database SKD publik.",
+                },
+                409,
               );
+            }
+
+            const { data, error } = await sb.rpc("publish_skd_batch", {
+              p_batch_id: body.batchId,
+            });
+            if (error?.code === "57014") {
+              return jsonResponse(
+                {
+                  message:
+                    "Publikasi melewati batas waktu database. Batch masih terverifikasi; tidak perlu verifikasi atau impor ulang.",
+                },
+                504,
+              );
+            }
+            if (error) return jsonResponse({ message: error.message }, 400);
+
+            const result = Array.isArray(data) ? data[0] : data;
+            if (result?.batch_status !== "published") {
+              return jsonResponse({ message: "Status publikasi dari database tidak valid." }, 502);
+            }
+            return jsonResponse({
+              participantCount: Number(result?.participant_count ?? 0),
+              formationCount: Number(result?.formation_count ?? 0),
+              batchStatus: result.batch_status,
+              publishedAt: result?.published_at ?? null,
+            });
+          }
+
+          if (body.action === "create") {
+            const batch = body.batch;
+            const source = body.source;
+            if (
+              !batch?.slug ||
+              !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(batch.slug) ||
+              !batch.institutionName?.trim() ||
+              !batch.selectionYear ||
+              !batch.parserFamily?.trim() ||
+              !batch.parserVersion?.trim() ||
+              !source?.fileName?.trim()
+            ) {
+              return jsonResponse({ message: "Metadata batch atau sumber belum lengkap." }, 400);
+            }
+            if (!/^3(?:\.|$)/.test(batch.parserVersion.trim())) {
+              return jsonResponse(
+                { message: "Hanya output parser versi 3 yang boleh distaging." },
+                400,
+              );
+            }
+
+            if (fromSumopod) {
+              if (source.documentType && source.documentType !== "skd") {
+                return jsonResponse({ message: "Hanya PDF Hasil SKD yang boleh diimpor." }, 400);
+              }
+              const ids = await skdAdminTransaction(async (db) => {
+                const {
+                  rows: [newBatch],
+                } = await db.query<{ id: string }>(
+                  `insert into public.skd_batches
+                 (slug,institution_code,institution_name,selection_year,parser_family,parser_version,status,
+                  source_count,source_page_count)
+                 values ($1,$2,$3,$4,$5,$6,'importing',1,$7) returning id`,
+                  [
+                    batch.slug,
+                    batch.institutionCode?.trim() || null,
+                    batch.institutionName!.trim(),
+                    batch.selectionYear,
+                    batch.parserFamily!.trim(),
+                    batch.parserVersion!.trim(),
+                    batch.sourcePageCount ?? source.totalPages ?? 0,
+                  ],
+                );
+                const {
+                  rows: [newSource],
+                } = await db.query<{ id: string }>(
+                  `insert into public.skd_sources
+                 (batch_id,sheet_row,file_name,drive_file_id,source_url,total_pages,document_type,has_text_layer)
+                 values ($1,$2,$3,$4,$5,$6,'skd',$7) returning id`,
+                  [
+                    newBatch.id,
+                    source.sheetRow ?? null,
+                    source.fileName!.trim(),
+                    source.driveFileId?.trim() || null,
+                    source.sourceUrl?.trim() || null,
+                    source.totalPages ?? null,
+                    source.hasTextLayer ?? null,
+                  ],
+                );
+                return { batchId: newBatch.id, sourceId: newSource.id };
+              });
+              return jsonResponse(ids, 201);
+            }
+
+            const { data: existing } = await sb
+              .from("skd_batches")
+              .select("id")
+              .eq("slug", batch.slug)
+              .maybeSingle();
+            if (existing) return jsonResponse({ message: `Batch ${batch.slug} sudah ada.` }, 409);
+
+            const { data: createdBatch, error: batchError } = await sb
+              .from("skd_batches")
+              .insert({
+                slug: batch.slug,
+                institution_code: batch.institutionCode?.trim() || null,
+                institution_name: batch.institutionName.trim(),
+                selection_year: batch.selectionYear,
+                parser_family: batch.parserFamily.trim(),
+                parser_version: batch.parserVersion.trim(),
+                status: "importing",
+                source_count: 1,
+                source_page_count: batch.sourcePageCount ?? source.totalPages ?? 0,
+              })
+              .select("id")
+              .single();
+            if (batchError) return jsonResponse({ message: batchError.message }, 500);
+
+            const { data: createdSource, error: sourceError } = await sb
+              .from("skd_sources")
+              .insert({
+                batch_id: createdBatch.id,
+                sheet_row: source.sheetRow ?? null,
+                file_name: source.fileName.trim(),
+                drive_file_id: source.driveFileId?.trim() || null,
+                source_url: source.sourceUrl?.trim() || null,
+                total_pages: source.totalPages ?? null,
+                document_type: source.documentType ?? "skd",
+                has_text_layer: source.hasTextLayer ?? null,
+              })
+              .select("id")
+              .single();
+            if (sourceError) {
+              await sb.from("skd_batches").delete().eq("id", createdBatch.id);
+              return jsonResponse({ message: sourceError.message }, 500);
+            }
+
+            return jsonResponse({ batchId: createdBatch.id, sourceId: createdSource.id }, 201);
+          }
+
+          if (!body.batchId || !body.sourceId) {
+            return jsonResponse({ message: "batchId dan sourceId wajib diisi." }, 400);
+          }
+          if (!Array.isArray(body.rows) && body.action !== "finalize") {
+            return jsonResponse({ message: "rows wajib berupa array." }, 400);
+          }
+          if ((body.rows?.length ?? 0) > 500) {
+            return jsonResponse({ message: "Maksimal 500 baris per request." }, 400);
+          }
+
+          if (body.action === "import_formations") {
+            const rows = body.rows ?? [];
+            const errors = rows.flatMap(validateFormationRow);
+            if (errors.length)
+              return jsonResponse({ message: errors.slice(0, 20).join("; ") }, 400);
+
+            const payload = rows.map((row) => {
+              const status = qualityStatus(row.formation_quality_status);
               return {
                 batch_id: body.batchId,
-                formation_id: row.id,
-                field_name: "formation",
-                issue_code: "parser_review_required",
-                severity: "error",
-                raw_value: sourceRow?.validation_errors ?? null,
-                confidence: toConfidence(sourceRow?.parser_confidence),
+                source_id: body.sourceId,
+                formation_key: clean(row.formation_instance_id),
+                tahun: toInt(row.tahun),
+                kode_instansi: clean(row.kode_instansi),
+                nama_instansi: clean(row.nama_instansi),
+                kode_jabatan: clean(row.kode_jabatan),
+                jabatan: clean(row.jabatan),
+                kode_lokasi: clean(row.kode_lokasi),
+                lokasi_formasi: clean(row.lokasi_formasi),
+                kode_jenis_formasi: clean(row.kode_jenis_formasi),
+                jenis_formasi: clean(row.jenis_formasi),
+                pendidikan: clean(row.pendidikan_formasi),
+                pendidikan_options: (clean(row.pendidikan_formasi) ?? "")
+                  .split(/\s+\/\s+/)
+                  .map((item) => item.trim())
+                  .filter(Boolean),
+                jumlah_formasi: toInt(row.jumlah_formasi) ?? 0,
+                page_number: toInt(row.source_page_formasi),
+                quality_status: status,
+                parser_confidence: toConfidence(row.parser_confidence),
+                raw_payload: compactAuditPayload(row, status),
               };
             });
-          if (issuePayload.length) {
-            const { error: issueError } = await sb.from("skd_review_issues").insert(issuePayload);
-            if (issueError) return jsonResponse({ message: issueError.message }, 500);
-          }
-
-          return jsonResponse({
-            formationsUpserted: data?.length ?? 0,
-            issuesCreated: issuePayload.length,
-          });
-        }
-
-        if (body.action === "import_scores") {
-          const rows = body.rows ?? [];
-          const errors = rows.flatMap(validateScoreRow);
-          if (errors.length) return jsonResponse({ message: errors.slice(0, 20).join("; ") }, 400);
-
-          const formationKeys = [
-            ...new Set(rows.map((row) => clean(row.formation_instance_id))),
-          ].filter(Boolean) as string[];
-          const { data: formations, error: formationError } = await sb
-            .from("skd_formations")
-            .select("id, formation_key")
-            .eq("batch_id", body.batchId)
-            .in("formation_key", formationKeys);
-          if (formationError) return jsonResponse({ message: formationError.message }, 500);
-          const formationIds = new Map(
-            (formations ?? []).map((row) => [row.formation_key as string, row.id as string]),
-          );
-          if (formationIds.size !== formationKeys.length) {
-            return jsonResponse({ message: "Ada formasi peserta yang belum distaging." }, 409);
-          }
-
-          const payload = rows.map((row) => {
-            const status = qualityStatus(row.quality_status);
-            const name = clean(row.nama)!;
-            const rawName = clean(row.nama_raw) ?? name;
-            const education = clean(row.pendidikan);
-            const rawEducation = clean(row.pendidikan_raw) ?? education;
-            return {
-              batch_id: body.batchId,
-              source_id: body.sourceId,
-              formation_id: formationIds.get(clean(row.formation_instance_id)!)!,
-              no_peserta: clean(row.no_peserta),
-              nama: name,
-              nama_raw: status === "needs_review" || rawName !== name ? rawName : null,
-              nama_normalized: clean(row.nama_normalized) ?? name.toLowerCase(),
-              pendidikan: education,
-              pendidikan_raw:
-                status === "needs_review" || rawEducation !== education ? rawEducation : null,
-              tahun_skd: toInt(row.tahun_nilai_skd),
-              twk: toInt(row.twk),
-              tiu: toInt(row.tiu),
-              tkp: toInt(row.tkp),
-              total: toInt(row.total),
-              keterangan: clean(row.keterangan)?.toUpperCase(),
-              source_page: toInt(row.source_page),
-              quality_status: status,
-              parser_confidence: toConfidence(row.parser_confidence),
-              raw_payload: compactAuditPayload(row, status),
-            };
-          });
-          const { data, error } = await sb
-            .from("skd_scores")
-            .upsert(payload, { onConflict: "batch_id,no_peserta" })
-            .select("id, no_peserta, quality_status");
-          if (error) return jsonResponse({ message: error.message }, 500);
-
-          const issuePayload = (data ?? [])
-            .filter((row) => row.quality_status === "needs_review")
-            .map((row) => {
-              const sourceRow = rows.find((item) => clean(item.no_peserta) === row.no_peserta);
-              return {
-                batch_id: body.batchId,
-                score_id: row.id,
-                field_name: "row",
-                issue_code: "parser_review_required",
-                severity: "error",
-                raw_value: sourceRow?.validation_errors ?? null,
-                confidence: toConfidence(sourceRow?.parser_confidence),
-              };
-            });
-          if (issuePayload.length) {
-            const { error: issueError } = await sb.from("skd_review_issues").insert(issuePayload);
-            if (issueError) return jsonResponse({ message: issueError.message }, 500);
-          }
-
-          return jsonResponse({
-            scoresUpserted: data?.length ?? 0,
-            issuesCreated: issuePayload.length,
-          });
-        }
-
-        if (body.action === "finalize") {
-          const [formations, scores, issues] = await Promise.all([
-            sb
+            if (fromSumopod) {
+              const byKey = new Map(rows.map((row) => [clean(row.formation_instance_id), row]));
+              const result = await writeSumopodSkdImport(
+                "skd_formations",
+                body.batchId,
+                body.sourceId,
+                payload,
+                (items) =>
+                  items
+                    .filter((item) => item.quality_status === "needs_review")
+                    .map((item) => ({
+                      formation_id: item.id,
+                      field_name: "formation",
+                      issue_code: "parser_review_required",
+                      severity: "error",
+                      raw_value: byKey.get(item.item_key)?.validation_errors ?? null,
+                      confidence: toConfidence(byKey.get(item.item_key)?.parser_confidence),
+                    })),
+              );
+              return jsonResponse({
+                formationsUpserted: result.upserted,
+                issuesCreated: result.issuesCreated,
+              });
+            }
+            const { data, error } = await sb
               .from("skd_formations")
-              .select("id", { count: "exact", head: true })
-              .eq("batch_id", body.batchId),
-            sb
+              .upsert(payload, { onConflict: "batch_id,formation_key" })
+              .select("id, formation_key, quality_status");
+            if (error) return jsonResponse({ message: error.message }, 500);
+
+            const issuePayload = (data ?? [])
+              .filter((row) => row.quality_status === "needs_review")
+              .map((row) => {
+                const sourceRow = rows.find(
+                  (item) => clean(item.formation_instance_id) === row.formation_key,
+                );
+                return {
+                  batch_id: body.batchId,
+                  formation_id: row.id,
+                  field_name: "formation",
+                  issue_code: "parser_review_required",
+                  severity: "error",
+                  raw_value: sourceRow?.validation_errors ?? null,
+                  confidence: toConfidence(sourceRow?.parser_confidence),
+                };
+              });
+            if (issuePayload.length) {
+              const { error: issueError } = await sb.from("skd_review_issues").insert(issuePayload);
+              if (issueError) return jsonResponse({ message: issueError.message }, 500);
+            }
+
+            return jsonResponse({
+              formationsUpserted: data?.length ?? 0,
+              issuesCreated: issuePayload.length,
+            });
+          }
+
+          if (body.action === "import_scores") {
+            const rows = body.rows ?? [];
+            const errors = rows.flatMap(validateScoreRow);
+            if (errors.length)
+              return jsonResponse({ message: errors.slice(0, 20).join("; ") }, 400);
+
+            const formationKeys = [
+              ...new Set(rows.map((row) => clean(row.formation_instance_id))),
+            ].filter(Boolean) as string[];
+            const { data: formations, error: formationError } = fromSumopod
+              ? {
+                  data: await sumopodSkdAdminRows<{ id: string; formation_key: string }>(
+                    "select id, formation_key from public.skd_formations where batch_id = $1 and formation_key = any($2::text[])",
+                    [body.batchId, formationKeys],
+                  ),
+                  error: null,
+                }
+              : await sb
+                  .from("skd_formations")
+                  .select("id, formation_key")
+                  .eq("batch_id", body.batchId)
+                  .in("formation_key", formationKeys);
+            if (formationError) return jsonResponse({ message: formationError.message }, 500);
+            const formationIds = new Map(
+              (formations ?? []).map((row) => [row.formation_key as string, row.id as string]),
+            );
+            if (formationIds.size !== formationKeys.length) {
+              return jsonResponse({ message: "Ada formasi peserta yang belum distaging." }, 409);
+            }
+
+            const payload = rows.map((row) => {
+              const status = qualityStatus(row.quality_status);
+              const name = clean(row.nama)!;
+              const rawName = clean(row.nama_raw) ?? name;
+              const education = clean(row.pendidikan);
+              const rawEducation = clean(row.pendidikan_raw) ?? education;
+              return {
+                batch_id: body.batchId,
+                source_id: body.sourceId,
+                formation_id: formationIds.get(clean(row.formation_instance_id)!)!,
+                no_peserta: clean(row.no_peserta),
+                nama: name,
+                nama_raw: status === "needs_review" || rawName !== name ? rawName : null,
+                nama_normalized: clean(row.nama_normalized) ?? name.toLowerCase(),
+                pendidikan: education,
+                pendidikan_raw:
+                  status === "needs_review" || rawEducation !== education ? rawEducation : null,
+                tahun_skd: toInt(row.tahun_nilai_skd),
+                twk: toInt(row.twk),
+                tiu: toInt(row.tiu),
+                tkp: toInt(row.tkp),
+                total: toInt(row.total),
+                keterangan: clean(row.keterangan)?.toUpperCase(),
+                source_page: toInt(row.source_page),
+                quality_status: status,
+                parser_confidence: toConfidence(row.parser_confidence),
+                raw_payload: compactAuditPayload(row, status),
+              };
+            });
+            if (fromSumopod) {
+              const byKey = new Map(rows.map((row) => [clean(row.no_peserta), row]));
+              const result = await writeSumopodSkdImport(
+                "skd_scores",
+                body.batchId,
+                body.sourceId,
+                payload,
+                (items) =>
+                  items
+                    .filter((item) => item.quality_status === "needs_review")
+                    .map((item) => ({
+                      score_id: item.id,
+                      field_name: "row",
+                      issue_code: "parser_review_required",
+                      severity: "error",
+                      raw_value: byKey.get(item.item_key)?.validation_errors ?? null,
+                      confidence: toConfidence(byKey.get(item.item_key)?.parser_confidence),
+                    })),
+              );
+              return jsonResponse({
+                scoresUpserted: result.upserted,
+                issuesCreated: result.issuesCreated,
+              });
+            }
+            const { data, error } = await sb
               .from("skd_scores")
-              .select("id", { count: "exact", head: true })
-              .eq("batch_id", body.batchId),
-            sb
-              .from("skd_review_issues")
-              .select("id", { count: "exact", head: true })
-              .eq("batch_id", body.batchId)
-              .eq("status", "open"),
-          ]);
-          const firstError = formations.error ?? scores.error ?? issues.error;
-          if (firstError) return jsonResponse({ message: firstError.message }, 500);
+              .upsert(payload, { onConflict: "batch_id,no_peserta" })
+              .select("id, no_peserta, quality_status");
+            if (error) return jsonResponse({ message: error.message }, 500);
 
-          const { error } = await sb
-            .from("skd_batches")
-            .update({
-              status: "review",
-              formation_count: formations.count ?? 0,
-              participant_count: scores.count ?? 0,
-              review_issue_count: issues.count ?? 0,
-            })
-            .eq("id", body.batchId)
-            .eq("status", "importing");
-          if (error) return jsonResponse({ message: error.message }, 500);
-          return jsonResponse({
-            formationCount: formations.count ?? 0,
-            participantCount: scores.count ?? 0,
-            reviewIssueCount: issues.count ?? 0,
-          });
+            const issuePayload = (data ?? [])
+              .filter((row) => row.quality_status === "needs_review")
+              .map((row) => {
+                const sourceRow = rows.find((item) => clean(item.no_peserta) === row.no_peserta);
+                return {
+                  batch_id: body.batchId,
+                  score_id: row.id,
+                  field_name: "row",
+                  issue_code: "parser_review_required",
+                  severity: "error",
+                  raw_value: sourceRow?.validation_errors ?? null,
+                  confidence: toConfidence(sourceRow?.parser_confidence),
+                };
+              });
+            if (issuePayload.length) {
+              const { error: issueError } = await sb.from("skd_review_issues").insert(issuePayload);
+              if (issueError) return jsonResponse({ message: issueError.message }, 500);
+            }
+
+            return jsonResponse({
+              scoresUpserted: data?.length ?? 0,
+              issuesCreated: issuePayload.length,
+            });
+          }
+
+          if (body.action === "finalize") {
+            if (fromSumopod) {
+              const finalized = await skdAdminTransaction(async (db) => {
+                const {
+                  rows: [batch],
+                } = await db.query<{ status: string }>(
+                  `select b.status from public.skd_batches b
+                 join public.skd_sources s on s.batch_id = b.id and s.id = $2
+                 where b.id = $1 for update of b`,
+                  [body.batchId, body.sourceId],
+                );
+                if (!batch || !["importing", "review"].includes(batch.status)) {
+                  throw new SkdAdminConflict(
+                    "Batch atau sumber tidak cocok dengan impor yang sedang berjalan.",
+                  );
+                }
+                const {
+                  rows: [result],
+                } = await db.query(
+                  `update public.skd_batches b set status = 'review',
+                   formation_count = (select count(*) from public.skd_formations where batch_id = b.id),
+                   participant_count = (select count(*) from public.skd_scores where batch_id = b.id),
+                   review_issue_count = (select count(*) from public.skd_review_issues where batch_id = b.id and status = 'open')
+                 where b.id = $1
+                 returning formation_count as "formationCount", participant_count as "participantCount",
+                   review_issue_count as "reviewIssueCount"`,
+                  [body.batchId],
+                );
+                return result;
+              });
+              return jsonResponse(finalized);
+            }
+            const [formations, scores, issues] = await Promise.all([
+              sb
+                .from("skd_formations")
+                .select("id", { count: "exact", head: true })
+                .eq("batch_id", body.batchId),
+              sb
+                .from("skd_scores")
+                .select("id", { count: "exact", head: true })
+                .eq("batch_id", body.batchId),
+              sb
+                .from("skd_review_issues")
+                .select("id", { count: "exact", head: true })
+                .eq("batch_id", body.batchId)
+                .eq("status", "open"),
+            ]);
+            const firstError = formations.error ?? scores.error ?? issues.error;
+            if (firstError) return jsonResponse({ message: firstError.message }, 500);
+
+            const { error } = await sb
+              .from("skd_batches")
+              .update({
+                status: "review",
+                formation_count: formations.count ?? 0,
+                participant_count: scores.count ?? 0,
+                review_issue_count: issues.count ?? 0,
+              })
+              .eq("id", body.batchId)
+              .eq("status", "importing");
+            if (error) return jsonResponse({ message: error.message }, 500);
+            return jsonResponse({
+              formationCount: formations.count ?? 0,
+              participantCount: scores.count ?? 0,
+              reviewIssueCount: issues.count ?? 0,
+            });
+          }
+
+          return jsonResponse({ message: "Action tidak dikenal." }, 400);
+        } catch (error) {
+          const { message, status } = skdAdminError(error);
+          return jsonResponse({ message }, status);
         }
-
-        return jsonResponse({ message: "Action tidak dikenal." }, 400);
       },
     },
   },

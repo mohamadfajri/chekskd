@@ -28,5 +28,27 @@ begin
 end;
 $$;
 
+create or replace function public.skd_cross_database_ready()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select not exists (
+    select 1
+    from pg_catalog.pg_constraint
+    where contype = 'f'
+      and conrelid in ('public.leads'::regclass, 'public.result_sessions'::regclass,
+        'public.skd_analysis_jobs'::regclass)
+      and confrelid in ('public.skd_scores'::regclass, 'public.skd_formations'::regclass)
+  );
+$$;
+
+revoke all on function public.skd_cross_database_ready() from public, anon, authenticated;
+grant execute on function public.skd_cross_database_ready() to service_role;
+
 notify pgrst, 'reload schema';
 commit;
+
+select public.skd_cross_database_ready() as ready_for_sumopod_admin;

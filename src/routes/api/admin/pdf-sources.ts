@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getServerSupabase, jsonResponse, requireAdmin } from "@/lib/supabase/server";
+import { skdAdminError, skdAdminUsesSumopod, sumopodSkdAdminRows } from "@/server/skdAdminStore";
 
 export const Route = createFileRoute("/api/admin/pdf-sources")({
   server: {
@@ -8,6 +9,25 @@ export const Route = createFileRoute("/api/admin/pdf-sources")({
         const authError = requireAdmin(request);
         if (authError) return authError;
 
+        if (skdAdminUsesSumopod()) {
+          try {
+            const [stats] = await sumopodSkdAdminRows(
+              `with totals as (
+                 select b.selection_year, count(*)::int as total,
+                   count(*) filter (where nullif(btrim(s.source_url), '') is not null)::int as with_url
+                 from public.skd_sources s join public.skd_batches b on b.id = s.batch_id
+                 group by b.selection_year
+               )
+               select coalesce(sum(total),0)::int as total, coalesce(sum(with_url),0)::int as "withUrl",
+                 coalesce(sum(total - with_url),0)::int as "withoutUrl",
+                 coalesce(jsonb_object_agg(selection_year, total), '{}') as "byYear" from totals`,
+            );
+            return jsonResponse(stats);
+          } catch (error) {
+            const { message, status } = skdAdminError(error);
+            return jsonResponse({ message }, status);
+          }
+        }
         const { client: sb, error: configError } = getServerSupabase();
         if (!sb) {
           return jsonResponse({ message: `Supabase server belum siap: ${configError}` }, 503);

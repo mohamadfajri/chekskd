@@ -1,7 +1,19 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getServerSupabase, jsonResponse, requireAdmin } from "@/lib/supabase/server";
+import { skdAdminError, skdAdminUsesSumopod, sumopodSkdAdminRows } from "@/server/skdAdminStore";
+import { sumopodPublishedFormations } from "@/server/skdAdminViews";
 
 const PAGE_SIZE = 25;
+const PUBLISHED_FIELDS =
+  "id, institution_code, institution_name, selection_year, source_count, source_page_count, formation_count, participant_count, published_at";
+type PublishedBatch = {
+  id: string;
+  institution_name: string;
+  source_count: number;
+  source_page_count: number;
+  formation_count: number;
+  participant_count: number;
+};
 
 function positiveInt(value: string | null, fallback: number, max: number): number {
   const parsed = Number(value);
@@ -20,18 +32,54 @@ export const Route = createFileRoute("/api/admin/published-data")({
         const authError = requireAdmin(request);
         if (authError) return authError;
 
+        const url = new URL(request.url);
+        const mode = url.searchParams.get("mode") === "formations" ? "formations" : "overview";
+        if (skdAdminUsesSumopod()) {
+          try {
+            const institutions = await sumopodSkdAdminRows<PublishedBatch>(
+              `select ${PUBLISHED_FIELDS} from public.skd_batches
+                where status = 'published' order by institution_name, id`,
+            );
+            const summary = institutions.reduce(
+              (total, batch) => ({
+                institutions: total.institutions + 1,
+                sources: total.sources + batch.source_count,
+                pages: total.pages + batch.source_page_count,
+                formations: total.formations + batch.formation_count,
+                participants: total.participants + batch.participant_count,
+              }),
+              { institutions: 0, sources: 0, pages: 0, formations: 0, participants: 0 },
+            );
+            if (mode === "overview") return jsonResponse({ summary, institutions });
+            const batchId = url.searchParams.get("batchId")?.trim();
+            if (batchId && !institutions.some(({ id }) => id === batchId)) {
+              return jsonResponse({ message: "Instansi published tidak ditemukan." }, 404);
+            }
+            const result = await sumopodPublishedFormations({
+              batchIds: batchId ? [batchId] : institutions.map(({ id }) => id),
+              search: (url.searchParams.get("search") ?? "")
+                .trim()
+                .slice(0, 100)
+                .replace(/[(),]/g, " "),
+              sort: url.searchParams.get("sort") ?? "participants_desc",
+              page: positiveInt(url.searchParams.get("page"), 1, 100000),
+              pageSize: positiveInt(url.searchParams.get("pageSize"), PAGE_SIZE, 100),
+            });
+            return jsonResponse({ summary, institutions, ...result });
+          } catch (error) {
+            const { message, status } = skdAdminError(error);
+            return jsonResponse({ message }, status);
+          }
+        }
+
         const { client: sb, error: configError } = getServerSupabase();
         if (!sb) {
           return jsonResponse({ message: `Supabase server belum siap: ${configError}` }, 503);
         }
 
-        const url = new URL(request.url);
-        const mode = url.searchParams.get("mode") === "formations" ? "formations" : "overview";
         const { data: batches, error: batchError } = await sb
           .from("skd_batches")
-          .select(
-            "id, institution_code, institution_name, selection_year, source_count, source_page_count, formation_count, participant_count, published_at",
-          )
+          .select(PUBLISHED_FIELDS)
           .eq("status", "published")
           .order("institution_name", { ascending: true });
         if (batchError) return jsonResponse({ message: batchError.message }, 500);

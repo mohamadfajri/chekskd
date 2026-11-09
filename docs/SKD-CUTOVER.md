@@ -16,12 +16,31 @@ Flag ini mencakup pencarian dan detail peserta, jumlah publik, pencarian
 target, validasi skor dan target saat membuat kode, daftar/detail/filter
 formasi SKD, statistik pembanding untuk katalog, simulasi manual, dan
 perhitungan v6 pada worker Hermes. Penyimpanan kode, akun, dan antrean tetap
-di Supabase. Pencocokan SSCASN serta impor, review dan publikasi admin masih
-perlu dialihkan sebelum tabel SKD sumber boleh dikosongkan.
+di Supabase.
 
 Selama pembacaan publik menggunakan SumoPod dan admin masih menyimpan batch
 di Supabase, endpoint publikasi menolak batch baru. Ini mencegah batch terlihat
 terbit di admin tetapi tidak muncul di pencarian dan mesin rasionalisasi.
+
+## Pindahkan penulisan admin
+
+1. Jeda impor dan review, cek ulang bahwa isi dan status batch masih sama, dan
+   uji jalur admin SumoPod dengan batch sintetis. Script
+   `tools/skd/smoke_sumopod_admin.mjs` menjalankan endpoint lokal; uji publikasi
+   memakai transaksi yang dibatalkan dan hanya menghapus batch uji yang dibuatnya.
+2. Jalankan SQL pelepasan relasi di Supabase. Hasil
+   `ready_for_sumopod_admin = true` menandakan ID baru bisa disimpan sebagai
+   referensi eksternal tanpa mengubah ID yang sudah ada.
+3. Aktifkan `SKD_ADMIN_BACKEND=sumopod` bersama `SKD_READ_BACKEND=sumopod` di
+   produksi. Impor, review, publikasi, Data Explorer, data terbit, dan alias
+   pendidikan memakai SumoPod. Metadata PDF dibaca dari SumoPod, berkas PDF
+   tetap di Supabase Storage. Publikasi tetap menolak permintaan jika pemeriksaan
+   relasi Supabase belum lolos.
+4. Audit dan approval SSCASN masih memakai salinan historis Supabase, sehingga
+   batch yang baru terbit di SumoPod belum masuk alur audit SSCASN tersebut.
+   Jangan bersihkan formasi, batch, statistik, atau pasangan SSCASN Supabase
+   sampai audit ikut dipindah. Setelah impor pertama di SumoPod, jangan
+   mengembalikan penulisan ke Supabase tanpa menyelaraskan perubahan.
 
 ## Pemeriksaan sebelum peralihan
 

@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getServerSupabase, jsonResponse, requireAdmin } from "@/lib/supabase/server";
+import { skdAdminError, skdAdminUsesSumopod, sumopodSkdAdminRows } from "@/server/skdAdminStore";
 
 const PDF_BUCKET = "skd-source-pdfs";
 const SIGNED_URL_SECONDS = 10 * 60;
@@ -34,12 +35,26 @@ export const Route = createFileRoute("/api/admin/skd-pdf")({
           return jsonResponse({ message: `Supabase server belum siap: ${configError}` }, 503);
         }
 
-        const { data: source, error: sourceError } = await sb
-          .from("skd_sources")
-          .select("file_name")
-          .eq("id", sourceId)
-          .maybeSingle();
-        if (sourceError) return jsonResponse({ message: sourceError.message }, 500);
+        let source: { file_name: string } | null | undefined;
+        if (skdAdminUsesSumopod()) {
+          try {
+            [source] = await sumopodSkdAdminRows<{ file_name: string }>(
+              "select file_name from public.skd_sources where id = $1",
+              [sourceId],
+            );
+          } catch (error) {
+            const { message, status } = skdAdminError(error);
+            return jsonResponse({ message }, status);
+          }
+        } else {
+          const { data, error } = await sb
+            .from("skd_sources")
+            .select("file_name")
+            .eq("id", sourceId)
+            .maybeSingle();
+          if (error) return jsonResponse({ message: error.message }, 500);
+          source = data;
+        }
         if (!source) return jsonResponse({ message: "Sumber PDF tidak ditemukan." }, 404);
 
         const { data: objects, error: listError } = await sb.storage

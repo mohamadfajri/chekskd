@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getServerSupabase, jsonResponse, requireAdmin } from "@/lib/supabase/server";
+import { skdAdminError, skdAdminUsesSumopod, sumopodSkdAdminRows } from "@/server/skdAdminStore";
 
 type MatchKind = "exact" | "equivalent" | "family_only";
 type ReviewStatus = "pending" | "approved" | "rejected";
@@ -27,6 +28,19 @@ export const Route = createFileRoute("/api/admin/education-aliases")({
         const authError = requireAdmin(request);
         if (authError) return authError;
 
+        if (skdAdminUsesSumopod()) {
+          try {
+            const aliases = await sumopodSkdAdminRows(
+              `select normalized_label, canonical_label, degree_level, major_family, match_kind,
+                review_status, notes, created_at from public.skd_education_aliases
+                order by major_family, canonical_label, normalized_label`,
+            );
+            return jsonResponse({ aliases });
+          } catch (error) {
+            const { message, status } = skdAdminError(error);
+            return jsonResponse({ message }, status);
+          }
+        }
         const { client: sb, error: configError } = getServerSupabase();
         if (!sb) {
           return jsonResponse({ message: `Supabase server belum siap: ${configError}` }, 503);
@@ -76,6 +90,33 @@ export const Route = createFileRoute("/api/admin/education-aliases")({
           return jsonResponse({ message: "Jenjang wajib untuk kecocokan exact/equivalent." }, 400);
         }
 
+        if (skdAdminUsesSumopod()) {
+          try {
+            const [alias] = await sumopodSkdAdminRows(
+              `insert into public.skd_education_aliases
+                (normalized_label, canonical_label, degree_level, major_family, match_kind, review_status, notes)
+              values ($1,$2,$3,$4,$5,$6,$7)
+              on conflict (normalized_label) do update set
+                canonical_label = excluded.canonical_label, degree_level = excluded.degree_level,
+                major_family = excluded.major_family, match_kind = excluded.match_kind,
+                review_status = excluded.review_status, notes = excluded.notes
+              returning *`,
+              [
+                normalizedLabel,
+                canonicalLabel,
+                degreeLevel,
+                majorFamily,
+                matchKind,
+                reviewStatus,
+                notes,
+              ],
+            );
+            return jsonResponse({ alias });
+          } catch (error) {
+            const { message, status } = skdAdminError(error);
+            return jsonResponse({ message }, status);
+          }
+        }
         const { client: sb, error: configError } = getServerSupabase();
         if (!sb) {
           return jsonResponse({ message: `Supabase server belum siap: ${configError}` }, 503);

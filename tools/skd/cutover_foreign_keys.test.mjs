@@ -17,6 +17,9 @@ test("detaching old SKD links preserves score/target IDs and session/lead/queue 
   const db = await PGlite.create();
   try {
     await db.exec(`
+      create role anon;
+      create role authenticated;
+      create role service_role;
       create table public.skd_scores(id int primary key);
       create table public.skd_formations(id int primary key);
       create table public.leads(id int primary key,
@@ -36,6 +39,13 @@ test("detaching old SKD links preserves score/target IDs and session/lead/queue 
     `);
     await db.exec(detach);
     await db.exec(detach);
+    assert.equal(
+      (await db.query("select public.skd_cross_database_ready() as ready")).rows[0].ready,
+      true,
+    );
+    await db.exec("set role anon");
+    await assert.rejects(db.query("select public.skd_cross_database_ready()"), { code: "42501" });
+    await db.exec("reset role");
     await db.exec("truncate public.skd_scores, public.skd_formations");
     assert.deepEqual((await db.query("select * from public.leads")).rows, [
       { id: 1, score_id: 1, target_formation_id: 2 },

@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getServerSupabase, jsonResponse, requireAdmin } from "@/lib/supabase/server";
+import { skdAdminError, skdAdminUsesSumopod, sumopodSkdAdminRows } from "@/server/skdAdminStore";
 
 export const Route = createFileRoute("/api/admin/skd-review")({
   server: {
@@ -10,8 +11,37 @@ export const Route = createFileRoute("/api/admin/skd-review")({
 
         const url = new URL(request.url);
         const batchId = url.searchParams.get("batchId")?.trim();
-        const limit = Math.min(Math.max(Number(url.searchParams.get("limit")) || 100, 1), 200);
+        const limit = Math.min(
+          Math.max(Math.trunc(Number(url.searchParams.get("limit"))) || 100, 1),
+          200,
+        );
         if (!batchId) return jsonResponse({ message: "batchId wajib diisi." }, 400);
+        if (skdAdminUsesSumopod()) {
+          try {
+            const issues = await sumopodSkdAdminRows(
+              `select i.id, i.score_id, i.formation_id, i.field_name, i.issue_code, i.severity,
+                i.raw_value, i.suggested_value, i.confidence::float8, i.status,
+                s.no_peserta, s.nama, s.nama_raw, coalesce(s.pendidikan, f.pendidikan) as pendidikan,
+                s.pendidikan_raw, s.twk, s.tiu, s.tkp, s.total, s.keterangan,
+                coalesce(s.source_page, f.page_number) as source_page,
+                f.nama_instansi as institution_name, f.jabatan as formation_name,
+                pdf.file_name as source_file_name, pdf.source_url,
+                coalesce(s.source_id, f.source_id) as source_id
+              from public.skd_review_issues i
+              left join public.skd_scores s on s.id = i.score_id and s.batch_id = i.batch_id
+              left join public.skd_formations f on f.id = coalesce(s.formation_id, i.formation_id)
+                and f.batch_id = i.batch_id
+              left join public.skd_sources pdf on pdf.id = coalesce(s.source_id, f.source_id)
+                and pdf.batch_id = i.batch_id
+              where i.batch_id = $1 and i.status = 'open' order by i.created_at, i.id limit $2`,
+              [batchId, limit],
+            );
+            return jsonResponse({ issues });
+          } catch (error) {
+            const { message, status } = skdAdminError(error);
+            return jsonResponse({ message }, status);
+          }
+        }
 
         const { client: sb, error: configError } = getServerSupabase();
         if (!sb) {
@@ -121,6 +151,39 @@ export const Route = createFileRoute("/api/admin/skd-review")({
           return jsonResponse({ message: "Konfirmasi bulk verification belum diberikan." }, 400);
         }
 
+        if (skdAdminUsesSumopod()) {
+          try {
+            const [result] = await sumopodSkdAdminRows<{
+              issues_resolved: number;
+              scores_verified: number;
+              formations_verified: number;
+              batch_status: string;
+            }>(
+              step
+                ? "select * from public.bulk_verify_skd_batch_step($1,$2)"
+                : "select * from public.bulk_verify_skd_batch($1,$2)",
+              [
+                body.batchId,
+                body.resolutionNote?.trim() || "Bulk verification approved from SKD Data Desk",
+              ],
+            );
+            if (
+              result?.batch_status !== "verified" &&
+              (!step || result?.batch_status !== "review")
+            ) {
+              return jsonResponse({ message: "Status verifikasi dari database tidak valid." }, 502);
+            }
+            return jsonResponse({
+              issuesResolved: result.issues_resolved,
+              scoresVerified: result.scores_verified,
+              formationsVerified: result.formations_verified,
+              batchStatus: result.batch_status,
+            });
+          } catch (error) {
+            const { message, status } = skdAdminError(error);
+            return jsonResponse({ message }, status);
+          }
+        }
         const { client: sb, error: configError } = getServerSupabase();
         if (!sb) {
           return jsonResponse({ message: `Supabase server belum siap: ${configError}` }, 503);

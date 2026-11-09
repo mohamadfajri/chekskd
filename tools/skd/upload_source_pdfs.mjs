@@ -1,6 +1,8 @@
 import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
+import pg from "pg";
+import { aesenConnection } from "../../src/server/aesenConnection.ts";
 
 const BUCKET = "skd-source-pdfs";
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
@@ -49,9 +51,7 @@ function findParts(entries, fileName) {
   return entries
     .map((entry) => {
       const match = entry.name.match(pattern);
-      return match
-        ? { entry, firstPage: Number(match[1]), lastPage: Number(match[2]) }
-        : null;
+      return match ? { entry, firstPage: Number(match[1]), lastPage: Number(match[2]) } : null;
     })
     .filter(Boolean)
     .sort((left, right) => left.firstPage - right.firstPage);
@@ -76,6 +76,30 @@ async function uploadFile(filePath, objectPath) {
   if (result.error) throw result.error;
 }
 
+async function listSources() {
+  if (process.env.SKD_ADMIN_BACKEND === "sumopod") {
+    const databaseUrl = process.env.SKD_DATABASE_URL;
+    if (!databaseUrl) throw new Error("SKD_DATABASE_URL belum disetel.");
+    const db = new pg.Client(aesenConnection(databaseUrl));
+    try {
+      await db.connect();
+      return (
+        await db.query(
+          "select id, file_name, total_pages from public.skd_sources order by created_at",
+        )
+      ).rows;
+    } finally {
+      await db.end();
+    }
+  }
+  const { data, error } = await supabase
+    .from("skd_sources")
+    .select("id, file_name, total_pages")
+    .order("created_at");
+  if (error) throw error;
+  return data;
+}
+
 async function main() {
   const entries = (await readdir(root, { withFileTypes: true })).filter(
     (entry) => entry.isFile() && entry.name.toLowerCase().endsWith(".pdf"),
@@ -84,11 +108,7 @@ async function main() {
     if (error.code === "ENOENT") return [];
     throw error;
   });
-  const { data: sources, error } = await supabase
-    .from("skd_sources")
-    .select("id, file_name, total_pages")
-    .order("created_at");
-  if (error) throw error;
+  const sources = await listSources();
   if (!sources?.length) throw new Error("Belum ada sumber PDF di tabel skd_sources.");
 
   await ensureBucket();
@@ -144,9 +164,7 @@ async function main() {
         console.log(`Sudah ada: ${objectPath}`);
         continue;
       }
-      console.log(
-        `Upload ${item.fileName} (${(item.info.size / 1024 / 1024).toFixed(1)} MiB)...`,
-      );
+      console.log(`Upload ${item.fileName} (${(item.info.size / 1024 / 1024).toFixed(1)} MiB)...`);
       await uploadFile(item.filePath, objectPath);
       uploaded += 1;
       console.log(`Selesai: ${objectPath}`);

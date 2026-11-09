@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { normalizeNameForSearch } from "@/lib/skdSearch";
 import { getServerSupabase, jsonResponse, requireAdmin } from "@/lib/supabase/server";
+import { skdAdminError, skdAdminUsesSumopod } from "@/server/skdAdminStore";
+import { sumopodSkdExplorerOverview, sumopodSkdExplorerRows } from "@/server/skdAdminViews";
 
 const PAGE_SIZE_MAX = 100;
 const FORMATION_CHUNK = 1000;
@@ -33,6 +35,37 @@ export const Route = createFileRoute("/api/admin/skd-explorer")({
         const batchId = url.searchParams.get("batchId")?.trim();
         const mode = url.searchParams.get("mode") === "rows" ? "rows" : "overview";
         if (!batchId) return jsonResponse({ message: "batchId wajib diisi." }, 400);
+
+        if (skdAdminUsesSumopod()) {
+          try {
+            if (mode === "overview") {
+              const overview = await sumopodSkdExplorerOverview(batchId);
+              return overview
+                ? jsonResponse(overview)
+                : jsonResponse({ message: "Batch tidak ditemukan." }, 404);
+            }
+            const search = url.searchParams.get("search")?.trim().slice(0, 100) ?? "";
+            const byNumber = /^\d+$/.test(search);
+            const quality = url.searchParams.get("quality") ?? "";
+            return jsonResponse(
+              await sumopodSkdExplorerRows({
+                batchId,
+                page: positiveInt(url.searchParams.get("page"), 1, 100000),
+                pageSize: positiveInt(url.searchParams.get("pageSize"), 25, PAGE_SIZE_MAX),
+                search: byNumber ? search : normalizeNameForSearch(search),
+                searchByNumber: byNumber,
+                formationId: url.searchParams.get("formationId")?.trim() || null,
+                attendance: url.searchParams.get("attendance") ?? "all",
+                passing: url.searchParams.get("passing") ?? "all",
+                quality: QUALITY_STATUSES.has(quality) ? quality : null,
+                sort: url.searchParams.get("sort") ?? "source_page",
+              }),
+            );
+          } catch (error) {
+            const { message, status } = skdAdminError(error);
+            return jsonResponse({ message }, status);
+          }
+        }
 
         const { client: sb, error: configError } = getServerSupabase();
         if (!sb) {
