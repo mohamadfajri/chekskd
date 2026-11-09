@@ -1,4 +1,4 @@
-import { useEffect, useState, type ComponentType } from "react";
+﻿import { type ComponentType } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -66,8 +66,8 @@ const navItems: NavItem[] = [
 ];
 
 export function SiteHeader() {
-  const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const [compact, setCompact] = useState(false);
+  const pathname = useRouterState().location.pathname;
+
   const account = useQuery({
     queryKey: ["current-account"],
     queryFn: getCurrentAccount,
@@ -75,19 +75,12 @@ export function SiteHeader() {
     retry: false,
   });
 
-  useEffect(() => {
-    const update = () => setCompact(window.scrollY > 90);
-    update();
-    window.addEventListener("scroll", update, { passive: true });
-    return () => window.removeEventListener("scroll", update);
-  }, []);
-
   return (
     <>
-      <header className={`public-nav-shell ${compact ? "is-compact" : ""}`}>
+      <header className="public-nav-shell">
         <div className="public-nav">
           <Link to="/" aria-label="AnalisaCPNS - beranda" className="public-nav-brand">
-            <AnalisaCPNSLogo theme="dark" size={38} className="public-nav-logo-full" />
+            <AnalisaCPNSLogo theme="light" size={38} className="public-nav-logo-full" />
             <AnalisaCPNSLogo
               variant="icon"
               theme="dark"
@@ -102,6 +95,7 @@ export function SiteHeader() {
               const active = item.matches(pathname);
               return (
                 <Link
+                  aria-current={active ? "page" : undefined}
                   key={`${item.to}-${item.label}`}
                   to={item.to}
                   hash={item.hash}

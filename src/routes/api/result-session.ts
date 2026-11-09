@@ -7,6 +7,8 @@ import {
 } from "@/lib/analysis";
 import { getAuthenticatedUser } from "@/lib/auth/server";
 import { getServerSupabase, jsonResponse } from "@/lib/supabase/server";
+import { getPreviewRationalization, isLocalSkdPreview } from "@/server/skdPreview";
+import { createSkdPreviewSession } from "@/server/skdPreviewSession";
 
 interface LeadInput {
   nama_panggilan?: string;
@@ -176,7 +178,7 @@ export const Route = createFileRoute("/api/result-session")({
           if (educationMatchError) {
             return jsonResponse({ message: "Kecocokan pendidikan belum dapat diperiksa." }, 500);
           }
-          if (!targetBaseIsValid || educationMatches !== true) {
+          if (!targetFormation || !targetBaseIsValid || educationMatches !== true) {
             return jsonResponse(
               {
                 message:
@@ -212,6 +214,30 @@ export const Route = createFileRoute("/api/result-session")({
             targetStats.cutoff_twk !== null;
           if (targetBatch?.status !== "published" || !targetStatsReady) {
             return jsonResponse({ message: "Data historis target belum siap dianalisis." }, 400);
+          }
+        }
+
+        if (isLocalSkdPreview(request)) {
+          try {
+            const snapshot = await getPreviewRationalization(score.id, analysisGoal, preferenceFlags, targetFormationId);
+            if (!snapshot || snapshot.formation_id !== score.formation_id ||
+                snapshot.participant.name !== score.nama || snapshot.participant.twk !== score.twk ||
+                snapshot.participant.tiu !== score.tiu || snapshot.participant.tkp !== score.tkp ||
+                snapshot.participant.total !== score.total) {
+              return jsonResponse({ message: "Data peserta di SumoPod belum cocok dengan sumber." }, 409);
+            }
+            const session = await createSkdPreviewSession(sb, {
+              ...snapshot,
+              request: {
+                nickname: namaPanggilan, target_year: targetTahun,
+                target_institution: targetFormation?.nama_instansi ?? null,
+                target_formation: targetFormation?.jabatan ?? null, plan: rencana,
+              },
+            }, auth.user.whatsapp);
+            return jsonResponse(session, 201);
+          } catch (error) {
+            console.error("skd_preview_session_failed", (error as { code?: string })?.code ?? "unknown");
+            return jsonResponse({ message: "Kode uji SumoPod belum dapat dibuat." }, 503);
           }
         }
 

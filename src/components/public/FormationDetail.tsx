@@ -132,6 +132,36 @@ function DetailContent({ detail }: { detail: FormationDetailData }) {
           />
         </section>
 
+        {detail.sscasn && (
+          <section aria-label="Administrasi SSCASN" className="mt-5 border-y border-border py-4">
+            <h2 className="mb-3 text-sm font-bold">
+              Administrasi SSCASN {detail.sscasn.selection_year}
+            </h2>
+            <div className="grid gap-3 text-sm sm:grid-cols-3">
+              <p>
+                Pelamar lulus administrasi{" "}
+                <strong className="block">{formatNumber(detail.sscasn.passed_admin)}</strong>
+              </p>
+              <p>
+                Rasio pelamar / kuota{" "}
+                <strong className="block">
+                  {detail.sscasn.administrative_ratio == null
+                    ? "—"
+                    : `${formatRatio(detail.sscasn.administrative_ratio)}x`}
+                </strong>
+              </p>
+              <p>
+                Gaji tercatat{" "}
+                <strong className="block">
+                  {detail.sscasn.salary_min == null || detail.sscasn.salary_max == null
+                    ? "—"
+                    : `Rp ${formatNumber(detail.sscasn.salary_min)} – ${formatNumber(detail.sscasn.salary_max)}`}
+                </strong>
+              </p>
+            </div>
+          </section>
+        )}
+
         <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
           <div className="space-y-6">
             <section className="overflow-hidden rounded-lg border border-border bg-white">

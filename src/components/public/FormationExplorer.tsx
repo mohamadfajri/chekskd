@@ -130,7 +130,7 @@ export function FormationExplorer({
       sort?: FormationSort;
     } = {},
   ) {
-    const nextParams = new URLSearchParams();
+    const nextParams = new URLSearchParams({ tampilan: "skd" });
     const nextQuery = overrides.query ?? queryInput.trim();
     const nextInstitution = overrides.institution ?? institution;
     const nextEducation = overrides.education ?? educationInput.trim();
@@ -145,10 +145,9 @@ export function FormationExplorer({
     if (nextCompetition) nextParams.set("persaingan", nextCompetition);
     if (nextSort !== "competition_desc") nextParams.set("urut", nextSort);
 
-    const suffix = nextParams.toString();
     void navigate({
       to: "/login",
-      search: { next: suffix ? `/formasi?${suffix}` : "/formasi" },
+      search: { next: `/formasi?${nextParams}` },
     });
   }
 
@@ -484,7 +483,7 @@ export function FormationExplorer({
 
         {isPreview ? (
           <LoginGate
-            next="/formasi"
+            next="/formasi?tampilan=skd"
             title={`Buka ${formatNumber(Math.max(0, (pagination?.total ?? 0) - 6))} formasi lainnya`}
             description="Gunakan filter instansi dan pendidikan, buka detail, lalu bandingkan sampai tiga formasi setelah login."
             compact

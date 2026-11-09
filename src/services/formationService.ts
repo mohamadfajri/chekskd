@@ -1,3 +1,5 @@
+import type { SscasnContext } from "@/lib/sscasn";
+
 export type FormationCompetitionLevel = "quiet" | "low" | "medium" | "high";
 export type FormationDataConfidence = "high" | "medium" | "limited";
 export type FormationSort =
@@ -15,6 +17,7 @@ export interface FormationExplorerParams {
 }
 
 export interface PublicFormation {
+  sscasn?: SscasnContext | null;
   id: string;
   kode_instansi: string | null;
   nama_instansi: string;
@@ -102,6 +105,7 @@ export interface FormationScoreBucket {
 }
 
 export interface PublicFormationDetail {
+  sscasn?: SscasnContext | null;
   id: string;
   kode_instansi: string | null;
   nama_instansi: string;

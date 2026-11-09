@@ -1,138 +1,173 @@
-import { useQuery } from "@tanstack/react-query";
+﻿import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight, BarChart3, FileCheck2, MessageCircle, Search } from "lucide-react";
+import {
+  ArrowRight,
+  ArrowUpRight,
+  Check,
+  FileText,
+  ChartNoAxesCombined,
+  SlidersHorizontal,
+} from "lucide-react";
 import { SiteFooter, SiteHeader } from "@/components/SiteHeader";
-import { HomeJourney, HomeTrustStrip } from "@/components/public/HomeJourney";
+import { ScoreOrbit } from "@/components/public/ScoreOrbit";
+import { SkdSearchTool } from "@/components/public/SkdSearchTool";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { countStats } from "@/services/skdService";
 
-export const Route = createFileRoute("/")({
-  component: LandingPage,
-});
+export const Route = createFileRoute("/")({ component: LandingPage });
 
 function LandingPage() {
   const stats = useQuery({
     queryKey: ["public-dataset-stats"],
     queryFn: countStats,
     enabled: isSupabaseConfigured,
-    staleTime: 5 * 60_000,
+    staleTime: 300_000,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
-
+  const metric = (value?: number) =>
+    value !== undefined ? value.toLocaleString("id-ID") : stats.isFetching ? "Memuat…" : "—";
   return (
     <div className="public-page min-h-screen bg-background">
       <SiteHeader />
-      <main className="public-workspace">
-        <header className="public-page-heading home-page-heading">
-          <div>
-            <p className="public-kicker font-mono">Cara kerja AnalisaCPNS</p>
-            <h1>Dari data resmi sampai analisis WhatsApp</h1>
-            <p>
-              Temukan peserta, pahami posisi nilai, lalu pilih target yang lebih rasional dalam satu
-              alur.
+      <main className="public-workspace editorial-home">
+        <section className="decision-hero" aria-labelledby="hero-title">
+          <div className="decision-copy">
+            <p className="public-kicker">BUKAN SEKADAR LOLOS PASSING GRADE</p>
+            <h1 id="hero-title">
+              Kenali nilaimu.
+              <br />
+              <em>Petakan peluangmu.</em>
+            </h1>
+            <p className="decision-description">
+              Baca persaingan di balik angka. Telusuri hasil SKD, bandingkan pilihan, dan temukan
+              formasi yang layak kamu pertimbangkan.
+            </p>
+            <div className="hero-actions">
+              <a href="#mulai" className="public-primary-button">
+                Cek nilai saya <ArrowRight size={17} />
+              </a>
+              <Link to="/formasi" className="hero-text-link">
+                Jelajahi formasi <ArrowUpRight size={17} />
+              </Link>
+            </div>
+            <p className="hero-footnote">
+              <Check size={15} /> Bersumber dari pengumuman instansi <span>•</span> SKD 2024
             </p>
           </div>
-          <span className="public-meta-badge font-mono">
-            <i />
-            SIMULASI BERJALAN
-          </span>
-        </header>
-
-        <HomeJourney />
-        <HomeTrustStrip />
-
-        <section className="home-data-band" aria-label="Cakupan data">
-          <div>
-            <p className="public-kicker font-mono">Cakupan data aktif</p>
-            <h2>Data yang siap dicari dan dibandingkan</h2>
-          </div>
-          <div className="home-data-metrics">
-            <DataMetric label="Peserta" value={stats.data?.scores} loading={stats.isLoading} />
-            <DataMetric label="Formasi" value={stats.data?.formations} loading={stats.isLoading} />
-            <DataMetric label="Tahun data" value="2024" />
-          </div>
-          <Link to="/formasi" className="public-secondary-button">
-            Jelajahi formasi <ArrowRight className="h-4 w-4" />
-          </Link>
+          <ScoreOrbit />
         </section>
-
-        <section id="cara-kerja" className="home-method-section">
-          <header>
-            <p className="public-kicker font-mono">Metode rasionalisasi</p>
-            <h2>Nilai dibaca dalam konteks persaingan</h2>
-            <p>
-              Passing grade adalah titik awal. Mesin juga membaca kuota, peserta hadir, batas
-              historis, pendidikan, dan kualitas sumber.
-            </p>
-          </header>
-          <div className="home-method-grid">
-            <MethodStep icon={FileCheck2} number="01" title="Mulai dari sumber resmi">
-              Nilai peserta diambil dari PDF pengumuman yang telah diproses dan diperiksa.
-            </MethodStep>
-            <MethodStep icon={BarChart3} number="02" title="Baca posisi historis">
-              Nilai dibandingkan dengan peserta dan batas historis pada kelompok formasi.
-            </MethodStep>
-            <MethodStep icon={MessageCircle} number="03" title="Kirim hasil yang ringkas">
-              Rekomendasi lengkap dikemas menjadi satu kartu yang diterima melalui WhatsApp.
-            </MethodStep>
+        <section className="dataset-ribbon" aria-label="Cakupan data">
+          <div>
+            <FileText size={20} />
+            <span>
+              Dari dokumen resmi.
+              <br />
+              <strong>Untuk keputusanmu berikutnya.</strong>
+            </span>
           </div>
-          <div className="home-method-action">
+          <div>
+            <strong>{metric(stats.data?.scores)}</strong>
+            <span>peserta dalam basis data</span>
+          </div>
+          <div>
+            <strong>{metric(stats.data?.formations)}</strong>
+            <span>formasi untuk ditelusuri</span>
+          </div>
+          <div>
+            <strong>2024</strong>
+            <span>tahun data historis</span>
+          </div>
+        </section>
+        <section id="mulai" className="home-search-desk">
+          <div className="desk-intro">
+            <span className="section-index">01 / TEMUKAN DATAMU</span>
+            <h2>
+              Mulai dari
+              <br />
+              nilai sendiri.
+            </h2>
             <p>
-              AnalisaCPNS tidak menjanjikan kelulusan. Hasil dipakai sebagai bahan pertimbangan.
+              Cari nama atau nomor peserta. Setelah ketemu, buka hasil untuk membaca posisi dan
+              pilihan formasi.
             </p>
-            <Link to="/search" className="public-primary-button">
-              Cari data saya <Search className="h-4 w-4" />
+            <span className="desk-note">
+              Belum tahu targetnya?{" "}
+              <Link to="/formasi">
+                Lihat formasi <ArrowUpRight size={14} />
+              </Link>
+            </span>
+          </div>
+          <div className="desk-form">
+            <SkdSearchTool compact />
+          </div>
+        </section>
+        <section className="next-decisions" aria-labelledby="next-title">
+          <div className="section-heading">
+            <div>
+              <span className="section-index">02 / SUSUN PILIHANMU</span>
+              <h2 id="next-title">Jangan berhenti di total nilai.</h2>
+            </div>
+            <p>Lihat ruang pilihan sebelum menentukan tujuan.</p>
+          </div>
+          <div className="decision-links">
+            <Link to="/formasi">
+              <SlidersHorizontal size={23} />
+              <div>
+                <span>TELUSURI</span>
+                <h3>Temukan formasi yang relevan</h3>
+                <p>Saring berdasarkan pendidikan, instansi, dan tingkat persaingan.</p>
+              </div>
+              <ArrowUpRight size={24} />
+            </Link>
+            <Link to="/formasi/banding" search={{ ids: undefined }}>
+              <ChartNoAxesCombined size={23} />
+              <div>
+                <span>BANDINGKAN</span>
+                <h3>Baca pilihan berdampingan</h3>
+                <p>Bandingkan hingga tiga formasi: kuota, peserta, dan batas nilai.</p>
+              </div>
+              <ArrowUpRight size={24} />
             </Link>
           </div>
+        </section>
+        <section id="cara-kerja" className="method-ledger">
+          <div>
+            <span className="section-index">03 / PAHAMI KONTEKSNYA</span>
+            <h2>
+              Data membantu.
+              <br />
+              Keputusan tetap di kamu.
+            </h2>
+            <p>AnalisaCPNS adalah alat bantu membaca data historis, bukan pengumuman kelulusan.</p>
+          </div>
+          <ol>
+            {[
+              [
+                "Sumber yang bisa ditelusuri",
+                "Nilai berasal dari PDF pengumuman instansi yang telah diproses. Periksa kembali dokumen sumber untuk hasil resmi.",
+              ],
+              [
+                "Persaingan, bukan sekadar passing grade",
+                "Baca nilai bersama kuota, peserta, pendidikan, dan batas historis formasi.",
+              ],
+              [
+                "Bawa hasilnya ke langkah berikutnya",
+                "Lanjutkan dari hasil peserta untuk memilih target dan menerima ringkasan analisis melalui WhatsApp.",
+              ],
+            ].map(([title, copy], i) => (
+              <li key={title}>
+                <span>0{i + 1}</span>
+                <div>
+                  <h3>{title}</h3>
+                  <p>{copy}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
         </section>
       </main>
       <SiteFooter />
     </div>
-  );
-}
-
-function DataMetric({
-  label,
-  value,
-  loading = false,
-}: {
-  label: string;
-  value?: number | string;
-  loading?: boolean;
-}) {
-  const displayValue = loading
-    ? "..."
-    : typeof value === "number"
-      ? value.toLocaleString("id-ID")
-      : (value ?? "-");
-  return (
-    <div>
-      <span className="font-mono">{label}</span>
-      <strong>{displayValue}</strong>
-    </div>
-  );
-}
-
-function MethodStep({
-  icon: Icon,
-  number,
-  title,
-  children,
-}: {
-  icon: typeof Search;
-  number: string;
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <article>
-      <div>
-        <span>
-          <Icon className="h-5 w-5" />
-        </span>
-        <b className="font-mono">{number}</b>
-      </div>
-      <h3>{title}</h3>
-      <p>{children}</p>
-    </article>
   );
 }

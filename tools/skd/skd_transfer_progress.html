@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="id">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>Progres Migrasi SKD</title>
+<style>
+  :root{font:16px/1.45 "Segoe UI",system-ui,sans-serif;color:#172926;background:#f5f7f6}
+  *{box-sizing:border-box}
+  main{max-width:850px;margin:40px auto;padding:0 18px}
+  header{border-top:4px solid #087858;padding:18px 0 14px}
+  h1{font:700 29px/1.15 Georgia,serif;margin:0 0 8px}
+  p{margin:6px 0;color:#455a54}
+  .status{color:#172926;font-weight:650;overflow-wrap:anywhere}
+  .meter{display:flex;align-items:center;gap:14px;margin:15px 0 4px}
+  progress{flex:1;height:14px;accent-color:#087858;min-width:80px}
+  #percent{min-width:54px;text-align:right;font-weight:700}
+  #count,#size{font-variant-numeric:tabular-nums;font-size:14px}
+  table{width:100%;border-collapse:collapse;background:white;margin-top:16px}
+  th,td{border-bottom:1px solid #dce5e1;padding:9px 12px;text-align:left}
+  th{background:#e8efeb;font-size:13px;color:#38534a}
+  td:first-child{overflow-wrap:anywhere}
+  .num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+  [data-status=stopped]{color:#9a2b22}
+  [data-status=complete]{color:#076547}
+  small{display:block;color:#455a54;margin-top:12px}
+  @media(max-width:520px){main{margin:20px auto;padding:0 12px}h1{font-size:24px}td,th{padding:8px;font-size:13px}}
+</style>
+<main>
+  <header>
+    <h1>Migrasi data SKD</h1>
+    <p>Supabase ke SumoPod &middot; Database SKD terpisah dari Aesen</p>
+  </header>
+  <p id="stage" class="status" role="status">Menghubungkan ke monitor lokal...</p>
+  <div class="meter">
+    <progress id="bar" aria-label="Baris yang sudah disalin"></progress>
+    <span id="percent">&ndash;</span>
+  </div>
+  <p id="count"></p>
+  <p id="size"></p>
+  <p id="published"></p>
+  <p id="unpublished"></p>
+  <table>
+    <thead><tr><th>Data</th><th class="num">Tersalin</th><th class="num">Sumber</th></tr></thead>
+    <tbody id="tables"></tbody>
+  </table>
+  <small id="stamp"></small>
+  <small>Website produksi tetap menggunakan Supabase sampai pengujian selesai.</small>
+</main>
+<script>
+  const get = (id) => document.getElementById(id);
+  const number = (value) => value == null ? '-' : value.toLocaleString('id-ID');
+  async function refresh() {
+    try {
+      const response = await fetch('/status.json', { cache: 'no-store' });
+      if (!response.ok) throw Error('Monitor unavailable');
+      const status = await response.json();
+      const tables = status.tables;
+      const copied = tables.reduce((sum, row) => sum + row.copied, 0);
+      const total = tables.every((row) => row.total !== null)
+        ? tables.reduce((sum, row) => sum + row.total, 0) : null;
+      get('stage').textContent = status.stage;
+      get('stage').dataset.status = status.state;
+      if (total) {
+        get('bar').max = total;
+        get('bar').value = copied;
+      }
+      get('percent').textContent = total ? Math.floor(copied / total * 100) + '%' : '-';
+      get('count').textContent = total ? number(copied) + ' dari ' + number(total) + ' baris tersalin' : '';
+      get('size').textContent = status.bytes == null ? '' : 'Ukuran database tujuan: ' +
+        number(Math.round(status.bytes / 1000000)) + ' MB';
+      const published = status.batchCounts?.find((row) => row.status === 'published');
+      get('published').textContent = published ? 'Dataset publik: ' + number(published.participants) +
+        ' peserta, ' + number(published.formations) + ' formasi, ' + number(published.batches) + ' batch' : '';
+      const unpublished = status.batchCounts?.filter((row) => row.status !== 'published');
+      get('unpublished').textContent = unpublished?.length ? 'Belum terbit: ' +
+        number(unpublished.reduce((sum, row) => sum + row.participants, 0)) + ' peserta dari ' +
+        number(unpublished.reduce((sum, row) => sum + row.batches, 0)) + ' batch' : '';
+      get('tables').replaceChildren(...tables.map((row) => {
+        const tr = document.createElement('tr');
+        [row.label, number(row.copied), number(row.total)].forEach((text, i) => {
+          const cell = tr.insertCell();
+          if (i) cell.className = 'num';
+          cell.textContent = text;
+        });
+        return tr;
+      }));
+      get('stamp').textContent = status.updatedAt ?
+        'Pembaruan terakhir: ' + new Date(status.updatedAt).toLocaleString('id-ID') : '';
+    } catch {
+      get('stage').dataset.status = 'stopped';
+      get('stage').textContent = 'Monitor belum tersambung. Mencoba kembali...';
+    }
+  }
+  async function poll() {
+    await refresh();
+    setTimeout(poll, 2500);
+  }
+  poll();
+</script>
+</html>

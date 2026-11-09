@@ -543,10 +543,13 @@ export async function getSkdReviewRows(
   return body.issues;
 }
 
-export interface BulkVerifyResult {
+export interface BulkVerifyProgress {
   issuesResolved: number;
   scoresVerified: number;
   formationsVerified: number;
+}
+
+export interface BulkVerifyResult extends BulkVerifyProgress {
   batchStatus: "verified";
 }
 
@@ -554,21 +557,38 @@ export async function bulkVerifySkdBatch(
   adminPassword: string,
   batchId: string,
   resolutionNote: string,
+  onProgress?: (progress: BulkVerifyProgress) => void,
 ): Promise<BulkVerifyResult> {
-  const response = await fetch("/api/admin/skd-review", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-admin-password": adminPassword,
-    },
-    body: JSON.stringify({
-      action: "bulk_verify",
-      batchId,
-      confirmation: "VERIFY_ALL",
-      resolutionNote,
-    }),
-  });
-  return readAdminJson<BulkVerifyResult>(response);
+  const progress = { issuesResolved: 0, scoresVerified: 0, formationsVerified: 0 };
+  for (let step = 0; step < 1000; step++) {
+    const response = await fetch("/api/admin/skd-review", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-admin-password": adminPassword,
+      },
+      body: JSON.stringify({
+        action: "bulk_verify_step",
+        batchId,
+        confirmation: "VERIFY_ALL",
+        resolutionNote,
+      }),
+    });
+    const result = await readAdminJson<BulkVerifyProgress & { batchStatus: string }>(response);
+    if (result.batchStatus === "verified") return { ...progress, batchStatus: "verified" };
+    const counts = [result.issuesResolved, result.scoresVerified, result.formationsVerified];
+    if (
+      result.batchStatus !== "review" ||
+      counts.some((count) => !Number.isSafeInteger(count) || count < 0) ||
+      !counts.some((count) => count > 0)
+    )
+      throw new Error("Progres verifikasi tidak valid. Muat ulang Review dan coba lagi.");
+    progress.issuesResolved += result.issuesResolved;
+    progress.scoresVerified += result.scoresVerified;
+    progress.formationsVerified += result.formationsVerified;
+    onProgress?.({ ...progress });
+  }
+  throw new Error("Verifikasi belum selesai. Klik verifikasi lagi untuk melanjutkan.");
 }
 
 export interface PublishBatchResult {

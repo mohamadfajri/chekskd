@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getAuthenticatedUser } from "@/lib/auth/server";
 import { getServerSupabase, jsonResponse } from "@/lib/supabase/server";
+import { isLocalSkdPreview, searchPreviewTargets } from "@/server/skdPreview";
 
 function validUuid(value: string | null): string | null {
   const cleaned = value?.trim() ?? "";
@@ -31,6 +32,14 @@ export const Route = createFileRoute("/api/rationalization-targets")({
 
         if (!scoreId || query.length < 2) {
           return jsonResponse({ items: [] });
+        }
+
+        if (isLocalSkdPreview(request)) {
+          try {
+            return jsonResponse({ items: await searchPreviewTargets(scoreId, query) });
+          } catch {
+            return jsonResponse({ message: "Target di SumoPod belum dapat dicari." }, 503);
+          }
         }
 
         const { data, error } = await sb.rpc("search_skd_target_formations", {

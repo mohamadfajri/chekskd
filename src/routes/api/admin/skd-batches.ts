@@ -196,13 +196,25 @@ export const Route = createFileRoute("/api/admin/skd-batches")({
           const { data, error } = await sb.rpc("publish_skd_batch", {
             p_batch_id: body.batchId,
           });
+          if (error?.code === "57014") {
+            return jsonResponse(
+              {
+                message:
+                  "Publikasi melewati batas waktu database. Batch masih terverifikasi; tidak perlu verifikasi atau impor ulang.",
+              },
+              504,
+            );
+          }
           if (error) return jsonResponse({ message: error.message }, 400);
 
           const result = Array.isArray(data) ? data[0] : data;
+          if (result?.batch_status !== "published") {
+            return jsonResponse({ message: "Status publikasi dari database tidak valid." }, 502);
+          }
           return jsonResponse({
             participantCount: Number(result?.participant_count ?? 0),
             formationCount: Number(result?.formation_count ?? 0),
-            batchStatus: result?.batch_status ?? "published",
+            batchStatus: result.batch_status,
             publishedAt: result?.published_at ?? null,
           });
         }

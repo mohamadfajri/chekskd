@@ -5,6 +5,7 @@ import {
   rationalizationMarketingSegment,
 } from "@/lib/rationalization";
 import { getServerSupabase, jsonResponse } from "@/lib/supabase/server";
+import { getSscasnContext } from "@/server/sscasn";
 
 interface WorkerRequest {
   action?: "process_next" | "mark_delivered";
@@ -171,6 +172,13 @@ export const Route = createFileRoute("/api/wa-jobs")({
             500,
           );
         }
+
+        const contextIds = [
+          snapshot.formation_id,
+          snapshot.target_simulation?.formation_id,
+          ...(snapshot.target_recommendations ?? []).map((target) => target.formation_id),
+        ].filter((id): id is string => typeof id === "string");
+        snapshot.sscasn_context = await getSscasnContext(sb, contextIds);
 
         const { data: completed, error: completeError } = await sb.rpc(
           "complete_skd_analysis_job",

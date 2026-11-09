@@ -2,6 +2,51 @@
 
 Alat lokal untuk mengubah PDF SKD menjadi batch staging yang dapat diaudit.
 
+## Alur per instansi
+
+1. Pilih PDF **Hasil SKD** asli di `FILE SKD 2024`. Lewati PDF SKB dan
+   integrasi SKD-SKB. Cek teks dan struktur halaman dengan probe. Jika PDF
+   benar-benar berupa scan, OCR terlebih dulu dan cek sampel terhadap PDF
+   asli; parser Panselnas tidak melakukan OCR sendiri.
+2. Jalankan parser sesuai layout, lalu siapkan **CSV untuk Admin**
+   (`*-admin-import.csv` atau `*-staging.csv`, tergantung parser). Cocokkan
+   instansi, formasi, kuota, rekap peserta, nilai, dan nomor halaman sumber.
+   Catat status instansi di tracker.
+3. Di Admin, pilih **Import batch** dan unggah CSV staging. PDF asli tidak
+   diunggah lewat menu ini; unggah ke Storage privat setelah sumber batch
+   terdaftar agar bisa dibuka dari layar review.
+4. Di **Review**, cek isu dan sampel terhadap PDF asli. Setelah sesuai,
+   pilih **Verifikasi semua**, lalu **Publikasikan data**. Jika batch sudah
+   ada di Review, jangan impor ulang.
+5. Setelah terbit, gunakan **SSCASN > Audit instansi** bila ingin
+   menghubungkan hasil SKD dengan katalog Aesen. Audit SSCASN tidak
+   diperlukan agar hasil SKD bisa dicari.
+
+Jika **Verifikasi semua** timeout pada batch besar, terapkan
+[migration verifikasi bertahap](../../supabase/migrations/20261109091000_add_skd_bulk_verify_step.sql)
+di Supabase dan gunakan Admin dengan kode terbaru. Setiap langkah menangani
+maksimal 1.500 baris. Jika terputus, buka kembali batch dan klik verifikasi
+lagi untuk melanjutkan; jangan impor ulang. Batch belum bisa dipublikasikan
+selama verifikasi belum lengkap.
+
+Jika yang timeout adalah **Publikasikan data**, jangan jalankan ulang verifikasi.
+Terapkan [migration publikasi](../../supabase/migrations/20261109092000_optimize_skd_publication_stats.sql),
+lalu coba lagi dari batch yang sama. Statistik tetap dihitung dalam transaksi
+publikasi, sehingga batch tidak tampil tanpa statistik lengkap.
+
+## Preview lokal SumoPod
+
+Setelah salinan SKD selesai, set `SKD_DATABASE_URL` pada environment server
+lokal, jalankan `node --experimental-strip-types tools/skd/install_sumopod_preview_functions.mjs`,
+lalu mulai Vite dengan `VITE_SKD_LOCAL_PREVIEW=true` dan host `127.0.0.1`.
+URL database jangan diberi awalan `VITE_`. Flag ini tidak mengaktifkan SumoPod
+di build produksi.
+
+Preview memakai SumoPod untuk pencarian, detail nilai, target, dan perhitungan
+v6. Login dan penyimpanan kode tetap di Supabase. Kode preview berlaku 30 menit,
+terikat pada WhatsApp akun yang sedang login, dan tidak membuat lead marketing.
+Impor, review, publikasi, serta worker produksi belum dipindahkan.
+
 ## Persiapan
 
 ```powershell

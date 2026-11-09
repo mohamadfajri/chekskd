@@ -1,3 +1,5 @@
+import type { SscasnContext } from "./sscasn";
+
 export type RationalizationVerdict =
   "strong" | "rational" | "borderline" | "less_rational" | "ineligible" | "unavailable";
 
@@ -72,6 +74,7 @@ export interface RationalizationTargetSimulation {
 }
 
 export interface RationalizationSnapshot {
+  sscasn_context?: Record<string, SscasnContext>;
   kind: "skd_rationalization";
   version: 1 | 2 | 3 | 4 | 5 | 6;
   generated_at: string;

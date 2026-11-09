@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getAuthenticatedUser } from "@/lib/auth/server";
 import { getServerSupabase, jsonResponse } from "@/lib/supabase/server";
+import { getSscasnContext } from "@/server/sscasn";
 
 const SORTS = new Set([
   "competition_desc",
@@ -56,8 +57,16 @@ export const Route = createFileRoute("/api/formations")({
         }
 
         const response = data as Record<string, unknown>;
+        const formations = Array.isArray(response.formations)
+          ? (response.formations as Array<{ id: string }>)
+          : [];
+        const context = await getSscasnContext(
+          sb,
+          formations.map((row) => row.id),
+        );
         return jsonResponse({
           ...response,
+          formations: formations.map((row) => ({ ...row, sscasn: context[row.id] ?? null })),
           access: fullAccess ? "full" : "preview",
           available_filters: fullAccess
             ? response.available_filters

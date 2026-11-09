@@ -48,6 +48,7 @@ import {
   validateAdminPassword,
   validateAdminSession,
   validateCsvRows,
+  type BulkVerifyProgress,
   type CsvRow,
   type EducationAlias,
   type EducationAliasInput,
@@ -62,6 +63,7 @@ import {
 import { countStats, searchSkdScores } from "@/services/skdService";
 import { maskNoPeserta } from "@/lib/analysis";
 import { isSupabaseConfigured, supabaseConfigError } from "@/lib/supabase/client";
+import { SscasnWorkspace } from "@/components/admin/SscasnWorkspace";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
@@ -70,7 +72,7 @@ export const Route = createFileRoute("/admin")({
   component: AdminPage,
 });
 
-type AdminView = "explorer" | "review" | "import" | "published" | "results";
+type AdminView = "explorer" | "review" | "import" | "published" | "results" | "sscasn";
 
 const NAV_ITEMS: Array<{
   id: AdminView;
@@ -81,6 +83,7 @@ const NAV_ITEMS: Array<{
   { id: "review", label: "Review data", icon: FileCheck2 },
   { id: "import", label: "Import batch", icon: Upload },
   { id: "published", label: "Data published", icon: Database },
+  { id: "sscasn", label: "SSCASN", icon: Globe2 },
   { id: "results", label: "Rasionalisasi", icon: MessageSquareText },
 ];
 
@@ -317,6 +320,7 @@ function AdminWorkspace({ adminPassword }: { adminPassword: string }) {
             <ImportWorkspace adminPassword={adminPassword} onImported={() => batches.refetch()} />
           )}
           {activeView === "published" && <PublishedWorkspace adminPassword={adminPassword} />}
+          {activeView === "sscasn" && <SscasnWorkspace adminPassword={adminPassword} />}
           {activeView === "results" && <RationalizationWorkspace adminPassword={adminPassword} />}
         </main>
       </div>
@@ -994,6 +998,7 @@ function ReviewWorkspace({
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
   const [issueSearch, setIssueSearch] = useState("");
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState<BulkVerifyProgress | null>(null);
   const [publishDialogOpen, setPublishDialogOpen] = useState(false);
 
   const reviewRows = useQuery({
@@ -1002,12 +1007,12 @@ function ReviewWorkspace({
     enabled: Boolean(selectedBatch),
   });
   const bulkVerify = useMutation({
-    mutationFn: (resolutionNote: string) =>
-      bulkVerifySkdBatch(adminPassword, selectedBatch!.id, resolutionNote),
-    onSuccess: (result) => {
-      toast.success(
-        `${result.issuesResolved.toLocaleString("id-ID")} issue selesai. Batch sudah verified.`,
-      );
+    mutationFn: (resolutionNote: string) => {
+      setBulkProgress(null);
+      return bulkVerifySkdBatch(adminPassword, selectedBatch!.id, resolutionNote, setBulkProgress);
+    },
+    onSuccess: () => {
+      toast.success("Batch sudah verified. Data belum dipublikasikan.");
       setBulkDialogOpen(false);
       reviewRows.refetch();
       onBatchChanged();
@@ -1066,7 +1071,11 @@ function ReviewWorkspace({
           {selectedBatch?.status === "review" && (
             <button
               type="button"
-              onClick={() => setBulkDialogOpen(true)}
+              onClick={() => {
+                bulkVerify.reset();
+                setBulkProgress(null);
+                setBulkDialogOpen(true);
+              }}
               className="inline-flex h-9 items-center gap-2 rounded-md bg-[#176c50] px-3 text-xs font-semibold text-white transition hover:bg-[#125941]"
             >
               <ShieldCheck className="h-4 w-4" />
@@ -1185,6 +1194,7 @@ function ReviewWorkspace({
         <BulkVerifyDialog
           batch={selectedBatch}
           loading={bulkVerify.isPending}
+          progress={bulkProgress}
           error={bulkVerify.error instanceof Error ? bulkVerify.error.message : null}
           onClose={() => setBulkDialogOpen(false)}
           onConfirm={(note) => bulkVerify.mutate(note)}
@@ -1297,12 +1307,14 @@ function PublishBatchDialog({
 function BulkVerifyDialog({
   batch,
   loading,
+  progress,
   error,
   onClose,
   onConfirm,
 }: {
   batch: SkdBatchSummary;
   loading: boolean;
+  progress: BulkVerifyProgress | null;
   error: string | null;
   onClose: () => void;
   onConfirm: (note: string) => void;
@@ -1371,7 +1383,14 @@ function BulkVerifyDialog({
             </span>
           </label>
 
-          {error && <p className="text-xs text-red-700">{error}</p>}
+          {progress && (
+            <p role="status" className="text-xs text-[#245e88]">
+              Sesi ini: {progress.scoresVerified.toLocaleString("id-ID")} peserta,{" "}
+              {progress.formationsVerified.toLocaleString("id-ID")} formasi,{" "}
+              {progress.issuesResolved.toLocaleString("id-ID")} issue selesai.
+            </p>
+          )}
+          {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
         </div>
 
         <div className="flex justify-end gap-2 border-t border-[#e2e8f0] bg-[#f9fbfd] px-5 py-3">

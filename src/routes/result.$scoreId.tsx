@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { LoginGate } from "@/components/public/LoginGate";
+import { SkdCoverageNote } from "@/components/public/SkdCoverageNote";
 import { SiteFooter, SiteHeader } from "@/components/SiteHeader";
 import { getZona, lolosPassingGrade, zonaLabel } from "@/lib/analysis";
 import { cleanFormationId } from "@/lib/formationSelection";
@@ -351,6 +352,7 @@ function ResultPage() {
               Pilih apakah mesin perlu mencari peluang historis terbesar, menjaga bidang pekerjaan
               tetap sejenis, atau membedah satu target yang sudah Anda incar.
             </p>
+            <SkdCoverageNote className="mt-3 max-w-2xl" />
           </section>
         </div>
 

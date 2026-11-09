@@ -3,6 +3,7 @@ import { Check, Clock3, Copy, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { SiteFooter, SiteHeader } from "@/components/SiteHeader";
 import { buildWhatsAppUrl } from "@/lib/analysis";
+import { useLocalSkdPreview } from "@/services/skdService";
 
 export const Route = createFileRoute("/wa/$token")({
   head: () => ({
@@ -43,8 +44,9 @@ function WaRedirectPage() {
           </p>
           <h1 className="mt-2 text-3xl font-extrabold sm:text-4xl">Lanjutkan di WhatsApp</h1>
           <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-muted-foreground">
-            Kirim pesan yang sudah disiapkan. Analisis baru dimulai setelah kode diterima oleh bot
-            AnalisaCPNS.
+            {useLocalSkdPreview
+              ? "Hasil uji SumoPod sudah siap. Kirim kode ke bot AnalisaCPNS untuk menerima kartu."
+              : "Kirim pesan yang sudah disiapkan. Analisis baru dimulai setelah kode diterima oleh bot AnalisaCPNS."}
           </p>
         </div>
 
@@ -90,8 +92,8 @@ function WaRedirectPage() {
                 />
                 <ProcessStep
                   number="02"
-                  title="Nilai dianalisis"
-                  description="Target dan posisi dihitung."
+                  title={useLocalSkdPreview ? "Kartu disiapkan" : "Nilai dianalisis"}
+                  description={useLocalSkdPreview ? "Hasil dari SumoPod dimuat." : "Target dan posisi dihitung."}
                   bordered
                 />
                 <ProcessStep
@@ -106,15 +108,16 @@ function WaRedirectPage() {
             <div className="mt-6 flex items-start gap-3 border-l-2 border-[#b56a00] bg-[#fff8ec] px-4 py-3 text-xs leading-5 text-[#81500e]">
               <Clock3 className="mt-0.5 h-4 w-4 shrink-0" />
               <span>
-                Hasil dikirim maksimal 10 menit dan biasanya selesai lebih cepat. Tidak perlu
-                mengirim kode berulang kali selama proses berjalan.
+                {useLocalSkdPreview
+                  ? "Gunakan nomor WhatsApp yang sama dengan akun login. Kode uji berlaku 30 menit."
+                  : "Hasil dikirim maksimal 10 menit dan biasanya selesai lebih cepat. Tidak perlu mengirim kode berulang kali selama proses berjalan."}
               </span>
             </div>
           </div>
         </section>
 
         <div className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs font-semibold text-muted-foreground">
-          <Link to="/search" className="hover:text-foreground">
+          <Link to="/search" search={{ targetFormationId: undefined }} className="hover:text-foreground">
             Cari peserta lain
           </Link>
           <Link to="/" className="hover:text-foreground">

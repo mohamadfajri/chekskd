@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SimulasiSkdRouteImport } from './routes/simulasi-skd'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as FormasiRouteImport } from './routes/formasi'
@@ -22,11 +23,14 @@ import { Route as FormasiBandingRouteImport } from './routes/formasi.banding'
 import { Route as FormasiFormationIdRouteImport } from './routes/formasi.$formationId'
 import { Route as ApiWaResultRouteImport } from './routes/api/wa-result'
 import { Route as ApiWaJobsRouteImport } from './routes/api/wa-jobs'
+import { Route as ApiSkdPreviewRouteImport } from './routes/api/skd-preview'
 import { Route as ApiResultSessionRouteImport } from './routes/api/result-session'
 import { Route as ApiResultCardRouteImport } from './routes/api/result-card'
 import { Route as ApiRationalizationTargetsRouteImport } from './routes/api/rationalization-targets'
+import { Route as ApiManualSkdRouteImport } from './routes/api/manual-skd'
 import { Route as ApiFormationsRouteImport } from './routes/api/formations'
 import { Route as ApiFormationFiltersRouteImport } from './routes/api/formation-filters'
+import { Route as ApiFormationCatalogRouteImport } from './routes/api/formation-catalog'
 import { Route as ApiFormationsFormationIdRouteImport } from './routes/api/formations.$formationId'
 import { Route as ApiAuthResetRouteImport } from './routes/api/auth/reset'
 import { Route as ApiAuthRegisterRouteImport } from './routes/api/auth/register'
@@ -35,6 +39,7 @@ import { Route as ApiAuthLogoutRouteImport } from './routes/api/auth/logout'
 import { Route as ApiAuthLoginRouteImport } from './routes/api/auth/login'
 import { Route as ApiAuthHermesVerifyRouteImport } from './routes/api/auth/hermes-verify'
 import { Route as ApiAuthChallengeRouteImport } from './routes/api/auth/challenge'
+import { Route as ApiAdminSscasnRouteImport } from './routes/api/admin/sscasn'
 import { Route as ApiAdminSkdReviewRouteImport } from './routes/api/admin/skd-review'
 import { Route as ApiAdminSkdPdfRouteImport } from './routes/api/admin/skd-pdf'
 import { Route as ApiAdminSkdExplorerRouteImport } from './routes/api/admin/skd-explorer'
@@ -45,6 +50,11 @@ import { Route as ApiAdminPdfSourcesRouteImport } from './routes/api/admin/pdf-s
 import { Route as ApiAdminMarketingInsightsRouteImport } from './routes/api/admin/marketing-insights'
 import { Route as ApiAdminEducationAliasesRouteImport } from './routes/api/admin/education-aliases'
 
+const SimulasiSkdRoute = SimulasiSkdRouteImport.update({
+  id: '/simulasi-skd',
+  path: '/simulasi-skd',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SearchRoute = SearchRouteImport.update({
   id: '/search',
   path: '/search',
@@ -110,6 +120,11 @@ const ApiWaJobsRoute = ApiWaJobsRouteImport.update({
   path: '/api/wa-jobs',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSkdPreviewRoute = ApiSkdPreviewRouteImport.update({
+  id: '/api/skd-preview',
+  path: '/api/skd-preview',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiResultSessionRoute = ApiResultSessionRouteImport.update({
   id: '/api/result-session',
   path: '/api/result-session',
@@ -126,6 +141,11 @@ const ApiRationalizationTargetsRoute =
     path: '/api/rationalization-targets',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiManualSkdRoute = ApiManualSkdRouteImport.update({
+  id: '/api/manual-skd',
+  path: '/api/manual-skd',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiFormationsRoute = ApiFormationsRouteImport.update({
   id: '/api/formations',
   path: '/api/formations',
@@ -134,6 +154,11 @@ const ApiFormationsRoute = ApiFormationsRouteImport.update({
 const ApiFormationFiltersRoute = ApiFormationFiltersRouteImport.update({
   id: '/api/formation-filters',
   path: '/api/formation-filters',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiFormationCatalogRoute = ApiFormationCatalogRouteImport.update({
+  id: '/api/formation-catalog',
+  path: '/api/formation-catalog',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiFormationsFormationIdRoute =
@@ -175,6 +200,11 @@ const ApiAuthHermesVerifyRoute = ApiAuthHermesVerifyRouteImport.update({
 const ApiAuthChallengeRoute = ApiAuthChallengeRouteImport.update({
   id: '/api/auth/challenge',
   path: '/api/auth/challenge',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminSscasnRoute = ApiAdminSscasnRouteImport.update({
+  id: '/api/admin/sscasn',
+  path: '/api/admin/sscasn',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAdminSkdReviewRoute = ApiAdminSkdReviewRouteImport.update({
@@ -232,11 +262,15 @@ export interface FileRoutesByFullPath {
   '/formasi': typeof FormasiRouteWithChildren
   '/login': typeof LoginRoute
   '/search': typeof SearchRoute
+  '/simulasi-skd': typeof SimulasiSkdRoute
+  '/api/formation-catalog': typeof ApiFormationCatalogRoute
   '/api/formation-filters': typeof ApiFormationFiltersRoute
   '/api/formations': typeof ApiFormationsRouteWithChildren
+  '/api/manual-skd': typeof ApiManualSkdRoute
   '/api/rationalization-targets': typeof ApiRationalizationTargetsRoute
   '/api/result-card': typeof ApiResultCardRoute
   '/api/result-session': typeof ApiResultSessionRoute
+  '/api/skd-preview': typeof ApiSkdPreviewRoute
   '/api/wa-jobs': typeof ApiWaJobsRoute
   '/api/wa-result': typeof ApiWaResultRoute
   '/formasi/$formationId': typeof FormasiFormationIdRoute
@@ -253,6 +287,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/skd-explorer': typeof ApiAdminSkdExplorerRoute
   '/api/admin/skd-pdf': typeof ApiAdminSkdPdfRoute
   '/api/admin/skd-review': typeof ApiAdminSkdReviewRoute
+  '/api/admin/sscasn': typeof ApiAdminSscasnRoute
   '/api/auth/challenge': typeof ApiAuthChallengeRoute
   '/api/auth/hermes-verify': typeof ApiAuthHermesVerifyRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
@@ -268,11 +303,15 @@ export interface FileRoutesByTo {
   '/akun': typeof AkunRoute
   '/login': typeof LoginRoute
   '/search': typeof SearchRoute
+  '/simulasi-skd': typeof SimulasiSkdRoute
+  '/api/formation-catalog': typeof ApiFormationCatalogRoute
   '/api/formation-filters': typeof ApiFormationFiltersRoute
   '/api/formations': typeof ApiFormationsRouteWithChildren
+  '/api/manual-skd': typeof ApiManualSkdRoute
   '/api/rationalization-targets': typeof ApiRationalizationTargetsRoute
   '/api/result-card': typeof ApiResultCardRoute
   '/api/result-session': typeof ApiResultSessionRoute
+  '/api/skd-preview': typeof ApiSkdPreviewRoute
   '/api/wa-jobs': typeof ApiWaJobsRoute
   '/api/wa-result': typeof ApiWaResultRoute
   '/formasi/$formationId': typeof FormasiFormationIdRoute
@@ -289,6 +328,7 @@ export interface FileRoutesByTo {
   '/api/admin/skd-explorer': typeof ApiAdminSkdExplorerRoute
   '/api/admin/skd-pdf': typeof ApiAdminSkdPdfRoute
   '/api/admin/skd-review': typeof ApiAdminSkdReviewRoute
+  '/api/admin/sscasn': typeof ApiAdminSscasnRoute
   '/api/auth/challenge': typeof ApiAuthChallengeRoute
   '/api/auth/hermes-verify': typeof ApiAuthHermesVerifyRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
@@ -306,11 +346,15 @@ export interface FileRoutesById {
   '/formasi': typeof FormasiRouteWithChildren
   '/login': typeof LoginRoute
   '/search': typeof SearchRoute
+  '/simulasi-skd': typeof SimulasiSkdRoute
+  '/api/formation-catalog': typeof ApiFormationCatalogRoute
   '/api/formation-filters': typeof ApiFormationFiltersRoute
   '/api/formations': typeof ApiFormationsRouteWithChildren
+  '/api/manual-skd': typeof ApiManualSkdRoute
   '/api/rationalization-targets': typeof ApiRationalizationTargetsRoute
   '/api/result-card': typeof ApiResultCardRoute
   '/api/result-session': typeof ApiResultSessionRoute
+  '/api/skd-preview': typeof ApiSkdPreviewRoute
   '/api/wa-jobs': typeof ApiWaJobsRoute
   '/api/wa-result': typeof ApiWaResultRoute
   '/formasi/$formationId': typeof FormasiFormationIdRoute
@@ -327,6 +371,7 @@ export interface FileRoutesById {
   '/api/admin/skd-explorer': typeof ApiAdminSkdExplorerRoute
   '/api/admin/skd-pdf': typeof ApiAdminSkdPdfRoute
   '/api/admin/skd-review': typeof ApiAdminSkdReviewRoute
+  '/api/admin/sscasn': typeof ApiAdminSscasnRoute
   '/api/auth/challenge': typeof ApiAuthChallengeRoute
   '/api/auth/hermes-verify': typeof ApiAuthHermesVerifyRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
@@ -345,11 +390,15 @@ export interface FileRouteTypes {
     | '/formasi'
     | '/login'
     | '/search'
+    | '/simulasi-skd'
+    | '/api/formation-catalog'
     | '/api/formation-filters'
     | '/api/formations'
+    | '/api/manual-skd'
     | '/api/rationalization-targets'
     | '/api/result-card'
     | '/api/result-session'
+    | '/api/skd-preview'
     | '/api/wa-jobs'
     | '/api/wa-result'
     | '/formasi/$formationId'
@@ -366,6 +415,7 @@ export interface FileRouteTypes {
     | '/api/admin/skd-explorer'
     | '/api/admin/skd-pdf'
     | '/api/admin/skd-review'
+    | '/api/admin/sscasn'
     | '/api/auth/challenge'
     | '/api/auth/hermes-verify'
     | '/api/auth/login'
@@ -381,11 +431,15 @@ export interface FileRouteTypes {
     | '/akun'
     | '/login'
     | '/search'
+    | '/simulasi-skd'
+    | '/api/formation-catalog'
     | '/api/formation-filters'
     | '/api/formations'
+    | '/api/manual-skd'
     | '/api/rationalization-targets'
     | '/api/result-card'
     | '/api/result-session'
+    | '/api/skd-preview'
     | '/api/wa-jobs'
     | '/api/wa-result'
     | '/formasi/$formationId'
@@ -402,6 +456,7 @@ export interface FileRouteTypes {
     | '/api/admin/skd-explorer'
     | '/api/admin/skd-pdf'
     | '/api/admin/skd-review'
+    | '/api/admin/sscasn'
     | '/api/auth/challenge'
     | '/api/auth/hermes-verify'
     | '/api/auth/login'
@@ -418,11 +473,15 @@ export interface FileRouteTypes {
     | '/formasi'
     | '/login'
     | '/search'
+    | '/simulasi-skd'
+    | '/api/formation-catalog'
     | '/api/formation-filters'
     | '/api/formations'
+    | '/api/manual-skd'
     | '/api/rationalization-targets'
     | '/api/result-card'
     | '/api/result-session'
+    | '/api/skd-preview'
     | '/api/wa-jobs'
     | '/api/wa-result'
     | '/formasi/$formationId'
@@ -439,6 +498,7 @@ export interface FileRouteTypes {
     | '/api/admin/skd-explorer'
     | '/api/admin/skd-pdf'
     | '/api/admin/skd-review'
+    | '/api/admin/sscasn'
     | '/api/auth/challenge'
     | '/api/auth/hermes-verify'
     | '/api/auth/login'
@@ -456,11 +516,15 @@ export interface RootRouteChildren {
   FormasiRoute: typeof FormasiRouteWithChildren
   LoginRoute: typeof LoginRoute
   SearchRoute: typeof SearchRoute
+  SimulasiSkdRoute: typeof SimulasiSkdRoute
+  ApiFormationCatalogRoute: typeof ApiFormationCatalogRoute
   ApiFormationFiltersRoute: typeof ApiFormationFiltersRoute
   ApiFormationsRoute: typeof ApiFormationsRouteWithChildren
+  ApiManualSkdRoute: typeof ApiManualSkdRoute
   ApiRationalizationTargetsRoute: typeof ApiRationalizationTargetsRoute
   ApiResultCardRoute: typeof ApiResultCardRoute
   ApiResultSessionRoute: typeof ApiResultSessionRoute
+  ApiSkdPreviewRoute: typeof ApiSkdPreviewRoute
   ApiWaJobsRoute: typeof ApiWaJobsRoute
   ApiWaResultRoute: typeof ApiWaResultRoute
   ResultScoreIdRoute: typeof ResultScoreIdRoute
@@ -474,6 +538,7 @@ export interface RootRouteChildren {
   ApiAdminSkdExplorerRoute: typeof ApiAdminSkdExplorerRoute
   ApiAdminSkdPdfRoute: typeof ApiAdminSkdPdfRoute
   ApiAdminSkdReviewRoute: typeof ApiAdminSkdReviewRoute
+  ApiAdminSscasnRoute: typeof ApiAdminSscasnRoute
   ApiAuthChallengeRoute: typeof ApiAuthChallengeRoute
   ApiAuthHermesVerifyRoute: typeof ApiAuthHermesVerifyRoute
   ApiAuthLoginRoute: typeof ApiAuthLoginRoute
@@ -485,6 +550,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/simulasi-skd': {
+      id: '/simulasi-skd'
+      path: '/simulasi-skd'
+      fullPath: '/simulasi-skd'
+      preLoaderRoute: typeof SimulasiSkdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/search': {
       id: '/search'
       path: '/search'
@@ -576,6 +648,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWaJobsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/skd-preview': {
+      id: '/api/skd-preview'
+      path: '/api/skd-preview'
+      fullPath: '/api/skd-preview'
+      preLoaderRoute: typeof ApiSkdPreviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/result-session': {
       id: '/api/result-session'
       path: '/api/result-session'
@@ -597,6 +676,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiRationalizationTargetsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/manual-skd': {
+      id: '/api/manual-skd'
+      path: '/api/manual-skd'
+      fullPath: '/api/manual-skd'
+      preLoaderRoute: typeof ApiManualSkdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/formations': {
       id: '/api/formations'
       path: '/api/formations'
@@ -609,6 +695,13 @@ declare module '@tanstack/react-router' {
       path: '/api/formation-filters'
       fullPath: '/api/formation-filters'
       preLoaderRoute: typeof ApiFormationFiltersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/formation-catalog': {
+      id: '/api/formation-catalog'
+      path: '/api/formation-catalog'
+      fullPath: '/api/formation-catalog'
+      preLoaderRoute: typeof ApiFormationCatalogRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/formations/$formationId': {
@@ -665,6 +758,13 @@ declare module '@tanstack/react-router' {
       path: '/api/auth/challenge'
       fullPath: '/api/auth/challenge'
       preLoaderRoute: typeof ApiAuthChallengeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/sscasn': {
+      id: '/api/admin/sscasn'
+      path: '/api/admin/sscasn'
+      fullPath: '/api/admin/sscasn'
+      preLoaderRoute: typeof ApiAdminSscasnRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/admin/skd-review': {
@@ -767,11 +867,15 @@ const rootRouteChildren: RootRouteChildren = {
   FormasiRoute: FormasiRouteWithChildren,
   LoginRoute: LoginRoute,
   SearchRoute: SearchRoute,
+  SimulasiSkdRoute: SimulasiSkdRoute,
+  ApiFormationCatalogRoute: ApiFormationCatalogRoute,
   ApiFormationFiltersRoute: ApiFormationFiltersRoute,
   ApiFormationsRoute: ApiFormationsRouteWithChildren,
+  ApiManualSkdRoute: ApiManualSkdRoute,
   ApiRationalizationTargetsRoute: ApiRationalizationTargetsRoute,
   ApiResultCardRoute: ApiResultCardRoute,
   ApiResultSessionRoute: ApiResultSessionRoute,
+  ApiSkdPreviewRoute: ApiSkdPreviewRoute,
   ApiWaJobsRoute: ApiWaJobsRoute,
   ApiWaResultRoute: ApiWaResultRoute,
   ResultScoreIdRoute: ResultScoreIdRoute,
@@ -785,6 +889,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminSkdExplorerRoute: ApiAdminSkdExplorerRoute,
   ApiAdminSkdPdfRoute: ApiAdminSkdPdfRoute,
   ApiAdminSkdReviewRoute: ApiAdminSkdReviewRoute,
+  ApiAdminSscasnRoute: ApiAdminSscasnRoute,
   ApiAuthChallengeRoute: ApiAuthChallengeRoute,
   ApiAuthHermesVerifyRoute: ApiAuthHermesVerifyRoute,
   ApiAuthLoginRoute: ApiAuthLoginRoute,

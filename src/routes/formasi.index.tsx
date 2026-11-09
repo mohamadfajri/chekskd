@@ -1,16 +1,27 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { FormationExplorer } from "@/components/public/FormationExplorer";
+import { FormationCatalog } from "@/components/public/FormationCatalog";
+import {
+  catalogCompetition,
+  catalogLevel,
+  catalogSort,
+  type CatalogLevel,
+} from "@/lib/formationCatalog";
 import { parseFormationIds, serializeFormationIds } from "@/lib/formationSelection";
 import type { FormationCompetitionLevel, FormationSort } from "@/services/formationService";
 
-const competitionLevels = new Set<FormationCompetitionLevel>(["quiet", "low", "medium", "high"]);
-const formationSorts = new Set<FormationSort>([
-  "competition_desc",
-  "competition_asc",
-  "cutoff_desc",
-  "quota_desc",
-  "name_asc",
-]);
+interface FormationPageSearch {
+  banding?: string;
+  tampilan?: "katalog" | "skd";
+  skd?: boolean;
+  lingkup?: CatalogLevel;
+  halaman?: number;
+  q?: string;
+  instansi?: string;
+  pendidikan?: string;
+  jenis?: string;
+  persaingan?: FormationCompetitionLevel;
+  urut?: FormationSort;
+}
 
 function searchText(value: unknown, maximum = 160): string | undefined {
   return typeof value === "string" && value.trim() && value.trim().length <= maximum
@@ -19,21 +30,24 @@ function searchText(value: unknown, maximum = 160): string | undefined {
 }
 
 export const Route = createFileRoute("/formasi/")({
-  validateSearch: (search: Record<string, unknown>) => ({
+  validateSearch: (search: Record<string, unknown>): FormationPageSearch => ({
     banding: serializeFormationIds(parseFormationIds(search.banding)),
-    q: searchText(search.q, 100),
+    tampilan:
+      search.tampilan === "katalog" || search.tampilan === "skd" ? search.tampilan : undefined,
+    skd: search.skd === true ? true : undefined,
+    lingkup: catalogLevel(search.lingkup),
+    halaman:
+      typeof search.halaman === "number" &&
+      Number.isSafeInteger(search.halaman) &&
+      search.halaman > 1
+        ? search.halaman
+        : undefined,
+    q: searchText(search.q, 120),
     instansi: searchText(search.instansi),
     pendidikan: searchText(search.pendidikan),
     jenis: searchText(search.jenis, 80),
-    persaingan:
-      typeof search.persaingan === "string" &&
-      competitionLevels.has(search.persaingan as FormationCompetitionLevel)
-        ? (search.persaingan as FormationCompetitionLevel)
-        : undefined,
-    urut:
-      typeof search.urut === "string" && formationSorts.has(search.urut as FormationSort)
-        ? (search.urut as FormationSort)
-        : undefined,
+    persaingan: catalogCompetition(search.persaingan),
+    urut: catalogSort(search.urut),
   }),
   head: () => ({
     meta: [
@@ -41,7 +55,7 @@ export const Route = createFileRoute("/formasi/")({
       {
         name: "description",
         content:
-          "Bandingkan kuota, persaingan, dan batas nilai historis formasi CPNS dari data SKD terverifikasi.",
+          "Cari formasi, kuota, dan kisaran gaji historis CPNS serta bandingkan data SKD terverifikasi.",
       },
     ],
   }),
@@ -49,15 +63,30 @@ export const Route = createFileRoute("/formasi/")({
 });
 
 function FormationIndexPage() {
-  const { banding, q, instansi, pendidikan, jenis, persaingan, urut } = Route.useSearch();
+  const {
+    banding,
+    q,
+    instansi,
+    pendidikan,
+    jenis,
+    persaingan,
+    urut,
+    tampilan,
+    lingkup,
+    halaman,
+    skd,
+  } = Route.useSearch();
   return (
     <main>
-      <FormationExplorer
+      <FormationCatalog
         initialComparisonIds={parseFormationIds(banding)}
-        initialFilters={{
+        filters={{
           query: q,
           institution: instansi,
           education: pendidikan,
+          level: lingkup,
+          page: halaman,
+          hasSkd: skd || tampilan === "skd",
           formationType: jenis,
           competitionLevel: persaingan,
           sort: urut,

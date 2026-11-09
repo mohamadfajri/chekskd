@@ -112,7 +112,8 @@ export const Route = createFileRoute("/api/admin/skd-review")({
 
         const authError = requireAdmin(request, body);
         if (authError) return authError;
-        if (body.action !== "bulk_verify") {
+        const step = body.action === "bulk_verify_step";
+        if (!step && body.action !== "bulk_verify") {
           return jsonResponse({ message: "Action tidak dikenal." }, 400);
         }
         if (!body.batchId?.trim()) return jsonResponse({ message: "batchId wajib diisi." }, 400);
@@ -125,19 +126,41 @@ export const Route = createFileRoute("/api/admin/skd-review")({
           return jsonResponse({ message: `Supabase server belum siap: ${configError}` }, 503);
         }
 
-        const { data, error } = await sb.rpc("bulk_verify_skd_batch", {
-          p_batch_id: body.batchId,
-          p_resolution_note:
-            body.resolutionNote?.trim() || "Bulk verification approved from SKD Data Desk",
-        });
+        const { data, error } = await sb.rpc(
+          step ? "bulk_verify_skd_batch_step" : "bulk_verify_skd_batch",
+          {
+            p_batch_id: body.batchId,
+            p_resolution_note:
+              body.resolutionNote?.trim() || "Bulk verification approved from SKD Data Desk",
+          },
+        );
+        if (step && error?.code === "PGRST202") {
+          return jsonResponse(
+            { message: "Migration verifikasi bertahap belum tersedia di Supabase." },
+            503,
+          );
+        }
+        if (error?.code === "57014") {
+          return jsonResponse(
+            {
+              message: step
+                ? "Langkah ini melewati batas waktu. Langkah yang sudah selesai tetap tersimpan. Coba verifikasi lagi untuk melanjutkan tanpa impor ulang."
+                : "Verifikasi batch melewati batas waktu database. Perubahan verifikasi dibatalkan. Tidak perlu impor ulang CSV.",
+            },
+            504,
+          );
+        }
         if (error) return jsonResponse({ message: error.message }, 400);
 
         const result = Array.isArray(data) ? data[0] : data;
+        if (result?.batch_status !== "verified" && (!step || result?.batch_status !== "review")) {
+          return jsonResponse({ message: "Status verifikasi dari database tidak valid." }, 502);
+        }
         return jsonResponse({
           issuesResolved: Number(result?.issues_resolved ?? 0),
           scoresVerified: Number(result?.scores_verified ?? 0),
           formationsVerified: Number(result?.formations_verified ?? 0),
-          batchStatus: result?.batch_status ?? "verified",
+          batchStatus: result.batch_status,
         });
       },
     },
