@@ -18,6 +18,7 @@ import {
   type SscasnManualSelection,
 } from "../lib/sscasnReconciliation.ts";
 import { aesenConnection } from "./aesenConnection.ts";
+import { skdAdminUsesSumopod, sumopodSkdAdminRows } from "./skdAdminStore.ts";
 import {
   saveSscasnExactPairs,
   saveSscasnManualPairs,
@@ -64,6 +65,21 @@ export async function readSscasnAuditOfficial(
   sb: SupabaseClient,
   institution?: string,
 ): Promise<OfficialSscasnEvidence[]> {
+  if (skdAdminUsesSumopod()) {
+    return sumopodSkdAdminRows<OfficialSscasnEvidence>(
+      `select f.id, f.nama_instansi as institution, f.jabatan as job,
+        f.lokasi_formasi as location, f.pendidikan as education, f.jenis_formasi as category,
+        f.page_number as page, f.jumlah_formasi as quota, st.quota as "statsQuota",
+        st.participant_count as registered, st.attended_count as attended, f.source_id as "pdfSourceId"
+      from public.skd_formation_stats st
+      join public.skd_formations f on f.id = st.formation_id
+      join public.skd_batches b on b.id = st.batch_id and b.id = f.batch_id
+      where b.status = 'published' and b.selection_year = $1 and f.tahun = $1
+        and f.quality_status = 'verified' and ($2::text is null or f.nama_instansi = $2)
+      order by f.id`,
+      [YEAR, institution ?? null],
+    );
+  }
   const rows = await readPages<StatsRow>((start, end) => {
     let query = sb
       .from("skd_formation_stats")
@@ -97,6 +113,11 @@ export async function readSscasnAuditOfficial(
 }
 
 export function readSscasnAuditReviews(sb: SupabaseClient) {
+  if (skdAdminUsesSumopod()) {
+    return sumopodSkdAdminRows<ExistingSscasnReview>(
+      "select formation_id, source_id, review_status from public.sscasn_matches order by formation_id",
+    );
+  }
   return readPages<ExistingSscasnReview>(
     (start, end) =>
       sb
@@ -192,6 +213,16 @@ export async function readAesenAuditCatalog(url: string, institutions: string[])
 }
 
 export async function listSscasnAuditInstitutions(sb: SupabaseClient): Promise<string[]> {
+  if (skdAdminUsesSumopod()) {
+    const rows = await sumopodSkdAdminRows<{ institution_name: string }>(
+      `select distinct institution_name from public.skd_batches
+      where status = 'published' and selection_year = $1`,
+      [YEAR],
+    );
+    return rows
+      .map(({ institution_name }) => institution_name)
+      .sort((a, b) => a.localeCompare(b, "id"));
+  }
   const { data, error } = await sb
     .from("skd_batches")
     .select("institution_name")

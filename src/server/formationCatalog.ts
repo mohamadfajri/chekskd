@@ -10,6 +10,7 @@ import { normalizeSscasnText, sscasnEducationKey } from "../lib/sscasn.ts";
 import { canManuallyLinkSscasn, SSCASN_MANUAL_NOTE_PREFIX } from "../lib/sscasnReconciliation.ts";
 import { approvedEducationLabels } from "./manualSkd.ts";
 import { getSkdDatabase } from "./skdPreview.ts";
+import { skdAdminUsesSumopod } from "./skdAdminStore.ts";
 import {
   aesenCatalogEnabled,
   countAesenFormations,
@@ -245,6 +246,12 @@ type LinkedSource = Pick<
   CatalogFormation,
   "institution" | "job" | "location" | "education" | "quota"
 >;
+type CatalogLink = {
+  formation_id: string;
+  source_id: string;
+  notes: string | null;
+  sscasn_formations: LinkedSource | LinkedSource[] | null;
+};
 
 export function uniqueCatalogPairs(pairs: Pair[]) {
   const bySource = new Map<string, number>();
@@ -316,20 +323,39 @@ async function catalogLinks(
   const pairs: Pair[] = [];
   const sources = new Map<string, AesenFormation>();
   const batchSize = 100;
+  const useSumopodLinks = fromSumopod && skdAdminUsesSumopod();
   for (let offset = 0; ; offset += batchSize) {
-    let query = sb
-      .from("sscasn_matches")
-      .select(
-        "formation_id,source_id,notes,sscasn_formations!inner(institution,job,location,education,quota,sscasn_snapshots!inner(selection_year,import_status))",
-      )
-      .eq("review_status", "approved")
-      .eq("sscasn_formations.sscasn_snapshots.import_status", "ready")
-      .eq("sscasn_formations.sscasn_snapshots.selection_year", catalogYear);
-    if (ids) query = query.in("source_id", ids);
-    const { data, error } = await query.order("formation_id").range(offset, offset + batchSize - 1);
-    if (error) {
-      if (error.code === "PGRST205" || error.code === "42P01") break;
-      throw new Error("Pasangan formasi belum dapat dibaca.");
+    let data: CatalogLink[];
+    if (useSumopodLinks) {
+      const { rows } = await getSkdDatabase().query<CatalogLink>(
+        `select m.formation_id,m.source_id,m.notes,
+          jsonb_build_object('institution',a.institution,'job',a.job,'location',a.location,
+            'education',a.education,'quota',a.quota) as sscasn_formations
+        from public.sscasn_matches m
+        join public.sscasn_formations a on a.snapshot_id=m.snapshot_id and a.source_id=m.source_id
+        join public.sscasn_snapshots s on s.id=m.snapshot_id
+        where m.review_status='approved' and s.import_status='ready' and s.selection_year=$1
+          and ($2::text[] is null or m.source_id=any($2))
+        order by m.formation_id limit $3 offset $4`,
+        [catalogYear, ids ?? null, batchSize, offset],
+      );
+      data = rows;
+    } else {
+      let query = sb
+        .from("sscasn_matches")
+        .select(
+          "formation_id,source_id,notes,sscasn_formations!inner(institution,job,location,education,quota,sscasn_snapshots!inner(selection_year,import_status))",
+        )
+        .eq("review_status", "approved")
+        .eq("sscasn_formations.sscasn_snapshots.import_status", "ready")
+        .eq("sscasn_formations.sscasn_snapshots.selection_year", catalogYear);
+      if (ids) query = query.in("source_id", ids);
+      const result = await query.order("formation_id").range(offset, offset + batchSize - 1);
+      if (result.error) {
+        if (result.error.code === "PGRST205" || result.error.code === "42P01") break;
+        throw new Error("Pasangan formasi belum dapat dibaca.");
+      }
+      data = result.data as unknown as CatalogLink[];
     }
     const remote =
       scoped ??
@@ -340,7 +366,7 @@ async function catalogLinks(
         : pilotById);
     for (const match of data) {
       const row = remote.get(match.source_id);
-      const joined = match.sscasn_formations as unknown as LinkedSource | LinkedSource[] | null;
+      const joined = match.sscasn_formations;
       const source = Array.isArray(joined) ? (joined.length === 1 ? joined[0] : null) : joined;
       if (
         row &&

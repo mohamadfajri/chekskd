@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Papa from "papaparse";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   Activity,
@@ -1000,6 +1000,7 @@ function ReviewWorkspace({
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
   const [bulkProgress, setBulkProgress] = useState<BulkVerifyProgress | null>(null);
   const [publishDialogOpen, setPublishDialogOpen] = useState(false);
+  const queryClient = useQueryClient();
 
   const reviewRows = useQuery({
     queryKey: ["admin-skd-review", selectedBatch?.id, adminPassword],
@@ -1025,6 +1026,8 @@ function ReviewWorkspace({
         `${result.participantCount.toLocaleString("id-ID")} peserta sudah tersedia di pencarian publik.`,
       );
       setPublishDialogOpen(false);
+      void queryClient.invalidateQueries({ queryKey: ["admin-sscasn-audit-institutions"] });
+      void queryClient.invalidateQueries({ queryKey: ["formation-catalog"] });
       onBatchChanged();
     },
   });

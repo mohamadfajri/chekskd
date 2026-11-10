@@ -36,11 +36,14 @@ terbit di admin tetapi tidak muncul di pencarian dan mesin rasionalisasi.
    pendidikan memakai SumoPod. Metadata PDF dibaca dari SumoPod, berkas PDF
    tetap di Supabase Storage. Publikasi tetap menolak permintaan jika pemeriksaan
    relasi Supabase belum lolos.
-4. Audit dan approval SSCASN masih memakai salinan historis Supabase, sehingga
-   batch yang baru terbit di SumoPod belum masuk alur audit SSCASN tersebut.
-   Jangan bersihkan formasi, batch, statistik, atau pasangan SSCASN Supabase
-   sampai audit ikut dipindah. Setelah impor pertama di SumoPod, jangan
-   mengembalikan penulisan ke Supabase tanpa menyelaraskan perubahan.
+4. Selaraskan catatan audit historis dengan
+   `tools/sscasn/sync_audit_to_sumopod.mjs --apply` sebelum merilis jalur audit
+   SumoPod. Sinkronisasi hanya menyalin baris yang belum ada, dan batal jika ada
+   konflik. Saat kedua flag memakai SumoPod, audit, approval, dan pasangan SKD
+   yang dipakai katalog membaca database yang sama. Publikasi batch membuat
+   instansi tersedia untuk audit, tetapi bukan persetujuan pasangan Aesen.
+   Pertahankan arsip formasi, batch, statistik dan pasangan lama di Supabase;
+   jangan mengembalikan penulisan ke Supabase tanpa menyelaraskan perubahan.
 
 ## Bersihkan salinan skor saja
 

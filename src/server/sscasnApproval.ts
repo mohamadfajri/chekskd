@@ -12,6 +12,7 @@ import {
   type SscasnAuditRow,
 } from "../lib/sscasnReconciliation.ts";
 import { aesenConnection } from "./aesenConnection.ts";
+import { skdAdminTransaction, skdAdminUsesSumopod } from "./skdAdminStore.ts";
 
 export interface AesenApprovalSnapshot {
   source_url: string;
@@ -51,24 +52,8 @@ export async function withSscasnApprovalLock<T>(work: () => Promise<T>): Promise
 
 const mirrorSalary = (value: number | null) => (value === null ? null : Math.round(value));
 
-async function matchingMirror(
-  sb: SupabaseClient,
-  snapshotId: string,
-  selected: AesenSscasnEvidence[],
-) {
-  const indexed = new Map<string, SscasnFormation>();
-  for (let offset = 0; ; offset += BATCH) {
-    const { data, error } = await sb
-      .from("sscasn_formations")
-      .select("*")
-      .eq("snapshot_id", snapshotId)
-      .order("source_id")
-      .range(offset, offset + BATCH - 1)
-      .overrideTypes<SscasnFormation[], { merge: false }>();
-    if (error) throw new Error("Salinan Aesen belum dapat dibaca.");
-    for (const row of data) indexed.set(row.source_id, row);
-    if (data.length < BATCH) break;
-  }
+function sameMirror(selected: AesenSscasnEvidence[], rows: SscasnFormation[]) {
+  const indexed = new Map(rows.map((row) => [row.source_id, row]));
   return selected.every((source) => {
     const row = indexed.get(source.id);
     return (
@@ -83,6 +68,55 @@ async function matchingMirror(
       row.salary_max === mirrorSalary(source.salary_max)
     );
   });
+}
+
+function mirrorId(snapshot: AesenApprovalSnapshot, selected: AesenSscasnEvidence[]) {
+  const sourceHash = sscasnAuditHash(selected.map(({ id }) => id).sort()).slice(0, 16);
+  return `casn-${YEAR}-${snapshot.checksum.slice(0, 16)}-match-${sourceHash}`;
+}
+
+function mirrorFormations(snapshotId: string, selected: AesenSscasnEvidence[]) {
+  return selected.map((row) => ({
+    snapshot_id: snapshotId,
+    source_id: row.id,
+    institution: row.institution,
+    job: row.job,
+    location: row.location,
+    education: row.education,
+    quota: row.quota,
+    passed_admin: row.registered,
+    education_options: [
+      ...new Set(
+        row.education
+          .split("/")
+          .map((part) => part.trim())
+          .filter(Boolean),
+      ),
+    ],
+    salary_min: mirrorSalary(row.salary_min),
+    salary_max: mirrorSalary(row.salary_max),
+  }));
+}
+
+async function matchingMirror(
+  sb: SupabaseClient,
+  snapshotId: string,
+  selected: AesenSscasnEvidence[],
+) {
+  const rows: SscasnFormation[] = [];
+  for (let offset = 0; ; offset += BATCH) {
+    const { data, error } = await sb
+      .from("sscasn_formations")
+      .select("*")
+      .eq("snapshot_id", snapshotId)
+      .order("source_id")
+      .range(offset, offset + BATCH - 1)
+      .overrideTypes<SscasnFormation[], { merge: false }>();
+    if (error) throw new Error("Salinan Aesen belum dapat dibaca.");
+    rows.push(...data);
+    if (data.length < BATCH) break;
+  }
+  return sameMirror(selected, rows);
 }
 
 async function ensureMirror(
@@ -105,7 +139,7 @@ async function ensureMirror(
   if (existing.data && (await matchingMirror(sb, existing.data.id, selected)))
     return existing.data.id;
 
-  const snapshotId = `casn-${YEAR}-${snapshot.checksum.slice(0, 16)}-match-${sscasnAuditHash(selected.map(({ id }) => id).sort()).slice(0, 16)}`;
+  const snapshotId = mirrorId(snapshot, selected);
   const draft = await sb.from("sscasn_snapshots").upsert(
     {
       id: snapshotId,
@@ -121,26 +155,7 @@ async function ensureMirror(
   );
   if (draft.error) throw new Error("Snapshot salinan belum dapat disiapkan.");
   for (let offset = 0; offset < selected.length; offset += BATCH) {
-    const rows = selected.slice(offset, offset + BATCH).map((row) => ({
-      snapshot_id: snapshotId,
-      source_id: row.id,
-      institution: row.institution,
-      job: row.job,
-      location: row.location,
-      education: row.education,
-      quota: row.quota,
-      passed_admin: row.registered,
-      education_options: [
-        ...new Set(
-          row.education
-            .split("/")
-            .map((part) => part.trim())
-            .filter(Boolean),
-        ),
-      ],
-      salary_min: mirrorSalary(row.salary_min),
-      salary_max: mirrorSalary(row.salary_max),
-    }));
+    const rows = mirrorFormations(snapshotId, selected.slice(offset, offset + BATCH));
     const result = await sb
       .from("sscasn_formations")
       .upsert(rows, { onConflict: "snapshot_id,source_id", ignoreDuplicates: true });
@@ -155,6 +170,93 @@ async function ensureMirror(
     .eq("import_status", "importing");
   if (ready.error) throw new Error("Snapshot salinan belum dapat difinalisasi.");
   return snapshotId;
+}
+
+async function persistSumopodPairs(
+  snapshot: AesenApprovalSnapshot,
+  institution: string,
+  pairs: Array<{ formationId: string; candidate: AesenSscasnEvidence; notes: string }>,
+) {
+  const selected = pairs.map(({ candidate }) => candidate);
+  const ids = selected.map(({ id }) => id);
+  return skdAdminTransaction(async (db) => {
+    const matches = await db.query(
+      `select 1 from public.sscasn_matches where formation_id = any($1::uuid[])
+        or (source_id = any($2::text[]) and review_status = 'approved') limit 1`,
+      [pairs.map(({ formationId }) => formationId), ids],
+    );
+    if (matches.rowCount) throw new Error("Ada pasangan yang sudah dipakai. Jalankan audit ulang.");
+    const matchingRows = async (snapshotId: string) => {
+      const { rows } = await db.query<{ value: SscasnFormation }>(
+        `select to_jsonb(f) as value from public.sscasn_formations f
+          where snapshot_id = $1 and source_id = any($2::text[])`,
+        [snapshotId, ids],
+      );
+      return sameMirror(
+        selected,
+        rows.map(({ value }) => value),
+      );
+    };
+    const {
+      rows: [existing],
+    } = await db.query<{ id: string }>(
+      `select id from public.sscasn_snapshots
+        where selection_year = $1 and scope_institution = $2 and checksum = $3 and import_status = 'ready'
+        order by row_count desc, id limit 1`,
+      [YEAR, institution, snapshot.checksum],
+    );
+    let snapshotId = existing?.id;
+    if (!snapshotId || !(await matchingRows(snapshotId))) {
+      snapshotId = mirrorId(snapshot, selected);
+      await db.query(
+        `insert into public.sscasn_snapshots
+          (id,selection_year,scope_institution,source_url,captured_at,checksum,row_count,quota_total,passed_admin_total)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9) on conflict (id) do nothing`,
+        [
+          snapshotId,
+          YEAR,
+          institution,
+          snapshot.source_url,
+          snapshot.captured_at,
+          snapshot.checksum,
+          selected.length,
+          selected.reduce((sum, row) => sum + row.quota, 0),
+          selected.reduce((sum, row) => sum + row.registered, 0),
+        ],
+      );
+      for (let offset = 0; offset < selected.length; offset += BATCH) {
+        await db.query(
+          `insert into public.sscasn_formations select * from jsonb_populate_recordset(null::public.sscasn_formations,$1)
+            on conflict (snapshot_id,source_id) do nothing`,
+          [JSON.stringify(mirrorFormations(snapshotId, selected.slice(offset, offset + BATCH)))],
+        );
+      }
+      if (!(await matchingRows(snapshotId)))
+        throw new Error("Salinan Aesen tidak cocok; persetujuan dibatalkan.");
+      await db.query(
+        "update public.sscasn_snapshots set import_status = 'ready' where id = $1 and import_status = 'importing'",
+        [snapshotId],
+      );
+    }
+    const reviewedAt = new Date().toISOString();
+    await db.query(
+      `insert into public.sscasn_matches
+        select * from jsonb_populate_recordset(null::public.sscasn_matches,$1)`,
+      [
+        JSON.stringify(
+          pairs.map(({ formationId, candidate, notes }) => ({
+            formation_id: formationId,
+            source_id: candidate.id,
+            snapshot_id: snapshotId,
+            review_status: "approved",
+            reviewed_at: reviewedAt,
+            notes,
+          })),
+        ),
+      ],
+    );
+    return pairs.length;
+  });
 }
 
 // Call only after a fresh reconciliation under the shared approval lock.
@@ -217,6 +319,18 @@ async function persistPairs(
     new Set(pairs.map(({ formationId }) => formationId)).size !== pairs.length
   ) {
     throw new Error("Ada pasangan yang tidak unik; persetujuan dibatalkan.");
+  }
+  if (skdAdminUsesSumopod()) {
+    try {
+      return await persistSumopodPairs(snapshot, institution, pairs);
+    } catch (error) {
+      const code = (error as { code?: string })?.code;
+      if (code === "23505")
+        throw new Error("Ada pasangan yang sudah dipakai. Jalankan audit ulang.");
+      if (!code) throw error;
+      console.error("sscasn_approval_failed", code);
+      throw new Error("Persetujuan pasangan belum tersimpan.");
+    }
   }
   const snapshotId = await ensureMirror(sb, snapshot, institution, selected);
   const reviewedAt = new Date().toISOString();

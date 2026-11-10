@@ -61,6 +61,7 @@ export function SscasnAuditWorkspace({ adminPassword }: { adminPassword: string 
       refetchType: "none",
     });
     void queryClient.invalidateQueries({ queryKey: ["admin-sscasn", adminPassword] });
+    void queryClient.invalidateQueries({ queryKey: ["formation-catalog"] });
     queryClient.setQueryData(auditKey(result.institution, result.pagination.page), result);
     setActive(result.institution);
     setPage(result.pagination.page);

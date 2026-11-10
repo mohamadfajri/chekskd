@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { approvedSscasnSources } from "../lib/sscasnReconciliation.ts";
 import { readSscasnAuditReviews } from "./sscasnAudit.ts";
 import { withSscasnApprovalLock } from "./sscasnApproval.ts";
+import { skdAdminUsesSumopod, sumopodSkdAdminRows } from "./skdAdminStore.ts";
 import {
   buildSscasnCandidates,
   normalizeSscasnText,
@@ -14,7 +15,7 @@ import {
   type SscasnReviewRow,
   type SscasnPdfFormation,
   type SscasnContext,
-} from "../lib/sscasn";
+} from "../lib/sscasn.ts";
 
 const LOCAL_DIR = path.resolve(process.env.SSCASN_LOCAL_DIR || "data/staging/sscasn");
 interface LocalPreview {
@@ -39,6 +40,14 @@ function missingSchema(code: string | undefined): boolean {
 }
 
 async function readySnapshot(sb: SupabaseClient): Promise<SscasnSnapshot | null> {
+  if (skdAdminUsesSumopod()) {
+    const [row] = await sumopodSkdAdminRows<{ value: SscasnSnapshot }>(
+      `select to_jsonb(s) as value from public.sscasn_snapshots s
+        where import_status = 'ready' and (scope_institution is null or scope_institution = 'Kejaksaan Agung')
+        order by captured_at desc, row_count desc, created_at desc, id limit 1`,
+    );
+    return row?.value ?? null;
+  }
   const { data, error } = await sb
     .from("sscasn_snapshots")
     .select("*")
@@ -70,6 +79,91 @@ function canCompareSource(
 ) {
   if (match?.review_status === "approved") return sourceId === match.source_id;
   return !used.has(sourceId) || used.get(sourceId) === formationId;
+}
+
+function databaseAdminData(
+  snapshot: SscasnSnapshot,
+  page: number,
+  total: number,
+  formations: SscasnFormation[],
+  institutions: SscasnAdminData["institutions"],
+  pdf: SscasnPdfFormation[],
+  source: SscasnFormation[],
+  matches: SscasnMatch[],
+  stored: Awaited<ReturnType<typeof readSscasnAuditReviews>>,
+): SscasnAdminData {
+  const byFormation = new Map(matches.map((m) => [m.formation_id, m]));
+  const used = approvedSscasnSources(stored);
+  return {
+    mode: "database",
+    snapshot,
+    institutions,
+    formations,
+    pagination: { page, total, total_pages: Math.max(1, Math.ceil(total / 25)) },
+    review: pdf.map((row) => ({
+      pdf: row,
+      candidates: buildSscasnCandidates(
+        row,
+        source.filter(({ source_id }) =>
+          canCompareSource(source_id, row.id, byFormation.get(row.id), used),
+        ),
+      ),
+      match: byFormation.get(row.id) ?? null,
+    })),
+  };
+}
+
+async function getSumopodPilot(
+  sb: SupabaseClient,
+  snapshot: SscasnSnapshot,
+  institution: string,
+  query: string,
+  page: number,
+) {
+  const [[listing], institutions, pdf, source, stored] = await Promise.all([
+    sumopodSkdAdminRows<{ total: number; formations: SscasnFormation[] }>(
+      `with filtered as (
+        select * from public.sscasn_formations where snapshot_id=$1
+          and ($2::text is null or institution=$2)
+          and ($3::text is null or job ilike $3 or location ilike $3 or education ilike $3)
+      ) select (select count(*)::int from filtered) as total,
+        coalesce((select jsonb_agg(to_jsonb(f) order by institution,job,source_id) from
+          (select * from filtered order by institution,job,source_id limit 25 offset $4) f),'[]') as formations`,
+      [snapshot.id, institution || null, query ? `%${query}%` : null, (page - 1) * 25],
+    ),
+    sumopodSkdAdminRows<SscasnAdminData["institutions"][number]>(
+      `select institution,row_count,quota::float8,passed_admin::float8
+        from public.sscasn_institutions where snapshot_id=$1 order by institution limit 1000`,
+      [snapshot.id],
+    ),
+    sumopodSkdAdminRows<SscasnPdfFormation>(
+      `select f.id, f.nama_instansi, f.jabatan, f.lokasi_formasi, f.pendidikan, f.jumlah_formasi,
+        f.jenis_formasi, f.tahun, f.page_number
+      from public.skd_formations f join public.skd_batches b on b.id=f.batch_id and b.status='published'
+      where f.kode_instansi='4002' order by f.jabatan,f.id limit 1000`,
+    ),
+    sumopodSkdAdminRows<{ value: SscasnFormation }>(
+      `select to_jsonb(f) as value from public.sscasn_formations f
+      where snapshot_id=$1 and institution='Kejaksaan Agung' order by source_id limit 1000`,
+      [snapshot.id],
+    ),
+    readSscasnAuditReviews(sb),
+  ]);
+  const matches = await sumopodSkdAdminRows<SscasnMatch>(
+    "select * from public.sscasn_matches where formation_id=any($1::uuid[])",
+    [pdf.map(({ id }) => id)],
+  );
+  return databaseAdminData(
+    snapshot,
+    page,
+    listing.total,
+    listing.formations,
+    institutions,
+    pdf,
+    source.map(({ value }) => value),
+    matches,
+    stored,
+  );
 }
 
 export async function getSscasnAdminData(
@@ -131,6 +225,7 @@ export async function getSscasnAdminData(
       db.close();
     }
   }
+  if (skdAdminUsesSumopod()) return getSumopodPilot(sb, snapshot, institution, query, page);
   let list = sb
     .from("sscasn_formations")
     .select("*", { count: "exact" })
@@ -176,29 +271,17 @@ export async function getSscasnAdminData(
     readSscasnAuditReviews(sb),
   ]);
   if (matches.error) throw new Error("Review pencocokan tidak dapat dimuat.");
-  const byFormation = new Map((matches.data ?? []).map((m) => [m.formation_id, m as SscasnMatch]));
-  const used = approvedSscasnSources(stored);
-  return {
-    mode: "database",
+  return databaseAdminData(
     snapshot,
-    institutions: institutions.data ?? [],
-    formations: rows.data ?? [],
-    pagination: {
-      page,
-      total: rows.count ?? 0,
-      total_pages: Math.max(1, Math.ceil((rows.count ?? 0) / 25)),
-    },
-    review: (pdf.data ?? []).map((row) => ({
-      pdf: row,
-      candidates: buildSscasnCandidates(
-        row,
-        (source.data ?? []).filter(({ source_id }) =>
-          canCompareSource(source_id, row.id, byFormation.get(row.id), used),
-        ),
-      ),
-      match: byFormation.get(row.id) ?? null,
-    })),
-  };
+    page,
+    rows.count ?? 0,
+    rows.data ?? [],
+    institutions.data ?? [],
+    pdf.data ?? [],
+    source.data ?? [],
+    matches.data ?? [],
+    stored,
+  );
 }
 
 let localWriteQueue = Promise.resolve();
@@ -234,6 +317,18 @@ export async function reviewSscasnMatch(
     } finally {
       db.close();
     }
+  } else if (skdAdminUsesSumopod()) {
+    const [[official], [mirror]] = await Promise.all([
+      sumopodSkdAdminRows<SscasnPdfFormation>("select * from public.skd_formations where id=$1", [
+        input.formation_id,
+      ]),
+      sumopodSkdAdminRows<{ value: SscasnFormation }>(
+        "select to_jsonb(f) as value from public.sscasn_formations f where snapshot_id=$1 and source_id=$2",
+        [active.id, input.source_id],
+      ),
+    ]);
+    pdf = official ?? null;
+    source = mirror?.value ?? null;
   } else {
     const [a, b] = await Promise.all([
       sb.from("skd_formations").select("*").eq("id", input.formation_id).maybeSingle(),
@@ -288,6 +383,29 @@ export async function reviewSscasnMatch(
   } else {
     const save = async () => {
       checkReserved(await readSscasnAuditReviews(sb));
+      if (skdAdminUsesSumopod()) {
+        try {
+          await sumopodSkdAdminRows(
+            `insert into public.sscasn_matches (formation_id,snapshot_id,source_id,review_status,notes,reviewed_at)
+              values ($1,$2,$3,$4,$5,$6) on conflict (formation_id) do update set
+                snapshot_id=excluded.snapshot_id,source_id=excluded.source_id,
+                review_status=excluded.review_status,notes=excluded.notes,reviewed_at=excluded.reviewed_at`,
+            [
+              match.formation_id,
+              match.snapshot_id,
+              match.source_id,
+              match.review_status,
+              match.notes,
+              match.reviewed_at,
+            ],
+          );
+        } catch (error) {
+          if ((error as { code?: string })?.code === "23505")
+            throw new Error("Sumber SSCASN ini sudah dipakai formasi PDF lain.");
+          throw new Error("Review pencocokan belum tersimpan.");
+        }
+        return;
+      }
       const result = await sb.from("sscasn_matches").upsert(match, { onConflict: "formation_id" });
       if (result.error)
         throw new Error(
@@ -305,6 +423,18 @@ export async function getSscasnContext(
   ids: string[],
 ): Promise<Record<string, SscasnContext>> {
   if (!ids.length) return {};
+  if (skdAdminUsesSumopod()) {
+    try {
+      const [row] = await sumopodSkdAdminRows<{ value: Record<string, SscasnContext> }>(
+        "select public.get_approved_sscasn_context($1::uuid[]) as value",
+        [[...new Set(ids)]],
+      );
+      return row?.value ?? {};
+    } catch (error) {
+      console.error("sscasn_context_unavailable", (error as { code?: string })?.code ?? "unknown");
+      return {};
+    }
+  }
   const { data, error } = await sb.rpc("get_approved_sscasn_context", {
     p_formation_ids: [...new Set(ids)],
   });
