@@ -42,6 +42,20 @@ terbit di admin tetapi tidak muncul di pencarian dan mesin rasionalisasi.
    sampai audit ikut dipindah. Setelah impor pertama di SumoPod, jangan
    mengembalikan penulisan ke Supabase tanpa menyelaraskan perubahan.
 
+## Bersihkan salinan skor saja
+
+- Setelah uji WhatsApp di produksi lolos, verifikasi arsip skor dengan
+  `tools/skd/verify_sumopod_score_restore.mjs <folder-arsip>`. Alat ini
+  memulihkan seluruh skor beserta prasyarat relasinya ke database lokal
+  terpisah, lalu membandingkan sidik jari semua baris.
+- Jalankan hanya SQL final yang sudah diisi jumlah baris dan sidik jari hasil
+  pemulihan. Template dalam Git sengaja tidak dapat langsung dijalankan.
+  SQL final menolak perubahan data atau relasi yang tak terduga, mempertahankan
+  baris review dan UUID-nya, serta mengosongkan hanya `public.skd_scores`.
+- Sesudah pembersihan, jangan kembalikan flag baca atau admin ke Supabase
+  sebelum memulihkan skor dan menyelaraskan data. Rollback deployment saja
+  tidak memulihkan data.
+
 ## Pemeriksaan sebelum peralihan
 
 - Jalankan [inventaris relasi](../tools/skd/cutover/inspect_supabase_skd_links.sql)
