@@ -2,6 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
 import { buildSscasnCandidates } from "../../src/lib/sscasn.ts";
+import {
+  selectableSscasnPagePairs,
+  SSCASN_MANUAL_BATCH_LIMIT,
+} from "../../src/lib/sscasnReconciliation.ts";
 import { reconcileCatalog } from "./reconcile_catalog.mjs";
 import { saveSscasnExactPairs } from "../../src/server/sscasnApproval.ts";
 import {
@@ -69,6 +73,40 @@ const official = {
 const aesen = { ...official, id: "aesen" };
 const reconcile = (pdf, sources, existing = [], audit) =>
   reconcileCatalog(pdf, sources, existing, audit).map(({ status }) => status);
+
+const candidate = (id, canApprove = true) => ({ row: { id }, canApprove });
+
+test("selecting a page skips ambiguous, blocked, shared and already selected candidates", () => {
+  const rows = [
+    { id: "chosen", candidates: [candidate("original"), candidate("alternate")] },
+    { id: "busy", candidates: [candidate("previous-page")] },
+    { id: "ambiguous", candidates: [candidate("a"), candidate("b")] },
+    { id: "shared-1", candidates: [candidate("a")] },
+    { id: "shared-2", candidates: [candidate("same")] },
+    { id: "shared-3", candidates: [candidate("same")] },
+    { id: "blocked", candidates: [candidate("invalid", false)] },
+    { id: "eligible", candidates: [candidate("valid"), candidate("invalid", false)] },
+  ];
+  const selected = { other: "previous-page", chosen: "original" };
+  assert.deepEqual(selectableSscasnPagePairs(rows, selected), [
+    { formationId: "eligible", sourceId: "valid" },
+  ]);
+  assert.deepEqual(selected, { other: "previous-page", chosen: "original" });
+});
+
+test("selecting a page stops at the existing approval limit across pages", () => {
+  const selected = Object.fromEntries(
+    Array.from({ length: SSCASN_MANUAL_BATCH_LIMIT - 1 }, (_, i) => [`old-${i}`, `source-${i}`]),
+  );
+  const rows = [
+    { id: "first", candidates: [candidate("x")] },
+    { id: "second", candidates: [candidate("y")] },
+  ];
+  assert.deepEqual(selectableSscasnPagePairs(rows, selected), [
+    { formationId: "first", sourceId: "x" },
+  ]);
+  assert.deepEqual(selectableSscasnPagePairs(rows, { ...selected, first: "x" }), []);
+});
 
 test("bulk exact comparison checks registered totals, page, and quota", () => {
   assert.deepEqual(reconcile([official], [aesen]), ["ready"]);

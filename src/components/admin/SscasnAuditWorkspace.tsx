@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, ChevronLeft, ChevronRight, Loader2, ScanSearch, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, ListChecks, Loader2, ScanSearch, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -12,6 +12,7 @@ import {
   SSCASN_AUDIT_LABELS,
   SSCASN_MANUAL_BATCH_LIMIT,
   SSCASN_MANUAL_NOTE_MIN,
+  selectableSscasnPagePairs,
   type SscasnAuditResponse,
   type SscasnManualSelection,
 } from "@/lib/sscasnReconciliation";
@@ -92,6 +93,9 @@ export function SscasnAuditWorkspace({ adminPassword }: { adminPassword: string 
     },
   });
   const result = audit.data;
+  const pageRows = result?.rows ?? [];
+  const canSelectPage = selectableSscasnPagePairs(pageRows, selected).length > 0;
+  const selectionBusy = run.isPending || save.isPending || audit.isFetching;
 
   function startApproval(pairs: SscasnManualSelection[]) {
     save.reset();
@@ -235,7 +239,7 @@ export function SscasnAuditWorkspace({ adminPassword }: { adminPassword: string 
               {number.format(result.pagination.total)} formasi
             </p>
           </div>
-          {selections.length > 0 && (
+          {(pageRows.length > 0 || selections.length > 0) && (
             <div
               className="flex flex-wrap items-center gap-2 border-y border-[#dbe3ee] bg-white px-3 py-2 text-sm"
               aria-label="Pilihan persetujuan"
@@ -245,9 +249,28 @@ export function SscasnAuditWorkspace({ adminPassword }: { adminPassword: string 
               </span>
               <button
                 type="button"
+                className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-md border border-[#dbe3ee] px-3 text-xs font-semibold text-[#0d6cbd] hover:bg-[#edf5ff] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0d6cbd] disabled:opacity-40"
+                disabled={!canSelectPage || selectionBusy}
+                onClick={() =>
+                  setSelected((current) => ({
+                    ...current,
+                    ...Object.fromEntries(
+                      selectableSscasnPagePairs(pageRows, current).map(({ formationId, sourceId }) => [
+                        formationId,
+                        sourceId,
+                      ]),
+                    ),
+                  }))
+                }
+              >
+                <ListChecks className="size-4 shrink-0" aria-hidden /> Pilih semua di halaman ini
+              </button>
+              <button
+                type="button"
                 title="Kosongkan pilihan"
                 aria-label="Kosongkan pilihan"
                 className="desk-icon-button"
+                disabled={!selections.length || selectionBusy}
                 onClick={() => setSelected({})}
               >
                 <X className="size-4" aria-hidden />
@@ -255,7 +278,7 @@ export function SscasnAuditWorkspace({ adminPassword }: { adminPassword: string 
               <button
                 type="button"
                 className={approveButton}
-                disabled={run.isPending || save.isPending}
+                disabled={!selections.length || selectionBusy}
                 onClick={() => startApproval(selections)}
               >
                 <Check className="size-4" aria-hidden /> Setujui pilihan
@@ -411,7 +434,7 @@ function AuditRow({
     allowed.find(({ row: candidate }) => candidate.id === explicit)?.row.id ??
     (allowed.length === 1 ? allowed[0].row.id : "");
   return (
-    <li className="space-y-2 py-3 text-sm">
+    <li className={`space-y-2 px-2 py-3 text-sm ${selectedSource ? "bg-[#edf5ff]" : ""}`}>
       <div className="grid items-start gap-1 sm:grid-cols-[minmax(0,1fr)_12rem] sm:gap-3">
         <div className="min-w-0">
           <p className="break-words font-semibold">{row.job}</p>

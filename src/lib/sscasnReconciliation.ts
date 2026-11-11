@@ -89,6 +89,32 @@ export interface SscasnAuditResponse {
   pagination: { page: number; total: number; totalPages: number };
 }
 
+export function selectableSscasnPagePairs(
+  rows: readonly Pick<SscasnAuditResponse["rows"][number], "id" | "candidates">[],
+  selected: Readonly<Record<string, string>>,
+): SscasnManualSelection[] {
+  const remaining = SSCASN_MANUAL_BATCH_LIMIT - Object.keys(selected).length;
+  if (remaining <= 0) return [];
+  const taken = new Set(Object.values(selected));
+  const candidates = rows.map(({ id, candidates }) => ({
+    id,
+    sources: new Set(candidates.filter(({ canApprove }) => canApprove).map(({ row }) => row.id)),
+  }));
+  const uses = new Map<string, number>();
+  for (const { sources } of candidates) {
+    for (const id of sources) uses.set(id, (uses.get(id) ?? 0) + 1);
+  }
+  const pairs: SscasnManualSelection[] = [];
+  for (const { id, sources } of candidates) {
+    if (selected[id] || sources.size !== 1) continue;
+    const sourceId = sources.values().next().value;
+    if (!sourceId || taken.has(sourceId) || uses.get(sourceId) !== 1) continue;
+    pairs.push({ formationId: id, sourceId });
+    if (pairs.length === remaining) break;
+  }
+  return pairs;
+}
+
 export function approvedSscasnSources(reviews: ExistingSscasnReview[]) {
   return new Map(
     reviews

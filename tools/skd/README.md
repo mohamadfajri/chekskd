@@ -2,6 +2,40 @@
 
 Alat lokal untuk mengubah PDF SKD menjadi batch staging yang dapat diaudit.
 
+## Launcher Windows
+
+Klik dua kali `JALANKAN PARSER SKD.cmd` di root proyek, lalu pilih nomor
+instansi. Launcher mendukung BPK, Kementan, KLHK, KPU, Kemenkumham, Kemenag,
+ATR/BPN, Bawaslu, BPOM, Kemenperin, dan KKP. Sumber dicari di
+`output/pdfinstansi`, `output/PDF INSTANSI`, lalu
+`FILE SKD 2024`. Untuk memilih file sendiri, seret PDF ke launcher.
+
+Launcher memeriksa tahun dan kode pada rekap, menjalankan parser serta builder
+v3, lalu membuka folder hasil di `data/staging/skd-satu-klik`. Unggah hanya
+`*-v3-staging.csv` yang berada di luar folder `PEMERIKSAAN`. Bila proses
+ditahan, lihat laporannya dan jangan unggah CSV diagnostik. Launcher tidak
+melakukan OCR, mengunggah PDF, atau menulis ke database.
+
+Untuk banyak PDF sekaligus, klik dua kali `PROSES SEMUA PDF SKD.cmd` atau pilih
+**Proses semua PDF** di menu launcher. Mode ini membaca PDF langsung dari
+`output/pdfinstansi` (atau nama lama `output/PDF INSTANSI`). Kamu juga bisa
+menyeret beberapa PDF atau satu folder ke launcher. Mode ini mengenali kode
+instansi dari rekap PDF dengan kamus lokal `institusi_sscasn_2024.json`
+(kode dan nama dari snapshot katalog SSCASN/Aesen 2024, tanpa data peserta).
+Daftar di menu hanyalah pintasan. Kode tidak dikenal atau isi PDF yang tidak
+cocok tetap ditahan. **SUDAH ADA** berarti CSV ada di disk, bukan sudah
+diimpor; cek status batch di Admin sebelum mengunggah.
+
+PDF diproses satu per satu. PDF yang ditahan tidak menghentikan antrean.
+Setiap instansi yang lolos punya CSV sendiri di folder `CSV STAGING`.
+Jika hanya ada `RINGKASAN HASIL.txt`, belum ada PDF yang lolos. Jika dua PDF
+punya kode instansi sama, keduanya ditahan
+agar tidak membuat data ganda.
+
+Klik lagi setelah menambahkan PDF baru. Hasil batch yang sudah sukses
+ditandai **SUDAH ADA** jika PDF dan CSV-nya masih sama. File yang ditahan
+ditampilkan dengan alasan dan dicoba lagi saat launcher dijalankan ulang.
+
 ## Alur per instansi
 
 1. Pilih PDF **Hasil SKD** asli di `FILE SKD 2024`. Lewati PDF SKB dan
