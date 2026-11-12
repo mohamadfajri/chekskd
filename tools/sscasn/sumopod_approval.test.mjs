@@ -79,6 +79,7 @@ test("SumoPod persists 25 manually reviewed pairs atomically and rejects reuse",
     assert.equal(await saveSscasnVerifiedBulkPairs({}, snapshot, institution, [exception], "test"), 1);
     const waived = (await db.query("select notes from public.sscasn_matches where source_id = 'aesen-27'")).rows[0];
     assert.match(waived.notes, /rekap nol dari PDF belum diverifikasi/);
+    assert.match(waived.notes, /konfirmasi API detail tidak diwajibkan/);
   } finally {
     await db.close();
     await skdAdminDatabase().end();

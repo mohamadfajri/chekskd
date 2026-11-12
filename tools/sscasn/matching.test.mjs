@@ -92,7 +92,7 @@ test("bulk audit accepts only a proven prefix or exact match and never guesses z
   assert.equal(verifiedBulkPairs(reconcileCatalog([{ ...empty, zeroRecapVerified: true }], [zero], []), zeroMap).length, 1);
 });
 
-test("a missing-PDF exception still requires API detail, matching category and an unused source", () => {
+test("a missing-PDF exception accepts a unique zero from the catalog without detail API", () => {
   const empty = { ...official, registered: 0, attended: 0 };
   const detail = { ...aesen, registered: 0, category: "UMUM", categorySource: "detail_api", verifiedRegistered: 0 };
   const classified = reconcileCatalog([empty], [detail], []);
@@ -100,12 +100,15 @@ test("a missing-PDF exception still requires API detail, matching category and a
   const select = (source = detail, used = new Map(), rows = classified) =>
     zeroPdfExceptionPairs(rows, new Map([[source.id, source]]), used);
   assert.equal(select().length, 1);
-  assert.equal(select({ ...detail, categorySource: "archive" }).length, 0);
-  assert.equal(select({ ...detail, verifiedRegistered: null }).length, 0);
+  assert.equal(select({ ...detail, categorySource: "archive", verifiedRegistered: null }).length, 1);
+  assert.equal(select({ ...detail, category: null, categorySource: null, verifiedRegistered: null }).length, 1);
+  assert.equal(select({ ...detail, verifiedRegistered: 2 }).length, 0);
+  assert.equal(select({ ...detail, registered: 2 }).length, 0);
   assert.equal(select({ ...detail, category: "KHUSUS" }).length, 0);
   assert.equal(select(detail, new Map([[detail.id, "another-formation"]])).length, 0);
   assert.equal(select(detail, new Map(), [{ ...classified[0], status: "zero_detail_required" }]).length, 0);
   assert.equal(select(detail, new Map(), [{ ...classified[0], attended: 1 }]).length, 0);
+  assert.equal(select(detail, new Map(), [classified[0], { ...classified[0], id: "other" }]).length, 0);
 });
 
 const candidate = (id, canApprove = true) => ({ row: { id }, canApprove });

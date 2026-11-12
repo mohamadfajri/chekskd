@@ -439,8 +439,9 @@ export function zeroPdfExceptionPairs(
     ) return [];
     const candidate = source.get(pdf.candidateIds[0]);
     if (
-      !candidate?.category || candidate.registered !== 0 || candidate.categorySource !== "detail_api" ||
-      candidate.verifiedRegistered !== 0 || usedSources.has(candidate.id) ||
+      !candidate || candidate.registered !== 0 ||
+      (candidate.verifiedRegistered != null && candidate.verifiedRegistered !== 0) ||
+      usedSources.has(candidate.id) ||
       !canManuallyLinkSscasn(pdf, candidate)
     ) return [];
     return [{ pdf, candidate }];

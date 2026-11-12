@@ -328,7 +328,7 @@ export function saveSscasnVerifiedBulkPairs(
       return {
         formationId: pdf.id,
         candidate,
-        notes: `${prefix ? SSCASN_MANUAL_NOTE_PREFIX : ""}Audit massal ${auditCode}: bukti tersimpan cocok${prefix ? " setelah mengabaikan awalan kode jabatan" : ""}; PDF halaman ${pdf.page}. ${missingPdf ? "Pengecualian admin: nol dikonfirmasi API detail, rekap nol dari PDF belum diverifikasi." : "Persetujuan massal diminta admin."}`,
+        notes: `${prefix ? SSCASN_MANUAL_NOTE_PREFIX : ""}Audit massal ${auditCode}: ${missingPdf ? "pasangan katalog unik dengan nol lolos administrasi" : "bukti tersimpan cocok"}${prefix ? " setelah mengabaikan awalan kode jabatan" : ""}; PDF halaman ${pdf.page}. ${missingPdf ? "Pengecualian admin: rekap nol dari PDF belum diverifikasi; konfirmasi API detail tidak diwajibkan." : "Persetujuan massal diminta admin."}`,
       };
     }),
   );
