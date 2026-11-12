@@ -318,11 +318,19 @@ export function saveSscasnVerifiedBulkPairs(
   auditCode: string,
 ) {
   if (!pairs.length) return Promise.resolve(0);
-  return persistPairs(sb, snapshot, institution, pairs.map(({ pdf, candidate }) => ({
-    formationId: pdf.id,
-    candidate,
-    notes: `Audit massal ${auditCode}: bukti tersimpan cocok${pdf.status === "review_job_prefix" ? " setelah mengabaikan awalan kode jabatan" : ""}; PDF halaman ${pdf.page}. Persetujuan massal diminta admin.`,
-  })));
+  return persistPairs(
+    sb,
+    snapshot,
+    institution,
+    pairs.map(({ pdf, candidate }) => {
+      const prefix = pdf.status === "review_job_prefix";
+      return {
+        formationId: pdf.id,
+        candidate,
+        notes: `${prefix ? SSCASN_MANUAL_NOTE_PREFIX : ""}Audit massal ${auditCode}: bukti tersimpan cocok${prefix ? " setelah mengabaikan awalan kode jabatan" : ""}; PDF halaman ${pdf.page}. Persetujuan massal diminta admin.`,
+      };
+    }),
+  );
 }
 
 async function persistPairs(

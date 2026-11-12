@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { pathToFileURL } from "node:url";
 import { transferSchema } from "../skd/sumopod_transfer_schema.mjs";
-import { saveSscasnManualPairs } from "../../src/server/sscasnApproval.ts";
+import { saveSscasnManualPairs, saveSscasnVerifiedBulkPairs } from "../../src/server/sscasnApproval.ts";
+import { SSCASN_MANUAL_NOTE_PREFIX } from "../../src/lib/sscasnReconciliation.ts";
 import { skdAdminDatabase } from "../../src/server/skdAdminStore.ts";
 
 const { PGlite } = await import(
@@ -66,6 +67,11 @@ test("SumoPod persists 25 manually reviewed pairs atomically and rejects reuse",
     assert.equal(await count(), 25);
     const mirrors = (await db.query("select count(*)::int n from public.sscasn_snapshots")).rows[0].n;
     assert.equal(mirrors, 1);
+    const prefix = { ...pairs[25], pdf: { ...pairs[25].pdf, status: "review_job_prefix" } };
+    assert.equal(await saveSscasnVerifiedBulkPairs({}, snapshot, institution, [prefix], "test"), 1);
+    const saved = (await db.query("select notes from public.sscasn_matches where source_id = 'aesen-25'")).rows[0];
+    assert(saved.notes.startsWith(SSCASN_MANUAL_NOTE_PREFIX));
+    assert.match(saved.notes, /Audit massal test/);
   } finally {
     await db.close();
     await skdAdminDatabase().end();
