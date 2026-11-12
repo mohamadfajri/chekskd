@@ -323,11 +323,12 @@ export function saveSscasnVerifiedBulkPairs(
     snapshot,
     institution,
     pairs.map(({ pdf, candidate }) => {
-      const prefix = pdf.status === "review_job_prefix";
+      const missingPdf = pdf.status === "zero_recap_required";
+      const prefix = norm(pdf.job) !== norm(candidate.job);
       return {
         formationId: pdf.id,
         candidate,
-        notes: `${prefix ? SSCASN_MANUAL_NOTE_PREFIX : ""}Audit massal ${auditCode}: bukti tersimpan cocok${prefix ? " setelah mengabaikan awalan kode jabatan" : ""}; PDF halaman ${pdf.page}. Persetujuan massal diminta admin.`,
+        notes: `${prefix ? SSCASN_MANUAL_NOTE_PREFIX : ""}Audit massal ${auditCode}: bukti tersimpan cocok${prefix ? " setelah mengabaikan awalan kode jabatan" : ""}; PDF halaman ${pdf.page}. ${missingPdf ? "Pengecualian admin: nol dikonfirmasi API detail, rekap nol dari PDF belum diverifikasi." : "Persetujuan massal diminta admin."}`,
       };
     }),
   );

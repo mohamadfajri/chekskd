@@ -417,39 +417,77 @@ export function verifiedBulkPairs(
     )) return [];
     return [{ pdf, candidate }];
   });
+  return uniqueBulkPairs(candidates);
+}
+
+function uniqueBulkPairs<T extends { candidate: AesenSscasnEvidence }>(candidates: T[]): T[] {
   const sourceCounts = new Map<string, number>();
   for (const { candidate } of candidates)
     sourceCounts.set(candidate.id, (sourceCounts.get(candidate.id) ?? 0) + 1);
   return candidates.filter(({ candidate }) => sourceCounts.get(candidate.id) === 1);
 }
 
-function bulkPlan(audit: ReturnType<typeof classifyAudit>) {
-  const pairs = verifiedBulkPairs(audit.rows, audit.source);
+export function zeroPdfExceptionPairs(
+  rows: readonly SscasnAuditRow[],
+  source: ReadonlyMap<string, AesenSscasnEvidence>,
+  usedSources: ReadonlyMap<string, string>,
+) {
+  return uniqueBulkPairs(rows.flatMap((pdf) => {
+    if (
+      pdf.status !== "zero_recap_required" || pdf.registered !== 0 || pdf.attended !== 0 ||
+      pdf.zeroRecapVerified || pdf.candidateIds.length !== 1
+    ) return [];
+    const candidate = source.get(pdf.candidateIds[0]);
+    if (
+      !candidate?.category || candidate.registered !== 0 || candidate.categorySource !== "detail_api" ||
+      candidate.verifiedRegistered !== 0 || usedSources.has(candidate.id) ||
+      !canManuallyLinkSscasn(pdf, candidate)
+    ) return [];
+    return [{ pdf, candidate }];
+  }));
+}
+
+export type SscasnBulkScope = "verified" | "zero-pdf-exception";
+
+function bulkPlan(audit: ReturnType<typeof classifyAudit>, scope: SscasnBulkScope) {
+  const exception = scope === "zero-pdf-exception";
+  const pairs = exception
+    ? zeroPdfExceptionPairs(audit.rows, audit.source, audit.usedSources)
+    : verifiedBulkPairs(audit.rows, audit.source);
+  const targeted = exception
+    ? audit.rows.filter(({ status }) => status === "zero_recap_required").length
+    : audit.rows.filter(({ status }) => status !== "already_approved").length;
   return {
     pairs,
     summary: {
-      fingerprint: sscasnAuditHash([audit.catalog.snapshot.checksum, pairs]),
+      fingerprint: sscasnAuditHash([scope, audit.catalog.snapshot.checksum, pairs]),
       exact: pairs.filter(({ pdf }) => pdf.status === "ready").length,
       prefix: pairs.filter(({ pdf }) => pdf.status === "review_job_prefix").length,
+      zeroPdfException: exception ? pairs.length : 0,
       alreadyApproved: audit.rows.filter(({ status }) => status === "already_approved").length,
-      held: audit.rows.filter(({ status }) => status !== "already_approved").length - pairs.length,
+      held: targeted - pairs.length,
     },
   };
 }
 
-export async function planSscasnBulkApproval(sb: SupabaseClient, institution: string) {
-  return bulkPlan(await runAudit(sb, institution, true)).summary;
+export async function planSscasnBulkApproval(
+  sb: SupabaseClient,
+  institution: string,
+  scope: SscasnBulkScope = "verified",
+) {
+  return bulkPlan(await runAudit(sb, institution, true), scope).summary;
 }
 
 export async function approveSscasnBulkPlan(
   sb: SupabaseClient,
   institution: string,
   fingerprint: string,
+  scope: SscasnBulkScope = "verified",
 ) {
   const evidence = await auditEvidence(sb, institution, true);
   return withSscasnApprovalLock(async () => {
     const audit = classifyAudit(evidence, await readSscasnAuditReviews(sb));
-    const { pairs, summary } = bulkPlan(audit);
+    const { pairs, summary } = bulkPlan(audit, scope);
     if (fingerprint !== summary.fingerprint)
       throw new Error("Rencana audit berubah. Muat ulang rencana sebelum menyetujui.");
     const newlyApproved = await saveSscasnVerifiedBulkPairs(

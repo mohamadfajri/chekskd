@@ -4,9 +4,12 @@ import { parseArgs } from "node:util";
 
 const base = "https://chekskd.vercel.app/api/admin/sscasn";
 const { values } = parseArgs({
-  options: { apply: { type: "boolean" }, plan: { type: "string" } },
+  options: { apply: { type: "boolean" }, plan: { type: "string" }, "zero-pdf-exception": { type: "boolean" } },
 });
-const planPath = values.plan ?? "data/staging/sscasn/production-bulk-plan.json";
+const scope = values["zero-pdf-exception"] ? "zero-pdf-exception" : "verified";
+const planPath = values.plan ?? (values["zero-pdf-exception"]
+  ? "data/staging/sscasn/production-zero-pdf-plan.json"
+  : "data/staging/sscasn/production-bulk-plan.json");
 const password = process.env.ADMIN_PASSWORD?.trim();
 if (!password) throw new Error("ADMIN_PASSWORD belum tersedia.");
 
@@ -23,7 +26,8 @@ async function api(query, payload) {
   return result;
 }
 
-const getPlan = (institution) => api({ mode: "audit-bulk-plan", institution });
+const getPlan = (institution) => api({ mode: "audit-bulk-plan", scope, institution });
+const eligible = (row) => (row.exact ?? 0) + (row.prefix ?? 0) + (row.zeroPdfException ?? 0);
 const sum = (rows, key) => rows.reduce((total, row) => total + (row[key] ?? 0), 0);
 const save = (file, data) => writeFile(file, JSON.stringify(data, null, 2) + "\n", "utf8");
 await mkdir(path.dirname(planPath), { recursive: true });
@@ -40,35 +44,38 @@ if (!values.apply) {
         try { plan = await getPlan(institution); }
         catch { plan = await getPlan(institution); }
         rows[index] = { institution, ...plan };
-        if (plan.exact + plan.prefix > 0)
-          console.log(`${institution}: ${plan.exact} persis, ${plan.prefix} awalan kode`);
+        if (eligible(plan) > 0)
+          console.log(`${institution}: ${eligible(plan)} lolos`);
       } catch (error) {
         rows[index] = { institution, error: error.message };
         console.log(`${institution}: gagal memuat rencana`);
       }
     }
   }));
-  await save(planPath, { endpoint: base, plannedAt: new Date().toISOString(), rows });
+  await save(planPath, { endpoint: base, scope, plannedAt: new Date().toISOString(), rows });
   console.log(JSON.stringify({
     institutions: rows.length, exact: sum(rows, "exact"), prefix: sum(rows, "prefix"),
-    held: sum(rows, "held"), errors: rows.filter(({ error }) => error).length, planPath,
+    zeroPdfException: sum(rows, "zeroPdfException"), held: sum(rows, "held"),
+    errors: rows.filter(({ error }) => error).length, planPath,
   }));
 } else {
   const plan = JSON.parse(await readFile(planPath, "utf8"));
-  if (plan.endpoint !== base || !Array.isArray(plan.rows)) throw new Error("File rencana tidak valid.");
-  const attempted = plan.rows.filter((row) => /^[a-f0-9]{64}$/.test(row.fingerprint ?? "") && row.exact + row.prefix > 0);
+  if (plan.endpoint !== base || plan.scope !== scope || !Array.isArray(plan.rows))
+    throw new Error("File rencana tidak valid atau lingkupnya berbeda.");
+  const attempted = plan.rows.filter((row) => /^[a-f0-9]{64}$/.test(row.fingerprint ?? "") && eligible(row) > 0);
   const reportPath = planPath.replace(/\.json$/, "") + "-applied.json";
   const results = [];
-  for (const { institution, fingerprint, exact, prefix } of attempted) {
+  for (const row of attempted) {
+    const { institution, fingerprint } = row;
     try {
-      const result = await api(null, { action: "approve-bulk-plan", institution, fingerprint });
+      const result = await api(null, { action: "approve-bulk-plan", scope, institution, fingerprint });
       results.push({ institution, ...result });
       console.log(`${institution}: ${result.newlyApproved} disetujui`);
     } catch (error) {
       const current = await getPlan(institution).catch(() => null);
       results.push({
-        institution, planned: exact + prefix, error: error.message,
-        remaining: current ? current.exact + current.prefix : null,
+        institution, planned: eligible(row), error: error.message,
+        remaining: current ? eligible(current) : null,
       });
       console.log(`${institution}: perlu diperiksa ulang (${error.message})`);
     }
