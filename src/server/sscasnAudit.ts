@@ -21,6 +21,7 @@ import { skdAdminUsesSumopod, sumopodSkdAdminRows } from "./skdAdminStore.ts";
 import {
   saveSscasnExactPairs,
   saveSscasnManualPairs,
+  saveSscasnVerifiedBulkPairs,
   sscasnAuditHash,
   withSscasnApprovalLock,
 } from "./sscasnApproval.ts";
@@ -399,6 +400,63 @@ function approvalResult(
   }));
   const result = saved.length ? classifyAudit(audit, [...audit.existing.values(), ...saved]) : audit;
   return { ...toPage(institution, result, "review", page), newlyApproved };
+}
+
+export function verifiedBulkPairs(
+  rows: readonly SscasnAuditRow[],
+  source: ReadonlyMap<string, AesenSscasnEvidence>,
+) {
+  const candidates = rows.flatMap((pdf) => {
+    if ((pdf.status !== "ready" && pdf.status !== "review_job_prefix") || pdf.candidateIds.length !== 1)
+      return [];
+    const candidate = source.get(pdf.candidateIds[0]);
+    if (!candidate || !canManuallyLinkSscasn(pdf, candidate)) return [];
+    if (pdf.status === "review_job_prefix" && !candidate.category) return [];
+    if (pdf.registered === 0 && (
+      !pdf.zeroRecapVerified || candidate.categorySource !== "detail_api" || candidate.verifiedRegistered !== 0
+    )) return [];
+    return [{ pdf, candidate }];
+  });
+  const sourceCounts = new Map<string, number>();
+  for (const { candidate } of candidates)
+    sourceCounts.set(candidate.id, (sourceCounts.get(candidate.id) ?? 0) + 1);
+  return candidates.filter(({ candidate }) => sourceCounts.get(candidate.id) === 1);
+}
+
+function bulkPlan(audit: ReturnType<typeof classifyAudit>) {
+  const pairs = verifiedBulkPairs(audit.rows, audit.source);
+  return {
+    pairs,
+    summary: {
+      fingerprint: sscasnAuditHash([audit.catalog.snapshot.checksum, pairs]),
+      exact: pairs.filter(({ pdf }) => pdf.status === "ready").length,
+      prefix: pairs.filter(({ pdf }) => pdf.status === "review_job_prefix").length,
+      alreadyApproved: audit.rows.filter(({ status }) => status === "already_approved").length,
+      held: audit.rows.filter(({ status }) => status !== "already_approved").length - pairs.length,
+    },
+  };
+}
+
+export async function planSscasnBulkApproval(sb: SupabaseClient, institution: string) {
+  return bulkPlan(await runAudit(sb, institution, true)).summary;
+}
+
+export async function approveSscasnBulkPlan(
+  sb: SupabaseClient,
+  institution: string,
+  fingerprint: string,
+) {
+  const evidence = await auditEvidence(sb, institution, true);
+  return withSscasnApprovalLock(async () => {
+    const audit = classifyAudit(evidence, await readSscasnAuditReviews(sb));
+    const { pairs, summary } = bulkPlan(audit);
+    if (fingerprint !== summary.fingerprint)
+      throw new Error("Rencana audit berubah. Muat ulang rencana sebelum menyetujui.");
+    const newlyApproved = await saveSscasnVerifiedBulkPairs(
+      sb, audit.catalog.snapshot, institution, pairs, fingerprint.slice(0, 16),
+    );
+    return { ...summary, newlyApproved };
+  });
 }
 
 export function validateSscasnManualSelection(

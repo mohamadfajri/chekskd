@@ -4,9 +4,11 @@ import { getSscasnAdminData, reviewSscasnMatch } from "@/server/sscasn";
 import { SSCASN_MANUAL_BATCH_LIMIT } from "@/lib/sscasnReconciliation";
 import {
   approveSelectedSscasnAudit,
+  approveSscasnBulkPlan,
   approveSscasnAudit,
   getSscasnAudit,
   listSscasnAuditInstitutions,
+  planSscasnBulkApproval,
 } from "@/server/sscasnAudit";
 
 export const Route = createFileRoute("/api/admin/sscasn")({
@@ -21,6 +23,12 @@ export const Route = createFileRoute("/api/admin/sscasn")({
         try {
           if (params.get("mode") === "audit-institutions") {
             return jsonResponse({ institutions: await listSscasnAuditInstitutions(client) });
+          }
+          if (params.get("mode") === "audit-bulk-plan") {
+            const institution = params.get("institution")?.trim();
+            if (!institution || institution.length > 200)
+              return jsonResponse({ message: "Pilih instansi untuk diaudit." }, 400);
+            return jsonResponse(await planSscasnBulkApproval(client, institution));
           }
           if (params.get("mode") === "audit") {
             const institution = params.get("institution")?.trim();
@@ -48,6 +56,22 @@ export const Route = createFileRoute("/api/admin/sscasn")({
         const auth = requireAdmin(request);
         if (auth) return auth;
         const body = await request.json().catch(() => null);
+        if (body?.action === "approve-bulk-plan") {
+          const institution = typeof body.institution === "string" ? body.institution.trim() : "";
+          if (!institution || institution.length > 200 || typeof body.fingerprint !== "string" ||
+              !/^[a-f0-9]{64}$/.test(body.fingerprint))
+            return jsonResponse({ message: "Rencana persetujuan tidak valid." }, 400);
+          const { client } = getServerSupabase();
+          if (!client) return jsonResponse({ message: "Supabase server belum siap." }, 503);
+          try {
+            return jsonResponse(await approveSscasnBulkPlan(client, institution, body.fingerprint));
+          } catch (error) {
+            return jsonResponse(
+              { message: error instanceof Error ? error.message : "Persetujuan massal belum tersimpan." },
+              409,
+            );
+          }
+        }
         if (body?.action === "approve-selected") {
           const institution = typeof body.institution === "string" ? body.institution.trim() : "";
           if (

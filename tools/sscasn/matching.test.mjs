@@ -11,6 +11,7 @@ import { saveSscasnExactPairs } from "../../src/server/sscasnApproval.ts";
 import {
   attachZeroRecapEvidence,
   validateSscasnManualSelection,
+  verifiedBulkPairs,
 } from "../../src/server/sscasnAudit.ts";
 
 const pdf = {
@@ -73,6 +74,22 @@ const official = {
 const aesen = { ...official, id: "aesen" };
 const reconcile = (pdf, sources, existing = [], audit) =>
   reconcileCatalog(pdf, sources, existing, audit).map(({ status }) => status);
+
+test("bulk audit accepts only a proven prefix or exact match and never guesses zero evidence", () => {
+  const source = { ...aesen, category: "UMUM" };
+  const prefix = { ...official, job: "105 - ANALIS HUKUM" };
+  const classified = reconcileCatalog([prefix], [source], []);
+  const bySource = new Map([[source.id, source]]);
+  assert.equal(verifiedBulkPairs(classified, bySource).length, 1);
+  assert.equal(verifiedBulkPairs(classified, new Map([[source.id, { ...source, category: null }]])).length, 0);
+  assert.equal(verifiedBulkPairs([{ ...classified[0], status: "ambiguous" }], bySource).length, 0);
+  assert.equal(verifiedBulkPairs([classified[0], { ...classified[0], id: "other" }], bySource).length, 0);
+  const empty = { ...prefix, registered: 0, attended: 0 };
+  const zero = { ...source, registered: 0, categorySource: "detail_api", verifiedRegistered: 0 };
+  const zeroMap = new Map([[zero.id, zero]]);
+  assert.equal(verifiedBulkPairs(reconcileCatalog([empty], [zero], []), zeroMap).length, 0);
+  assert.equal(verifiedBulkPairs(reconcileCatalog([{ ...empty, zeroRecapVerified: true }], [zero], []), zeroMap).length, 1);
+});
 
 const candidate = (id, canApprove = true) => ({ row: { id }, canApprove });
 

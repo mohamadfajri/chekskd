@@ -310,6 +310,21 @@ export async function saveSscasnManualPairs(
   );
 }
 
+export function saveSscasnVerifiedBulkPairs(
+  sb: SupabaseClient,
+  snapshot: AesenApprovalSnapshot,
+  institution: string,
+  pairs: Array<{ pdf: SscasnAuditRow; candidate: AesenSscasnEvidence }>,
+  auditCode: string,
+) {
+  if (!pairs.length) return Promise.resolve(0);
+  return persistPairs(sb, snapshot, institution, pairs.map(({ pdf, candidate }) => ({
+    formationId: pdf.id,
+    candidate,
+    notes: `Audit massal ${auditCode}: bukti tersimpan cocok${pdf.status === "review_job_prefix" ? " setelah mengabaikan awalan kode jabatan" : ""}; PDF halaman ${pdf.page}. Persetujuan massal diminta admin.`,
+  })));
+}
+
 async function persistPairs(
   sb: SupabaseClient,
   snapshot: AesenApprovalSnapshot,
