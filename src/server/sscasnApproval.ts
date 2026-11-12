@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import pg from "pg";
+import type { PoolClient } from "pg";
 import {
   normalizeSscasnText as norm,
   sscasnEducationKey,
@@ -11,7 +11,7 @@ import {
   type AesenSscasnEvidence,
   type SscasnAuditRow,
 } from "../lib/sscasnReconciliation.ts";
-import { aesenConnection } from "./aesenConnection.ts";
+import { sscasnAuditPool } from "./aesenConnection.ts";
 import { skdAdminTransaction, skdAdminUsesSumopod } from "./skdAdminStore.ts";
 
 export interface AesenApprovalSnapshot {
@@ -30,11 +30,12 @@ export function sscasnAuditHash(value: unknown) {
 export async function withSscasnApprovalLock<T>(work: () => Promise<T>): Promise<T> {
   const url = process.env.AESEN_DATABASE_URL;
   if (!url) throw new Error("Koneksi Aesen belum disetel untuk menyimpan pasangan.");
-  const client = new pg.Client({ ...aesenConnection(url), query_timeout: 10_000 });
+  let client: PoolClient | undefined;
   let locked = false;
   let transaction = false;
+  let damaged = false;
   try {
-    await client.connect();
+    client = await sscasnAuditPool(url).connect();
     await client.query("begin");
     transaction = true;
     await client.query("set local lock_timeout = '6s'");
@@ -45,8 +46,10 @@ export async function withSscasnApprovalLock<T>(work: () => Promise<T>): Promise
     if (locked) throw error;
     throw new Error("Penguncian audit belum tersedia. Tunggu audit lain selesai lalu coba lagi.");
   } finally {
-    if (transaction) await client.query("rollback").catch(() => undefined);
-    await client.end().catch(() => undefined);
+    if (transaction && client) {
+      await client.query("rollback").catch(() => { damaged = true; });
+    }
+    client?.release(damaged);
   }
 }
 
@@ -325,6 +328,8 @@ async function persistPairs(
       return await persistSumopodPairs(snapshot, institution, pairs);
     } catch (error) {
       const code = (error as { code?: string })?.code;
+      if (code === "55P03" || code === "57014" || code === "ETIMEDOUT")
+        throw new Error("Database audit sibuk. Muat ulang hasil audit sebelum mencoba lagi.");
       if (code === "23505")
         throw new Error("Ada pasangan yang sudah dipakai. Jalankan audit ulang.");
       if (!code) throw error;

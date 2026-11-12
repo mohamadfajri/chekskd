@@ -1,5 +1,4 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import pg from "pg";
 import { normalizeSscasnText, sscasnEducationKey } from "../lib/sscasn.ts";
 import {
   approvedSscasnSources,
@@ -17,7 +16,7 @@ import {
   type SscasnAuditRow,
   type SscasnManualSelection,
 } from "../lib/sscasnReconciliation.ts";
-import { aesenConnection } from "./aesenConnection.ts";
+import { sscasnAuditPool } from "./aesenConnection.ts";
 import { skdAdminUsesSumopod, sumopodSkdAdminRows } from "./skdAdminStore.ts";
 import {
   saveSscasnExactPairs,
@@ -168,33 +167,33 @@ export function attachZeroRecapEvidence(official: OfficialSscasnEvidence[], reca
 }
 
 export async function readAesenAuditCatalog(url: string, institutions: string[]) {
-  const client = new pg.Client({ ...aesenConnection(url), query_timeout: 15_000 });
+  const pool = sscasnAuditPool(url);
   try {
-    await client.connect();
     const {
       rows: [snapshot],
-    } = await client.query<{ source_url: string; captured_at: Date; checksum: string }>(
-      "select source_url, captured_at, checksum from aesen.snapshot where selection_year = $1",
+    } = await pool.query<{
+      source_url: string; captured_at: Date; checksum: string; categories: boolean; recaps: boolean;
+    }>(
+      `select source_url, captured_at, checksum,
+         to_regclass('aesen.formation_categories') is not null as categories,
+         to_regclass('aesen.skd_zero_recaps') is not null as recaps
+       from aesen.snapshot where selection_year = $1`,
       [YEAR],
     );
     if (!snapshot) throw new Error("Snapshot Aesen 2024 tidak tersedia.");
-    const {
-      rows: [tables],
-    } = await client.query<{ categories: boolean; recaps: boolean }>(
-      "select to_regclass('aesen.formation_categories') is not null as categories, to_regclass('aesen.skd_zero_recaps') is not null as recaps",
-    );
+    const { categories, recaps, ...metadata } = snapshot;
     const keys = [...new Set(institutions.map(normalizeSscasnText))];
-    const { rows } = await client.query<AesenSscasnEvidence>(
+    const { rows } = await pool.query<AesenSscasnEvidence>(
       `select f.source_id as id, f.institution, f.job, f.location, f.education,
        f.quota, f.passed_admin as registered, f.salary_min, f.salary_max
-       ${tables.categories ? ', c.category, c.evidence_source as "categorySource", c.verified_registered as "verifiedRegistered"' : ""}
-       from aesen.formations f ${tables.categories ? "left join aesen.formation_categories c using(source_id)" : ""}
+       ${categories ? ', c.category, c.evidence_source as "categorySource", c.verified_registered as "verifiedRegistered"' : ""}
+       from aesen.formations f ${categories ? "left join aesen.formation_categories c using(source_id)" : ""}
        where upper(regexp_replace(trim(f.institution), '\\s+', ' ', 'g')) = any($1::text[])`,
       [keys],
     );
-    const zeroRecaps = tables.recaps
+    const zeroRecaps = recaps
       ? (
-          await client.query<ZeroRecap>(
+          await pool.query<ZeroRecap>(
             `select formation_id, (to_jsonb(r)->>'source_id') as source_id, institution, job, location, education,
        category, pdf_page, quota from aesen.skd_zero_recaps r
        where upper(regexp_replace(trim(institution), '\\s+', ' ', 'g')) = any($1::text[])`,
@@ -202,13 +201,11 @@ export async function readAesenAuditCatalog(url: string, institutions: string[])
           )
         ).rows
       : [];
-    return { snapshot, rows, zeroRecaps };
+    return { snapshot: metadata, rows, zeroRecaps };
   } catch (error) {
     if (error instanceof Error && error.message === "Snapshot Aesen 2024 tidak tersedia.")
       throw error;
     throw new Error("Katalog Aesen belum dapat dibaca. Periksa koneksi SumoPod di server.");
-  } finally {
-    await client.end().catch(() => undefined);
   }
 }
 
@@ -369,8 +366,9 @@ export async function approveSscasnAudit(
   sb: SupabaseClient,
   institution: string,
 ): Promise<SscasnAuditResponse> {
-  const newlyApproved = await withSscasnApprovalLock(async () => {
-    const audit = await runAudit(sb, institution, true);
+  const evidence = await auditEvidence(sb, institution, true);
+  const { audit, saved, newlyApproved } = await withSscasnApprovalLock(async () => {
+    const audit = classifyAudit(evidence, await readSscasnAuditReviews(sb));
     if (!audit.rows.length)
       throw new Error("Belum ada formasi SKD terverifikasi untuk instansi ini.");
     const ready = audit.rows.filter(({ status }) => status === "ready");
@@ -378,9 +376,29 @@ export async function approveSscasnAudit(
       audit.catalog.snapshot.checksum,
       ready.map((row) => [row, audit.source.get(row.candidateIds[0])]),
     ]).slice(0, 16);
-    return saveSscasnExactPairs(sb, audit.catalog.snapshot, institution, ready, audit.source, code);
+    const newlyApproved = await saveSscasnExactPairs(
+      sb, audit.catalog.snapshot, institution, ready, audit.source, code,
+    );
+    const saved = ready.map((row) => ({ formationId: row.id, sourceId: row.candidateIds[0] }));
+    return { audit, saved, newlyApproved };
   });
-  return { ...(await getSscasnAudit(sb, institution, "review", 1, false)), newlyApproved };
+  return approvalResult(institution, audit, saved, 1, newlyApproved);
+}
+
+function approvalResult(
+  institution: string,
+  audit: ReturnType<typeof classifyAudit>,
+  selections: SscasnManualSelection[],
+  page: number,
+  newlyApproved: number,
+): SscasnAuditResponse {
+  const saved = selections.map(({ formationId, sourceId }) => ({
+    formation_id: formationId,
+    source_id: sourceId,
+    review_status: "approved" as const,
+  }));
+  const result = saved.length ? classifyAudit(audit, [...audit.existing.values(), ...saved]) : audit;
+  return { ...toPage(institution, result, "review", page), newlyApproved };
 }
 
 export function validateSscasnManualSelection(
@@ -428,8 +446,9 @@ export async function approveSelectedSscasnAudit(
   if (evidenceNote.length < SSCASN_MANUAL_NOTE_MIN || evidenceNote.length > 700) {
     throw new Error("Isi catatan bukti yang menjelaskan pasangan sebelum menyetujui.");
   }
-  return withSscasnApprovalLock(async () => {
-    const audit = await runAudit(sb, institution, true);
+  const evidence = await auditEvidence(sb, institution, true);
+  const { audit, newlyApproved } = await withSscasnApprovalLock(async () => {
+    const audit = classifyAudit(evidence, await readSscasnAuditReviews(sb));
     const pairs = validateSscasnManualSelection(audit, selections);
     const newlyApproved = await saveSscasnManualPairs(
       sb,
@@ -438,19 +457,7 @@ export async function approveSelectedSscasnAudit(
       pairs,
       evidenceNote,
     );
-    const saved = pairs.map(({ pdf, candidate }) => ({
-      formation_id: pdf.id,
-      source_id: candidate.id,
-      review_status: "approved" as const,
-    }));
-    return {
-      ...toPage(
-        institution,
-        classifyAudit(audit, [...audit.existing.values(), ...saved]),
-        "review",
-        page,
-      ),
-      newlyApproved,
-    };
+    return { audit, newlyApproved };
   });
+  return approvalResult(institution, audit, selections, page, newlyApproved);
 }

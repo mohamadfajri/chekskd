@@ -103,6 +103,20 @@ export function SscasnAuditWorkspace({ adminPassword }: { adminPassword: string 
     setDraft(pairs);
   }
 
+  function viewAudit() {
+    setSelected({});
+    setNotice(null);
+    run.reset();
+    if (active === institution && page === 1) void audit.refetch();
+    else {
+      setActive(institution);
+      setPage(1);
+      void queryClient.invalidateQueries({
+        queryKey: ["admin-sscasn-audit", adminPassword, institution],
+      });
+    }
+  }
+
   function selectPair(formationId: string, sourceId?: string) {
     setSelected((current) => {
       if (
@@ -151,6 +165,14 @@ export function SscasnAuditWorkspace({ adminPassword }: { adminPassword: string 
             ))}
           </select>
         </label>
+        <button
+          type="button"
+          disabled={!institution || selectionBusy}
+          onClick={viewAudit}
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-[#dbe3ee] px-3 text-sm font-semibold text-[#0d6cbd] hover:bg-[#edf5ff] disabled:opacity-50"
+        >
+          <ScanSearch className="size-4" aria-hidden /> Lihat audit
+        </button>
         <button
           type="submit"
           disabled={!institution || run.isPending}
@@ -239,6 +261,11 @@ export function SscasnAuditWorkspace({ adminPassword }: { adminPassword: string 
               {number.format(result.pagination.total)} formasi
             </p>
           </div>
+          {pageRows.length > 0 && !pageRows.some((row) => row.candidates.some((c) => c.canApprove)) && (
+            <p role="status" className="text-sm text-[#536579]">
+              Tidak ada pasangan yang memenuhi syarat di halaman ini.
+            </p>
+          )}
           {(pageRows.length > 0 || selections.length > 0) && (
             <div
               className="flex flex-wrap items-center gap-2 border-y border-[#dbe3ee] bg-white px-3 py-2 text-sm"
@@ -372,7 +399,19 @@ export function SscasnAuditWorkspace({ adminPassword }: { adminPassword: string 
             </label>
             {save.isError && (
               <p role="alert" className="text-sm text-red-800">
-                {save.error.message}
+                {save.error.message}{" "}
+                <button
+                  type="button"
+                  className="font-semibold underline"
+                  onClick={() => {
+                    setDraft(null);
+                    setSelected({});
+                    setNotice(null);
+                    void audit.refetch();
+                  }}
+                >
+                  Muat ulang hasil audit
+                </button>
               </p>
             )}
             <DialogFooter className="gap-2">

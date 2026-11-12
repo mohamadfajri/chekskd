@@ -2,8 +2,11 @@ import type { SscasnAdminData, SscasnMatch } from "@/lib/sscasn";
 import type { SscasnAuditResponse, SscasnManualSelection } from "@/lib/sscasnReconciliation";
 
 async function readResponse<T>(response: Response): Promise<T> {
-  const body = await response.json();
-  if (!response.ok) throw new Error(body.message ?? "Data SSCASN belum dapat diproses.");
+  const body = await response.json().catch(() => null);
+  if (response.status === 504)
+    throw new Error("Audit terlalu lama. Muat ulang hasil untuk memastikan status sebelum mencoba lagi.");
+  if (!response.ok || body === null)
+    throw new Error(body?.message ?? "Data SSCASN belum dapat diproses.");
   return body as T;
 }
 
@@ -53,13 +56,7 @@ export async function getAdminSscasnAudit(
 }
 
 export async function approveAdminSscasnAudit(password: string, institution: string) {
-  return readResponse<SscasnAuditResponse>(
-    await fetch("/api/admin/sscasn", {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-admin-password": password },
-      body: JSON.stringify({ action: "approve-audit", institution }),
-    }),
-  );
+  return submitAuditApproval(password, { action: "approve-audit", institution });
 }
 
 export async function approveAdminSscasnSelection(
@@ -71,11 +68,22 @@ export async function approveAdminSscasnSelection(
     page: number;
   },
 ) {
-  return readResponse<SscasnAuditResponse>(
-    await fetch("/api/admin/sscasn", {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-admin-password": password },
-      body: JSON.stringify({ action: "approve-selected", ...input }),
-    }),
-  );
+  return submitAuditApproval(password, { action: "approve-selected", ...input });
+}
+
+async function submitAuditApproval(password: string, payload: object) {
+  try {
+    return await readResponse<SscasnAuditResponse>(
+      await fetch("/api/admin/sscasn", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-admin-password": password },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(30_000),
+      }),
+    );
+  } catch (error) {
+    if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError"))
+      throw new Error("Audit terlalu lama. Muat ulang hasil untuk memastikan status sebelum mencoba lagi.");
+    throw error;
+  }
 }
