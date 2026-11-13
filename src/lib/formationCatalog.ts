@@ -54,6 +54,43 @@ export interface CatalogResponse {
   pagination: { page: number; pageSize: number; total: number; totalPages: number };
 }
 
+export type CatalogPageResponse = Omit<CatalogResponse, "institutions">;
+
+export interface CatalogEducationOption {
+  value: string;
+  label: string;
+}
+
+export function catalogEducationLabel(value: string): string {
+  return value.toUpperCase().replace(/^([SD])\s*-?\s*([1-4]|I{1,3}|IV)\b/, "$1-$2");
+}
+
+export function catalogEducationOptions(
+  keys: readonly string[],
+  query: string,
+  limit = 20,
+): CatalogEducationOption[] {
+  const normalized = normalizeCatalogSearch(query);
+  const words = normalized.split(" ").filter(Boolean);
+  const rank = (key: string) => {
+    if (key === normalized) return 0;
+    if (key.replace(/^(?:s[123]|d[1-4]|di{1,3}|div) /, "") === normalized) return 1;
+    if (key.startsWith(normalized + " ")) return 2;
+    if (key.split(" ").includes(normalized)) return 3;
+    return 4;
+  };
+  return [...new Set(keys)]
+    .filter((key) => words.every((word) => key.split(" ").some((part) => part.startsWith(word))))
+    .map((key) => ({ key, rank: rank(key) }))
+    .sort((a, b) => a.rank - b.rank || a.key.localeCompare(b.key, "id"))
+    .filter(({ key }) => key.length <= 160)
+    .slice(0, limit)
+    .map(({ key }) => ({
+      value: key,
+      label: catalogEducationLabel(key),
+    }));
+}
+
 const ratioNumber = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 });
 
 export function catalogCompetitionRatio(

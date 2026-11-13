@@ -17,6 +17,7 @@ import {
   getAesenCategoryLabels,
   getAesenFormationsByIds,
   getAesenMetadata,
+  getFilteredAesenFormationsByIds,
   listAesenFormations,
   type AesenFormation,
 } from "./aesenCatalog.ts";
@@ -43,6 +44,19 @@ const preview = [0, 1].flatMap((index) =>
 );
 
 export const catalogYear = pilot.year;
+export async function getCatalogInstitutions() {
+  return aesenCatalogEnabled() ? (await getAesenMetadata()).institutions : institutions;
+}
+
+export function getPilotEducationKeys() {
+  return [
+    ...new Set(
+      formations.flatMap(({ education }) =>
+        education.split("/").map(normalizeCatalogSearch).filter(Boolean),
+      ),
+    ),
+  ];
+}
 const pilotById = new Map(formations.map((row) => [row.id, row]));
 const PAGE_SIZE = 24;
 const PREVIEW_SIZE = 6;
@@ -314,7 +328,7 @@ function sameText(a: string | null, b: string | null) {
 async function catalogLinks(
   sb: SupabaseClient,
   useAesen: boolean,
-  scope: { rows?: AesenFormation[]; institution?: string },
+  scope: { rows?: AesenFormation[]; filters?: CatalogFilters; labels?: string[] },
   fromSumopod: boolean,
 ): Promise<Map<string, CatalogSkd>> {
   const scoped = scope.rows ? new Map(scope.rows.map((row) => [row.id, row])) : null;
@@ -322,9 +336,11 @@ async function catalogLinks(
   if (ids?.length === 0) return new Map();
   const pairs: Pair[] = [];
   const sources = new Map<string, AesenFormation>();
-  const batchSize = 100;
   const useSumopodLinks = fromSumopod && skdAdminUsesSumopod();
-  for (let offset = 0; ; offset += batchSize) {
+  const matchBatchSize = useSumopodLinks ? 4000 : 500;
+  const matches: CatalogLink[] = [];
+  const institution = scope.filters?.institution;
+  for (let offset = 0; ; offset += matchBatchSize) {
     let data: CatalogLink[];
     if (useSumopodLinks) {
       const { rows } = await getSkdDatabase().query<CatalogLink>(
@@ -336,8 +352,9 @@ async function catalogLinks(
         join public.sscasn_snapshots s on s.id=m.snapshot_id
         where m.review_status='approved' and s.import_status='ready' and s.selection_year=$1
           and ($2::text[] is null or m.source_id=any($2))
-        order by m.formation_id limit $3 offset $4`,
-        [catalogYear, ids ?? null, batchSize, offset],
+          and ($3::text is null or a.institution=$3)
+        order by m.formation_id limit $4 offset $5`,
+        [catalogYear, ids ?? null, institution ?? null, matchBatchSize, offset],
       );
       data = rows;
     } else {
@@ -350,43 +367,51 @@ async function catalogLinks(
         .eq("sscasn_formations.sscasn_snapshots.import_status", "ready")
         .eq("sscasn_formations.sscasn_snapshots.selection_year", catalogYear);
       if (ids) query = query.in("source_id", ids);
-      const result = await query.order("formation_id").range(offset, offset + batchSize - 1);
+      if (institution) query = query.eq("sscasn_formations.institution", institution);
+      const result = await query.order("formation_id").range(offset, offset + matchBatchSize - 1);
       if (result.error) {
         if (result.error.code === "PGRST205" || result.error.code === "42P01") break;
         throw new Error("Pasangan formasi belum dapat dibaca.");
       }
       data = result.data as unknown as CatalogLink[];
     }
-    const remote =
-      scoped ??
-      (useAesen
-        ? new Map(
-            (await getAesenFormationsByIds(data.map((m) => m.source_id))).map((r) => [r.id, r]),
-          )
-        : pilotById);
-    for (const match of data) {
-      const row = remote.get(match.source_id);
-      const joined = match.sscasn_formations;
-      const source = Array.isArray(joined) ? (joined.length === 1 ? joined[0] : null) : joined;
-      if (
-        row &&
-        source &&
-        (!scope.institution || row.institution === scope.institution) &&
-        source.quota === row.quota &&
-        sameText(source.institution, row.institution) &&
-        sameText(source.job, row.job) &&
-        sameText(source.location, row.location) &&
-        sscasnEducationKey(source.education) === sscasnEducationKey(row.education)
-      ) {
-        pairs.push({
-          sourceId: row.id,
-          formationId: match.formation_id,
-          manual: match.notes?.startsWith(SSCASN_MANUAL_NOTE_PREFIX),
-        });
-        sources.set(row.id, row);
-      }
+    matches.push(...data);
+    if (data.length < matchBatchSize) break;
+  }
+  const remote =
+    scoped ??
+    (useAesen
+      ? new Map(
+          (
+            await getFilteredAesenFormationsByIds(
+              [...new Set(matches.map(({ source_id }) => source_id))],
+              scope.filters ?? {},
+              scope.labels ?? [],
+            )
+          ).map((row) => [row.id, row]),
+        )
+      : pilotById);
+  for (const match of matches) {
+    const row = remote.get(match.source_id);
+    const joined = match.sscasn_formations;
+    const source = Array.isArray(joined) ? (joined.length === 1 ? joined[0] : null) : joined;
+    if (
+      row &&
+      source &&
+      (!institution || row.institution === institution) &&
+      source.quota === row.quota &&
+      sameText(source.institution, row.institution) &&
+      sameText(source.job, row.job) &&
+      sameText(source.location, row.location) &&
+      sscasnEducationKey(source.education) === sscasnEducationKey(row.education)
+    ) {
+      pairs.push({
+        sourceId: row.id,
+        formationId: match.formation_id,
+        manual: match.notes?.startsWith(SSCASN_MANUAL_NOTE_PREFIX),
+      });
+      sources.set(row.id, row);
     }
-    if (data.length < batchSize) break;
   }
   const unique = uniqueCatalogPairs(pairs);
   const manualCategories = useAesen
@@ -396,6 +421,7 @@ async function catalogLinks(
     : new Map<string, string>();
   const byFormation = new Map(unique.map((pair) => [pair.formationId, pair]));
   const official: OfficialCatalogRow[] = [];
+  const batchSize = fromSumopod ? 4000 : 100;
   for (let offset = 0; offset < unique.length; offset += batchSize) {
     const formationIds = unique.slice(offset, offset + batchSize).map((pair) => pair.formationId);
     if (fromSumopod) {
@@ -480,7 +506,7 @@ export async function getUnifiedFormationCatalog(
   const sortByCutoff = filters.sort === "cutoff_desc";
   const scopedLinks =
     skdOnly || sortByCutoff
-      ? await catalogLinks(sb, useAesen, { institution: filters.institution }, fromSumopod)
+      ? await catalogLinks(sb, useAesen, { filters, labels }, fromSumopod)
       : null;
   const sourceIds =
     skdOnly && scopedLinks

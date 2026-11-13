@@ -18,11 +18,13 @@ import {
   catalogSort,
   type CatalogFilters,
   type CatalogFormation,
+  type CatalogPageResponse,
   type CatalogResponse,
 } from "@/lib/formationCatalog";
 import { MAX_COMPARISON_FORMATIONS, serializeFormationIds } from "@/lib/formationSelection";
 import { getFormationFilterOptions } from "@/services/formationService";
 import { CatalogInstitutionPicker } from "./CatalogInstitutionPicker";
+import { CatalogEducationPicker } from "./CatalogEducationPicker";
 
 const number = new Intl.NumberFormat("id-ID");
 const salary = new Intl.NumberFormat("id-ID", {
@@ -35,8 +37,11 @@ const field =
 const action =
   "inline-flex min-h-10 items-center justify-center gap-2 rounded-md px-3 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50";
 
-async function loadCatalog(filters: CatalogFilters, signal: AbortSignal): Promise<CatalogResponse> {
-  const params = new URLSearchParams({ page: String(filters.page ?? 1) });
+async function loadCatalog(
+  filters: CatalogFilters,
+  signal: AbortSignal,
+): Promise<CatalogPageResponse> {
+  const params = new URLSearchParams({ mode: "page", page: String(filters.page ?? 1) });
   for (const key of [
     "query",
     "institution",
@@ -237,14 +242,12 @@ export function FormationCatalog({
 }) {
   const navigate = useNavigate();
   const [query, setQuery] = useState(filters.query ?? "");
-  const [education, setEducation] = useState(filters.education ?? "");
   const initialComparisonKey = serializeFormationIds(initialComparisonIds);
   const [comparison, setComparison] = useState(initialComparisonIds);
   useEffect(() => {
     setComparison(initialComparisonKey?.split(",") ?? []);
   }, [initialComparisonKey]);
   useEffect(() => setQuery(filters.query ?? ""), [filters.query]);
-  useEffect(() => setEducation(filters.education ?? ""), [filters.education]);
   const result = useQuery({
     queryKey: ["formation-catalog", filters],
     queryFn: ({ signal }) => loadCatalog(filters, signal),
@@ -253,6 +256,15 @@ export function FormationCatalog({
   const data = result.data;
   const pagination = data?.pagination;
   const preview = data?.access === "preview";
+  const institutionOptions = useQuery({
+    queryKey: ["catalog-institutions"],
+    queryFn: async ({ signal }): Promise<CatalogResponse["institutions"]> => {
+      const response = await fetch("/api/formation-catalog?mode=institutions", { signal });
+      if (!response.ok) throw new Error("Pilihan instansi belum dapat dimuat.");
+      return (await response.json()).institutions;
+    },
+    staleTime: 15 * 60_000,
+  });
   const options = useQuery({
     queryKey: ["formation-filter-options"],
     queryFn: getFormationFilterOptions,
@@ -260,6 +272,7 @@ export function FormationCatalog({
   });
 
   function apply(next: CatalogFilters) {
+    if (!data) return;
     const search = catalogSearch(next);
     if (preview) {
       const params = new URLSearchParams();
@@ -312,7 +325,7 @@ export function FormationCatalog({
         <form
           onSubmit={(event) => {
             event.preventDefault();
-            apply({ ...filters, query, education, page: 1 });
+            apply({ ...filters, query, page: 1 });
           }}
           className="grid grid-cols-2 gap-3 border-y border-border py-4 xl:grid-cols-[1.3fr_1fr_0.8fr_0.6fr_auto]"
         >
@@ -326,31 +339,17 @@ export function FormationCatalog({
             />
           </label>
           <CatalogInstitutionPicker
-            institutions={data?.institutions}
+            institutions={institutionOptions.data}
             level={filters.level}
             value={filters.institution}
             fieldClass={field}
-            onChange={(institution) =>
-              apply({ ...filters, query, education, institution, page: 1 })
-            }
+            onChange={(institution) => apply({ ...filters, query, institution, page: 1 })}
           />
-          <label className="grid min-w-0 gap-1 text-xs font-semibold">
-            Pendidikan
-            <input
-              className={field}
-              list="catalog-education"
-              value={education}
-              onChange={(e) => setEducation(e.target.value)}
-              maxLength={120}
-            />
-            <datalist id="catalog-education">
-              {options.data?.education_options.map(({ value, aliases }) => (
-                <option key={value} value={value}>
-                  {aliases?.join(" · ")}
-                </option>
-              ))}
-            </datalist>
-          </label>
+          <CatalogEducationPicker
+            fieldClass={field}
+            value={filters.education}
+            onChange={(education) => apply({ ...filters, query, education, page: 1 })}
+          />
           <label className="grid min-w-0 gap-1 text-xs font-semibold">
             Lingkup
             <select
@@ -359,15 +358,17 @@ export function FormationCatalog({
               disabled={!data}
               onChange={(e) => {
                 const level = catalogLevel(e.target.value);
-                const selectedLevel = data?.institutions.find(
+                const selectedLevel = (institutionOptions.data ?? []).find(
                   ({ name }) => name === filters.institution,
                 )?.level;
                 apply({
                   ...filters,
                   query,
-                  education,
                   level,
-                  institution: !level || selectedLevel === level ? filters.institution : undefined,
+                  institution:
+                    !level || !institutionOptions.data || selectedLevel === level
+                      ? filters.institution
+                      : undefined,
                   page: 1,
                 });
               }}
@@ -393,7 +394,6 @@ export function FormationCatalog({
                 className={`${action} border border-border`}
                 onClick={() => {
                   setQuery("");
-                  setEducation("");
                   apply({});
                 }}
               >

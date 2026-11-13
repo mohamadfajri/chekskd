@@ -152,6 +152,10 @@ test("SKD-only filter admits only approved links and keeps the Aesen row ID", as
           return Response.json([{ institution_name: row.institution }]);
         if (url.pathname.endsWith("/sscasn_matches")) {
           assert.equal(url.searchParams.get("review_status"), "eq.approved");
+          assert.equal(
+            url.searchParams.get("sscasn_formations.institution"),
+            `eq.${row.institution}`,
+          );
           return Response.json(
             approved
               ? [

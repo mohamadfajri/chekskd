@@ -1,4 +1,5 @@
 import pg from "pg";
+import { createHash } from "node:crypto";
 import {
   CATALOG_COMPETITION_BOUNDS,
   normalizeCatalogSearch,
@@ -32,6 +33,8 @@ const FIELDS = `f.source_id as id, f.institution, f.job, f.location, f.education
 
 let pool: pg.Pool | undefined;
 let metadata: { expiresAt: number; data: Promise<AesenMetadata> } | undefined;
+let educationKeys: { expiresAt: number; data: Promise<string[]> } | undefined;
+const totals = new Map<string, { expiresAt: number; data: Promise<number> }>();
 
 export function aesenCatalogEnabled(): boolean {
   return Boolean(process.env.AESEN_DATABASE_URL?.trim());
@@ -74,11 +77,43 @@ export function getAesenMetadata(): Promise<AesenMetadata> {
   return metadata.data;
 }
 
+export function getAesenEducationKeys(): Promise<string[]> {
+  if (!educationKeys || educationKeys.expiresAt <= Date.now()) {
+    const data = catalogPool()
+      .query<{ key: string }>(
+        `select distinct key from aesen.formations
+        cross join lateral unnest(education_keys) as education(key)`,
+      )
+      .then(({ rows }) => rows.map(({ key }) => key));
+    educationKeys = { expiresAt: Date.now() + 60 * 60_000, data };
+    void data.catch(() => {
+      if (educationKeys?.data === data) educationKeys = undefined;
+    });
+  }
+  return educationKeys.data;
+}
+
 export async function getAesenFormationsByIds(ids: string[]): Promise<AesenFormation[]> {
   if (!ids.length) return [];
   const { rows } = await catalogPool().query<AesenFormation>(
     `select ${FIELDS} from aesen.formations f where f.source_id = any($1::text[])`,
     [ids],
+  );
+  return rows;
+}
+
+export async function getFilteredAesenFormationsByIds(
+  ids: string[],
+  filters: CatalogFilters,
+  labels: string[],
+): Promise<AesenFormation[]> {
+  if (!ids.length) return [];
+  const { from, where, args } = aesenFilterQuery({ ...filters, sort: undefined }, labels, {
+    sourceIds: ids,
+  });
+  const { rows } = await catalogPool().query<AesenFormation>(
+    `select ${FIELDS} ${from}${where}`,
+    args,
   );
   return rows;
 }
@@ -160,11 +195,25 @@ export async function countAesenFormations(
   if (sourceIds?.length === 0) return 0;
   const { from, where, args } = aesenFilterQuery(filters, labels, { sourceIds });
   if (!where) return (await getAesenMetadata()).total;
-  const { rows } = await catalogPool().query<{ count: number }>(
-    `select count(*)::int as count ${from}${where}`,
-    args,
-  );
-  return rows[0].count;
+  const sql = `select count(*)::int as count ${from}${where}`;
+  const key = createHash("sha256")
+    .update(JSON.stringify([sql, args]))
+    .digest("hex");
+  const existing = totals.get(key);
+  if (existing && existing.expiresAt > Date.now()) return existing.data;
+  if (existing) totals.delete(key);
+  if (totals.size >= 128) {
+    const oldest = totals.keys().next().value;
+    if (oldest !== undefined) totals.delete(oldest);
+  }
+  const data = catalogPool()
+    .query<{ count: number }>(sql, args)
+    .then(({ rows }) => rows[0].count);
+  totals.set(key, { expiresAt: Date.now() + 60_000, data });
+  void data.catch(() => {
+    if (totals.get(key)?.data === data) totals.delete(key);
+  });
+  return data;
 }
 
 export async function listAesenFormations(

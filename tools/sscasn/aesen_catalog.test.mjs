@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createClient } from "@supabase/supabase-js";
+import pg from "pg";
 import { aesenConnection } from "../../src/server/aesenConnection.ts";
 import {
   aesenFilterQuery,
   countAesenFormations,
   getAesenMetadata,
+  getFilteredAesenFormationsByIds,
   listAesenFormations,
 } from "../../src/server/aesenCatalog.ts";
 import { getUnifiedFormationCatalog } from "../../src/server/formationCatalog.ts";
@@ -18,6 +20,20 @@ import {
   readSscasnAuditReviews,
 } from "../../src/server/sscasnAudit.ts";
 import { reconcileCatalog } from "../../src/lib/sscasnReconciliation.ts";
+import { catalogEducationOptions } from "../../src/lib/formationCatalog.ts";
+
+test("catalogue suggestions find Aesen degrees without merging degree levels or unreviewed majors", () => {
+  const keys = ["s1 hukum", "s1 ilmu hukum", "s2 hukum", "s1 hukum islam", "s1 teknik sipil"];
+  assert.deepEqual(
+    catalogEducationOptions(keys, "hukum").map(({ value }) => value),
+    ["s1 hukum", "s2 hukum", "s1 hukum islam", "s1 ilmu hukum"],
+  );
+  assert.deepEqual(catalogEducationOptions(keys, "S-2 Hu"), [
+    { value: "s2 hukum", label: "S-2 HUKUM" },
+  ]);
+  assert.deepEqual(catalogEducationOptions(keys, "kedokteran"), []);
+  assert.equal(catalogEducationOptions(keys, "hukum", 2).length, 2);
+});
 
 test("Aesen connection always verifies TLS, even if the URL requests otherwise", () => {
   const config = aesenConnection(
@@ -65,6 +81,38 @@ test("Aesen competition filtering and ordering use passed applicants per quota",
   assert.match(quiet.where, /f\.passed_admin > f\.quota::bigint \* 0/);
   assert.match(quiet.where, /f\.passed_admin <= f\.quota::bigint \* 1/);
   assert.match(quiet.order, /passed_admin::numeric \/ nullif\(f\.quota, 0\) desc nulls last/);
+});
+
+test("page and sort reuse the same total; narrowing SKD candidates applies catalogue filters", async (t) => {
+  const oldUrl = process.env.AESEN_DATABASE_URL;
+  process.env.AESEN_DATABASE_URL ||= "postgresql://mock:mock@localhost:5432/catalog";
+  t.after(() => {
+    if (oldUrl === undefined) delete process.env.AESEN_DATABASE_URL;
+    else process.env.AESEN_DATABASE_URL = oldUrl;
+  });
+  const sql = t.mock.method(pg.Pool.prototype, "query", async (statement, args) => {
+    if (statement.startsWith("select count")) return { rows: [{ count: 48 }] };
+    assert.match(statement, /f\.institution = \$1/);
+    assert.match(statement, /f\.source_id = any\(\$2::text\[\]\)/);
+    assert.match(statement, /f\.education_keys && \$3::text\[\]/);
+    assert.deepEqual(args, ["Instansi uji", ["allowed-id"], ["s1 hukum"]]);
+    return { rows: [{ id: "allowed-id" }] };
+  });
+  const filters = { institution: "Instansi uji", education: "S-1 Hukum" };
+  assert.deepEqual(
+    await Promise.all([
+      countAesenFormations(filters, []),
+      countAesenFormations({ ...filters, page: 2, sort: "name_asc" }, []),
+    ]),
+    [48, 48],
+  );
+  assert.equal(sql.mock.callCount(), 1);
+  await countAesenFormations({ ...filters, education: "S-2 Hukum" }, []);
+  assert.equal(sql.mock.callCount(), 2);
+  assert.deepEqual(await getFilteredAesenFormationsByIds(["allowed-id"], filters, []), [
+    { id: "allowed-id" },
+  ]);
+  assert.equal(sql.mock.callCount(), 3);
 });
 
 test(
