@@ -9,70 +9,50 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SimulasiSkdRouteImport } from './routes/simulasi-skd'
-import { Route as SearchRouteImport } from './routes/search'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as FormasiRouteImport } from './routes/formasi'
-import { Route as AkunRouteImport } from './routes/akun'
-import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as FormasiIndexRouteImport } from './routes/formasi.index'
-import { Route as WaTokenRouteImport } from './routes/wa.$token'
-import { Route as ResultScoreIdRouteImport } from './routes/result.$scoreId'
-import { Route as FormasiBandingRouteImport } from './routes/formasi.banding'
-import { Route as FormasiFormationIdRouteImport } from './routes/formasi.$formationId'
-import { Route as ApiWaResultRouteImport } from './routes/api/wa-result'
-import { Route as ApiWaJobsRouteImport } from './routes/api/wa-jobs'
-import { Route as ApiSkdDataRouteImport } from './routes/api/skd-data'
-import { Route as ApiResultSessionRouteImport } from './routes/api/result-session'
-import { Route as ApiResultCardRouteImport } from './routes/api/result-card'
-import { Route as ApiRationalizationTargetsRouteImport } from './routes/api/rationalization-targets'
-import { Route as ApiManualSkdRouteImport } from './routes/api/manual-skd'
-import { Route as ApiFormationsRouteImport } from './routes/api/formations'
-import { Route as ApiFormationFiltersRouteImport } from './routes/api/formation-filters'
+import { Route as AdminRouteImport } from './routes/admin'
+import { Route as AkunRouteImport } from './routes/akun'
+import { Route as FormasiRouteImport } from './routes/formasi'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as SearchRouteImport } from './routes/search'
+import { Route as SimulasiSkdRouteImport } from './routes/simulasi-skd'
 import { Route as ApiFormationCatalogRouteImport } from './routes/api/formation-catalog'
-import { Route as ApiFormationsFormationIdRouteImport } from './routes/api/formations.$formationId'
-import { Route as ApiAuthResetRouteImport } from './routes/api/auth/reset'
-import { Route as ApiAuthRegisterRouteImport } from './routes/api/auth/register'
-import { Route as ApiAuthMeRouteImport } from './routes/api/auth/me'
-import { Route as ApiAuthLogoutRouteImport } from './routes/api/auth/logout'
-import { Route as ApiAuthLoginRouteImport } from './routes/api/auth/login'
-import { Route as ApiAuthHermesVerifyRouteImport } from './routes/api/auth/hermes-verify'
-import { Route as ApiAuthChallengeRouteImport } from './routes/api/auth/challenge'
-import { Route as ApiAdminSscasnRouteImport } from './routes/api/admin/sscasn'
-import { Route as ApiAdminSkdReviewRouteImport } from './routes/api/admin/skd-review'
-import { Route as ApiAdminSkdPdfRouteImport } from './routes/api/admin/skd-pdf'
-import { Route as ApiAdminSkdExplorerRouteImport } from './routes/api/admin/skd-explorer'
-import { Route as ApiAdminSkdBatchesRouteImport } from './routes/api/admin/skd-batches'
-import { Route as ApiAdminResultSessionsRouteImport } from './routes/api/admin/result-sessions'
-import { Route as ApiAdminPublishedDataRouteImport } from './routes/api/admin/published-data'
-import { Route as ApiAdminPdfSourcesRouteImport } from './routes/api/admin/pdf-sources'
-import { Route as ApiAdminMarketingInsightsRouteImport } from './routes/api/admin/marketing-insights'
+import { Route as ApiFormationFiltersRouteImport } from './routes/api/formation-filters'
+import { Route as ApiFormationsRouteImport } from './routes/api/formations'
+import { Route as ApiManualSkdRouteImport } from './routes/api/manual-skd'
+import { Route as ApiRationalizationTargetsRouteImport } from './routes/api/rationalization-targets'
+import { Route as ApiResultCardRouteImport } from './routes/api/result-card'
+import { Route as ApiResultSessionRouteImport } from './routes/api/result-session'
+import { Route as ApiSkdDataRouteImport } from './routes/api/skd-data'
+import { Route as ApiWaJobsRouteImport } from './routes/api/wa-jobs'
+import { Route as ApiWaResultRouteImport } from './routes/api/wa-result'
+import { Route as FormasiIndexRouteImport } from './routes/formasi.index'
+import { Route as FormasiFormationIdRouteImport } from './routes/formasi.$formationId'
+import { Route as FormasiBandingRouteImport } from './routes/formasi.banding'
+import { Route as ResultScoreIdRouteImport } from './routes/result.$scoreId'
+import { Route as WaTokenRouteImport } from './routes/wa.$token'
 import { Route as ApiAdminEducationAliasesRouteImport } from './routes/api/admin/education-aliases'
+import { Route as ApiAdminMarketingInsightsRouteImport } from './routes/api/admin/marketing-insights'
+import { Route as ApiAdminPdfSourcesRouteImport } from './routes/api/admin/pdf-sources'
+import { Route as ApiAdminPublishedDataRouteImport } from './routes/api/admin/published-data'
+import { Route as ApiAdminResultSessionsRouteImport } from './routes/api/admin/result-sessions'
+import { Route as ApiAdminSkdBatchesRouteImport } from './routes/api/admin/skd-batches'
+import { Route as ApiAdminSkdExplorerRouteImport } from './routes/api/admin/skd-explorer'
+import { Route as ApiAdminSkdPdfRouteImport } from './routes/api/admin/skd-pdf'
+import { Route as ApiAdminSkdReviewRouteImport } from './routes/api/admin/skd-review'
+import { Route as ApiAdminSscasnRouteImport } from './routes/api/admin/sscasn'
+import { Route as ApiAuthChallengeRouteImport } from './routes/api/auth/challenge'
+import { Route as ApiAuthHermesVerifyRouteImport } from './routes/api/auth/hermes-verify'
+import { Route as ApiAuthLoginRouteImport } from './routes/api/auth/login'
+import { Route as ApiAuthLogoutRouteImport } from './routes/api/auth/logout'
+import { Route as ApiAuthMeRouteImport } from './routes/api/auth/me'
+import { Route as ApiAuthRegisterRouteImport } from './routes/api/auth/register'
+import { Route as ApiAuthResetRouteImport } from './routes/api/auth/reset'
+import { Route as ApiFormationsFormationIdRouteImport } from './routes/api/formations.$formationId'
 
-const SimulasiSkdRoute = SimulasiSkdRouteImport.update({
-  id: '/simulasi-skd',
-  path: '/simulasi-skd',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SearchRoute = SearchRouteImport.update({
-  id: '/search',
-  path: '/search',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const FormasiRoute = FormasiRouteImport.update({
-  id: '/formasi',
-  path: '/formasi',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AkunRoute = AkunRouteImport.update({
-  id: '/akun',
-  path: '/akun',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRoute = AdminRouteImport.update({
@@ -80,59 +60,49 @@ const AdminRoute = AdminRouteImport.update({
   path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const AkunRoute = AkunRouteImport.update({
+  id: '/akun',
+  path: '/akun',
   getParentRoute: () => rootRouteImport,
 } as any)
-const FormasiIndexRoute = FormasiIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => FormasiRoute,
-} as any)
-const WaTokenRoute = WaTokenRouteImport.update({
-  id: '/wa/$token',
-  path: '/wa/$token',
+const FormasiRoute = FormasiRouteImport.update({
+  id: '/formasi',
+  path: '/formasi',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ResultScoreIdRoute = ResultScoreIdRouteImport.update({
-  id: '/result/$scoreId',
-  path: '/result/$scoreId',
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const FormasiBandingRoute = FormasiBandingRouteImport.update({
-  id: '/banding',
-  path: '/banding',
-  getParentRoute: () => FormasiRoute,
-} as any)
-const FormasiFormationIdRoute = FormasiFormationIdRouteImport.update({
-  id: '/$formationId',
-  path: '/$formationId',
-  getParentRoute: () => FormasiRoute,
-} as any)
-const ApiWaResultRoute = ApiWaResultRouteImport.update({
-  id: '/api/wa-result',
-  path: '/api/wa-result',
+const SearchRoute = SearchRouteImport.update({
+  id: '/search',
+  path: '/search',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiWaJobsRoute = ApiWaJobsRouteImport.update({
-  id: '/api/wa-jobs',
-  path: '/api/wa-jobs',
+const SimulasiSkdRoute = SimulasiSkdRouteImport.update({
+  id: '/simulasi-skd',
+  path: '/simulasi-skd',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiSkdDataRoute = ApiSkdDataRouteImport.update({
-  id: '/api/skd-data',
-  path: '/api/skd-data',
+const ApiFormationCatalogRoute = ApiFormationCatalogRouteImport.update({
+  id: '/api/formation-catalog',
+  path: '/api/formation-catalog',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiResultSessionRoute = ApiResultSessionRouteImport.update({
-  id: '/api/result-session',
-  path: '/api/result-session',
+const ApiFormationFiltersRoute = ApiFormationFiltersRouteImport.update({
+  id: '/api/formation-filters',
+  path: '/api/formation-filters',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiResultCardRoute = ApiResultCardRouteImport.update({
-  id: '/api/result-card',
-  path: '/api/result-card',
+const ApiFormationsRoute = ApiFormationsRouteImport.update({
+  id: '/api/formations',
+  path: '/api/formations',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiManualSkdRoute = ApiManualSkdRouteImport.update({
+  id: '/api/manual-skd',
+  path: '/api/manual-skd',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiRationalizationTargetsRoute =
@@ -141,95 +111,71 @@ const ApiRationalizationTargetsRoute =
     path: '/api/rationalization-targets',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiManualSkdRoute = ApiManualSkdRouteImport.update({
-  id: '/api/manual-skd',
-  path: '/api/manual-skd',
+const ApiResultCardRoute = ApiResultCardRouteImport.update({
+  id: '/api/result-card',
+  path: '/api/result-card',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiFormationsRoute = ApiFormationsRouteImport.update({
-  id: '/api/formations',
-  path: '/api/formations',
+const ApiResultSessionRoute = ApiResultSessionRouteImport.update({
+  id: '/api/result-session',
+  path: '/api/result-session',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiFormationFiltersRoute = ApiFormationFiltersRouteImport.update({
-  id: '/api/formation-filters',
-  path: '/api/formation-filters',
+const ApiSkdDataRoute = ApiSkdDataRouteImport.update({
+  id: '/api/skd-data',
+  path: '/api/skd-data',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiFormationCatalogRoute = ApiFormationCatalogRouteImport.update({
-  id: '/api/formation-catalog',
-  path: '/api/formation-catalog',
+const ApiWaJobsRoute = ApiWaJobsRouteImport.update({
+  id: '/api/wa-jobs',
+  path: '/api/wa-jobs',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiFormationsFormationIdRoute =
-  ApiFormationsFormationIdRouteImport.update({
-    id: '/$formationId',
-    path: '/$formationId',
-    getParentRoute: () => ApiFormationsRoute,
+const ApiWaResultRoute = ApiWaResultRouteImport.update({
+  id: '/api/wa-result',
+  path: '/api/wa-result',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FormasiIndexRoute = FormasiIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => FormasiRoute,
+} as any)
+const FormasiFormationIdRoute = FormasiFormationIdRouteImport.update({
+  id: '/$formationId',
+  path: '/$formationId',
+  getParentRoute: () => FormasiRoute,
+} as any)
+const FormasiBandingRoute = FormasiBandingRouteImport.update({
+  id: '/banding',
+  path: '/banding',
+  getParentRoute: () => FormasiRoute,
+} as any)
+const ResultScoreIdRoute = ResultScoreIdRouteImport.update({
+  id: '/result/$scoreId',
+  path: '/result/$scoreId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WaTokenRoute = WaTokenRouteImport.update({
+  id: '/wa/$token',
+  path: '/wa/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminEducationAliasesRoute =
+  ApiAdminEducationAliasesRouteImport.update({
+    id: '/api/admin/education-aliases',
+    path: '/api/admin/education-aliases',
+    getParentRoute: () => rootRouteImport,
   } as any)
-const ApiAuthResetRoute = ApiAuthResetRouteImport.update({
-  id: '/api/auth/reset',
-  path: '/api/auth/reset',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAuthRegisterRoute = ApiAuthRegisterRouteImport.update({
-  id: '/api/auth/register',
-  path: '/api/auth/register',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAuthMeRoute = ApiAuthMeRouteImport.update({
-  id: '/api/auth/me',
-  path: '/api/auth/me',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAuthLogoutRoute = ApiAuthLogoutRouteImport.update({
-  id: '/api/auth/logout',
-  path: '/api/auth/logout',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAuthLoginRoute = ApiAuthLoginRouteImport.update({
-  id: '/api/auth/login',
-  path: '/api/auth/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAuthHermesVerifyRoute = ApiAuthHermesVerifyRouteImport.update({
-  id: '/api/auth/hermes-verify',
-  path: '/api/auth/hermes-verify',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAuthChallengeRoute = ApiAuthChallengeRouteImport.update({
-  id: '/api/auth/challenge',
-  path: '/api/auth/challenge',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAdminSscasnRoute = ApiAdminSscasnRouteImport.update({
-  id: '/api/admin/sscasn',
-  path: '/api/admin/sscasn',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAdminSkdReviewRoute = ApiAdminSkdReviewRouteImport.update({
-  id: '/api/admin/skd-review',
-  path: '/api/admin/skd-review',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAdminSkdPdfRoute = ApiAdminSkdPdfRouteImport.update({
-  id: '/api/admin/skd-pdf',
-  path: '/api/admin/skd-pdf',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAdminSkdExplorerRoute = ApiAdminSkdExplorerRouteImport.update({
-  id: '/api/admin/skd-explorer',
-  path: '/api/admin/skd-explorer',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAdminSkdBatchesRoute = ApiAdminSkdBatchesRouteImport.update({
-  id: '/api/admin/skd-batches',
-  path: '/api/admin/skd-batches',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAdminResultSessionsRoute = ApiAdminResultSessionsRouteImport.update({
-  id: '/api/admin/result-sessions',
-  path: '/api/admin/result-sessions',
+const ApiAdminMarketingInsightsRoute =
+  ApiAdminMarketingInsightsRouteImport.update({
+    id: '/api/admin/marketing-insights',
+    path: '/api/admin/marketing-insights',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiAdminPdfSourcesRoute = ApiAdminPdfSourcesRouteImport.update({
+  id: '/api/admin/pdf-sources',
+  path: '/api/admin/pdf-sources',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAdminPublishedDataRoute = ApiAdminPublishedDataRouteImport.update({
@@ -237,22 +183,76 @@ const ApiAdminPublishedDataRoute = ApiAdminPublishedDataRouteImport.update({
   path: '/api/admin/published-data',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiAdminPdfSourcesRoute = ApiAdminPdfSourcesRouteImport.update({
-  id: '/api/admin/pdf-sources',
-  path: '/api/admin/pdf-sources',
+const ApiAdminResultSessionsRoute = ApiAdminResultSessionsRouteImport.update({
+  id: '/api/admin/result-sessions',
+  path: '/api/admin/result-sessions',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiAdminMarketingInsightsRoute =
-  ApiAdminMarketingInsightsRouteImport.update({
-    id: '/api/admin/marketing-insights',
-    path: '/api/admin/marketing-insights',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiAdminEducationAliasesRoute =
-  ApiAdminEducationAliasesRouteImport.update({
-    id: '/api/admin/education-aliases',
-    path: '/api/admin/education-aliases',
-    getParentRoute: () => rootRouteImport,
+const ApiAdminSkdBatchesRoute = ApiAdminSkdBatchesRouteImport.update({
+  id: '/api/admin/skd-batches',
+  path: '/api/admin/skd-batches',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminSkdExplorerRoute = ApiAdminSkdExplorerRouteImport.update({
+  id: '/api/admin/skd-explorer',
+  path: '/api/admin/skd-explorer',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminSkdPdfRoute = ApiAdminSkdPdfRouteImport.update({
+  id: '/api/admin/skd-pdf',
+  path: '/api/admin/skd-pdf',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminSkdReviewRoute = ApiAdminSkdReviewRouteImport.update({
+  id: '/api/admin/skd-review',
+  path: '/api/admin/skd-review',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminSscasnRoute = ApiAdminSscasnRouteImport.update({
+  id: '/api/admin/sscasn',
+  path: '/api/admin/sscasn',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthChallengeRoute = ApiAuthChallengeRouteImport.update({
+  id: '/api/auth/challenge',
+  path: '/api/auth/challenge',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthHermesVerifyRoute = ApiAuthHermesVerifyRouteImport.update({
+  id: '/api/auth/hermes-verify',
+  path: '/api/auth/hermes-verify',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthLoginRoute = ApiAuthLoginRouteImport.update({
+  id: '/api/auth/login',
+  path: '/api/auth/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthLogoutRoute = ApiAuthLogoutRouteImport.update({
+  id: '/api/auth/logout',
+  path: '/api/auth/logout',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthMeRoute = ApiAuthMeRouteImport.update({
+  id: '/api/auth/me',
+  path: '/api/auth/me',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthRegisterRoute = ApiAuthRegisterRouteImport.update({
+  id: '/api/auth/register',
+  path: '/api/auth/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthResetRoute = ApiAuthResetRouteImport.update({
+  id: '/api/auth/reset',
+  path: '/api/auth/reset',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiFormationsFormationIdRoute =
+  ApiFormationsFormationIdRouteImport.update({
+    id: '/$formationId',
+    path: '/$formationId',
+    getParentRoute: () => ApiFormationsRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -550,39 +550,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/simulasi-skd': {
-      id: '/simulasi-skd'
-      path: '/simulasi-skd'
-      fullPath: '/simulasi-skd'
-      preLoaderRoute: typeof SimulasiSkdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/search': {
-      id: '/search'
-      path: '/search'
-      fullPath: '/search'
-      preLoaderRoute: typeof SearchRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/formasi': {
-      id: '/formasi'
-      path: '/formasi'
-      fullPath: '/formasi'
-      preLoaderRoute: typeof FormasiRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/akun': {
-      id: '/akun'
-      path: '/akun'
-      fullPath: '/akun'
-      preLoaderRoute: typeof AkunRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -592,109 +564,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/akun': {
+      id: '/akun'
+      path: '/akun'
+      fullPath: '/akun'
+      preLoaderRoute: typeof AkunRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/formasi/': {
-      id: '/formasi/'
-      path: '/'
-      fullPath: '/formasi/'
-      preLoaderRoute: typeof FormasiIndexRouteImport
-      parentRoute: typeof FormasiRoute
-    }
-    '/wa/$token': {
-      id: '/wa/$token'
-      path: '/wa/$token'
-      fullPath: '/wa/$token'
-      preLoaderRoute: typeof WaTokenRouteImport
+    '/formasi': {
+      id: '/formasi'
+      path: '/formasi'
+      fullPath: '/formasi'
+      preLoaderRoute: typeof FormasiRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/result/$scoreId': {
-      id: '/result/$scoreId'
-      path: '/result/$scoreId'
-      fullPath: '/result/$scoreId'
-      preLoaderRoute: typeof ResultScoreIdRouteImport
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/formasi/banding': {
-      id: '/formasi/banding'
-      path: '/banding'
-      fullPath: '/formasi/banding'
-      preLoaderRoute: typeof FormasiBandingRouteImport
-      parentRoute: typeof FormasiRoute
-    }
-    '/formasi/$formationId': {
-      id: '/formasi/$formationId'
-      path: '/$formationId'
-      fullPath: '/formasi/$formationId'
-      preLoaderRoute: typeof FormasiFormationIdRouteImport
-      parentRoute: typeof FormasiRoute
-    }
-    '/api/wa-result': {
-      id: '/api/wa-result'
-      path: '/api/wa-result'
-      fullPath: '/api/wa-result'
-      preLoaderRoute: typeof ApiWaResultRouteImport
+    '/search': {
+      id: '/search'
+      path: '/search'
+      fullPath: '/search'
+      preLoaderRoute: typeof SearchRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/wa-jobs': {
-      id: '/api/wa-jobs'
-      path: '/api/wa-jobs'
-      fullPath: '/api/wa-jobs'
-      preLoaderRoute: typeof ApiWaJobsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/skd-data': {
-      id: '/api/skd-data'
-      path: '/api/skd-data'
-      fullPath: '/api/skd-data'
-      preLoaderRoute: typeof ApiSkdDataRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/result-session': {
-      id: '/api/result-session'
-      path: '/api/result-session'
-      fullPath: '/api/result-session'
-      preLoaderRoute: typeof ApiResultSessionRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/result-card': {
-      id: '/api/result-card'
-      path: '/api/result-card'
-      fullPath: '/api/result-card'
-      preLoaderRoute: typeof ApiResultCardRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/rationalization-targets': {
-      id: '/api/rationalization-targets'
-      path: '/api/rationalization-targets'
-      fullPath: '/api/rationalization-targets'
-      preLoaderRoute: typeof ApiRationalizationTargetsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/manual-skd': {
-      id: '/api/manual-skd'
-      path: '/api/manual-skd'
-      fullPath: '/api/manual-skd'
-      preLoaderRoute: typeof ApiManualSkdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/formations': {
-      id: '/api/formations'
-      path: '/api/formations'
-      fullPath: '/api/formations'
-      preLoaderRoute: typeof ApiFormationsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/formation-filters': {
-      id: '/api/formation-filters'
-      path: '/api/formation-filters'
-      fullPath: '/api/formation-filters'
-      preLoaderRoute: typeof ApiFormationFiltersRouteImport
+    '/simulasi-skd': {
+      id: '/simulasi-skd'
+      path: '/simulasi-skd'
+      fullPath: '/simulasi-skd'
+      preLoaderRoute: typeof SimulasiSkdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/formation-catalog': {
@@ -704,116 +606,109 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiFormationCatalogRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/formations/$formationId': {
-      id: '/api/formations/$formationId'
+    '/api/formation-filters': {
+      id: '/api/formation-filters'
+      path: '/api/formation-filters'
+      fullPath: '/api/formation-filters'
+      preLoaderRoute: typeof ApiFormationFiltersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/formations': {
+      id: '/api/formations'
+      path: '/api/formations'
+      fullPath: '/api/formations'
+      preLoaderRoute: typeof ApiFormationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/manual-skd': {
+      id: '/api/manual-skd'
+      path: '/api/manual-skd'
+      fullPath: '/api/manual-skd'
+      preLoaderRoute: typeof ApiManualSkdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/rationalization-targets': {
+      id: '/api/rationalization-targets'
+      path: '/api/rationalization-targets'
+      fullPath: '/api/rationalization-targets'
+      preLoaderRoute: typeof ApiRationalizationTargetsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/result-card': {
+      id: '/api/result-card'
+      path: '/api/result-card'
+      fullPath: '/api/result-card'
+      preLoaderRoute: typeof ApiResultCardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/result-session': {
+      id: '/api/result-session'
+      path: '/api/result-session'
+      fullPath: '/api/result-session'
+      preLoaderRoute: typeof ApiResultSessionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/skd-data': {
+      id: '/api/skd-data'
+      path: '/api/skd-data'
+      fullPath: '/api/skd-data'
+      preLoaderRoute: typeof ApiSkdDataRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/wa-jobs': {
+      id: '/api/wa-jobs'
+      path: '/api/wa-jobs'
+      fullPath: '/api/wa-jobs'
+      preLoaderRoute: typeof ApiWaJobsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/wa-result': {
+      id: '/api/wa-result'
+      path: '/api/wa-result'
+      fullPath: '/api/wa-result'
+      preLoaderRoute: typeof ApiWaResultRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/formasi/': {
+      id: '/formasi/'
+      path: '/'
+      fullPath: '/formasi/'
+      preLoaderRoute: typeof FormasiIndexRouteImport
+      parentRoute: typeof FormasiRoute
+    }
+    '/formasi/$formationId': {
+      id: '/formasi/$formationId'
       path: '/$formationId'
-      fullPath: '/api/formations/$formationId'
-      preLoaderRoute: typeof ApiFormationsFormationIdRouteImport
-      parentRoute: typeof ApiFormationsRoute
+      fullPath: '/formasi/$formationId'
+      preLoaderRoute: typeof FormasiFormationIdRouteImport
+      parentRoute: typeof FormasiRoute
     }
-    '/api/auth/reset': {
-      id: '/api/auth/reset'
-      path: '/api/auth/reset'
-      fullPath: '/api/auth/reset'
-      preLoaderRoute: typeof ApiAuthResetRouteImport
+    '/formasi/banding': {
+      id: '/formasi/banding'
+      path: '/banding'
+      fullPath: '/formasi/banding'
+      preLoaderRoute: typeof FormasiBandingRouteImport
+      parentRoute: typeof FormasiRoute
+    }
+    '/result/$scoreId': {
+      id: '/result/$scoreId'
+      path: '/result/$scoreId'
+      fullPath: '/result/$scoreId'
+      preLoaderRoute: typeof ResultScoreIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/auth/register': {
-      id: '/api/auth/register'
-      path: '/api/auth/register'
-      fullPath: '/api/auth/register'
-      preLoaderRoute: typeof ApiAuthRegisterRouteImport
+    '/wa/$token': {
+      id: '/wa/$token'
+      path: '/wa/$token'
+      fullPath: '/wa/$token'
+      preLoaderRoute: typeof WaTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/auth/me': {
-      id: '/api/auth/me'
-      path: '/api/auth/me'
-      fullPath: '/api/auth/me'
-      preLoaderRoute: typeof ApiAuthMeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/auth/logout': {
-      id: '/api/auth/logout'
-      path: '/api/auth/logout'
-      fullPath: '/api/auth/logout'
-      preLoaderRoute: typeof ApiAuthLogoutRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/auth/login': {
-      id: '/api/auth/login'
-      path: '/api/auth/login'
-      fullPath: '/api/auth/login'
-      preLoaderRoute: typeof ApiAuthLoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/auth/hermes-verify': {
-      id: '/api/auth/hermes-verify'
-      path: '/api/auth/hermes-verify'
-      fullPath: '/api/auth/hermes-verify'
-      preLoaderRoute: typeof ApiAuthHermesVerifyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/auth/challenge': {
-      id: '/api/auth/challenge'
-      path: '/api/auth/challenge'
-      fullPath: '/api/auth/challenge'
-      preLoaderRoute: typeof ApiAuthChallengeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/admin/sscasn': {
-      id: '/api/admin/sscasn'
-      path: '/api/admin/sscasn'
-      fullPath: '/api/admin/sscasn'
-      preLoaderRoute: typeof ApiAdminSscasnRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/admin/skd-review': {
-      id: '/api/admin/skd-review'
-      path: '/api/admin/skd-review'
-      fullPath: '/api/admin/skd-review'
-      preLoaderRoute: typeof ApiAdminSkdReviewRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/admin/skd-pdf': {
-      id: '/api/admin/skd-pdf'
-      path: '/api/admin/skd-pdf'
-      fullPath: '/api/admin/skd-pdf'
-      preLoaderRoute: typeof ApiAdminSkdPdfRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/admin/skd-explorer': {
-      id: '/api/admin/skd-explorer'
-      path: '/api/admin/skd-explorer'
-      fullPath: '/api/admin/skd-explorer'
-      preLoaderRoute: typeof ApiAdminSkdExplorerRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/admin/skd-batches': {
-      id: '/api/admin/skd-batches'
-      path: '/api/admin/skd-batches'
-      fullPath: '/api/admin/skd-batches'
-      preLoaderRoute: typeof ApiAdminSkdBatchesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/admin/result-sessions': {
-      id: '/api/admin/result-sessions'
-      path: '/api/admin/result-sessions'
-      fullPath: '/api/admin/result-sessions'
-      preLoaderRoute: typeof ApiAdminResultSessionsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/admin/published-data': {
-      id: '/api/admin/published-data'
-      path: '/api/admin/published-data'
-      fullPath: '/api/admin/published-data'
-      preLoaderRoute: typeof ApiAdminPublishedDataRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/admin/pdf-sources': {
-      id: '/api/admin/pdf-sources'
-      path: '/api/admin/pdf-sources'
-      fullPath: '/api/admin/pdf-sources'
-      preLoaderRoute: typeof ApiAdminPdfSourcesRouteImport
+    '/api/admin/education-aliases': {
+      id: '/api/admin/education-aliases'
+      path: '/api/admin/education-aliases'
+      fullPath: '/api/admin/education-aliases'
+      preLoaderRoute: typeof ApiAdminEducationAliasesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/admin/marketing-insights': {
@@ -823,12 +718,117 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminMarketingInsightsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/admin/education-aliases': {
-      id: '/api/admin/education-aliases'
-      path: '/api/admin/education-aliases'
-      fullPath: '/api/admin/education-aliases'
-      preLoaderRoute: typeof ApiAdminEducationAliasesRouteImport
+    '/api/admin/pdf-sources': {
+      id: '/api/admin/pdf-sources'
+      path: '/api/admin/pdf-sources'
+      fullPath: '/api/admin/pdf-sources'
+      preLoaderRoute: typeof ApiAdminPdfSourcesRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/published-data': {
+      id: '/api/admin/published-data'
+      path: '/api/admin/published-data'
+      fullPath: '/api/admin/published-data'
+      preLoaderRoute: typeof ApiAdminPublishedDataRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/result-sessions': {
+      id: '/api/admin/result-sessions'
+      path: '/api/admin/result-sessions'
+      fullPath: '/api/admin/result-sessions'
+      preLoaderRoute: typeof ApiAdminResultSessionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/skd-batches': {
+      id: '/api/admin/skd-batches'
+      path: '/api/admin/skd-batches'
+      fullPath: '/api/admin/skd-batches'
+      preLoaderRoute: typeof ApiAdminSkdBatchesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/skd-explorer': {
+      id: '/api/admin/skd-explorer'
+      path: '/api/admin/skd-explorer'
+      fullPath: '/api/admin/skd-explorer'
+      preLoaderRoute: typeof ApiAdminSkdExplorerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/skd-pdf': {
+      id: '/api/admin/skd-pdf'
+      path: '/api/admin/skd-pdf'
+      fullPath: '/api/admin/skd-pdf'
+      preLoaderRoute: typeof ApiAdminSkdPdfRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/skd-review': {
+      id: '/api/admin/skd-review'
+      path: '/api/admin/skd-review'
+      fullPath: '/api/admin/skd-review'
+      preLoaderRoute: typeof ApiAdminSkdReviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/sscasn': {
+      id: '/api/admin/sscasn'
+      path: '/api/admin/sscasn'
+      fullPath: '/api/admin/sscasn'
+      preLoaderRoute: typeof ApiAdminSscasnRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/challenge': {
+      id: '/api/auth/challenge'
+      path: '/api/auth/challenge'
+      fullPath: '/api/auth/challenge'
+      preLoaderRoute: typeof ApiAuthChallengeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/hermes-verify': {
+      id: '/api/auth/hermes-verify'
+      path: '/api/auth/hermes-verify'
+      fullPath: '/api/auth/hermes-verify'
+      preLoaderRoute: typeof ApiAuthHermesVerifyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/login': {
+      id: '/api/auth/login'
+      path: '/api/auth/login'
+      fullPath: '/api/auth/login'
+      preLoaderRoute: typeof ApiAuthLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/logout': {
+      id: '/api/auth/logout'
+      path: '/api/auth/logout'
+      fullPath: '/api/auth/logout'
+      preLoaderRoute: typeof ApiAuthLogoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/me': {
+      id: '/api/auth/me'
+      path: '/api/auth/me'
+      fullPath: '/api/auth/me'
+      preLoaderRoute: typeof ApiAuthMeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/register': {
+      id: '/api/auth/register'
+      path: '/api/auth/register'
+      fullPath: '/api/auth/register'
+      preLoaderRoute: typeof ApiAuthRegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/reset': {
+      id: '/api/auth/reset'
+      path: '/api/auth/reset'
+      fullPath: '/api/auth/reset'
+      preLoaderRoute: typeof ApiAuthResetRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/formations/$formationId': {
+      id: '/api/formations/$formationId'
+      path: '/$formationId'
+      fullPath: '/api/formations/$formationId'
+      preLoaderRoute: typeof ApiFormationsFormationIdRouteImport
+      parentRoute: typeof ApiFormationsRoute
     }
   }
 }

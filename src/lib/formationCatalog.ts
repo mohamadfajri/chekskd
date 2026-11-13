@@ -12,6 +12,7 @@ export const CATALOG_COMPETITION_BOUNDS = {
 
 export interface CatalogFilters {
   query?: string;
+  job?: string;
   institution?: string;
   education?: string;
   level?: CatalogLevel;
@@ -56,7 +57,7 @@ export interface CatalogResponse {
 
 export type CatalogPageResponse = Omit<CatalogResponse, "institutions">;
 
-export interface CatalogEducationOption {
+export interface CatalogPickerOption {
   value: string;
   label: string;
 }
@@ -68,7 +69,7 @@ export function catalogEducationLabel(value: string): string {
 export function catalogEducationOptions(
   keys: readonly string[],
   query: string,
-): CatalogEducationOption[] {
+): CatalogPickerOption[] {
   const normalized = normalizeCatalogSearch(query);
   const words = normalized.split(" ").filter(Boolean);
   const rank = (key: string) => {
@@ -87,6 +88,17 @@ export function catalogEducationOptions(
       value: key,
       label: catalogEducationLabel(key),
     }));
+}
+
+export function catalogJobOptions(jobs: readonly string[], query: string): CatalogPickerOption[] {
+  const normalized = normalizeCatalogSearch(query);
+  const words = normalized.split(" ").filter(Boolean);
+  return jobs
+    .filter((job) => {
+      const name = normalizeCatalogSearch(job);
+      return words.every((word) => name.includes(word));
+    })
+    .map((job) => ({ value: job, label: job }));
 }
 
 const ratioNumber = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 });

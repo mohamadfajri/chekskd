@@ -57,6 +57,10 @@ export function getPilotEducationKeys() {
     ),
   ];
 }
+
+export function getPilotJobNames() {
+  return [...new Set(formations.map(({ job }) => job))].sort((a, b) => a.localeCompare(b, "id"));
+}
 const pilotById = new Map(formations.map((row) => [row.id, row]));
 const PAGE_SIZE = 24;
 const PREVIEW_SIZE = 6;
@@ -83,6 +87,7 @@ function filterPilot(
       (!included || included.has(row.id)) &&
       (!filters.level || row.level === filters.level) &&
       (!filters.institution || row.institution === filters.institution) &&
+      (!filters.job || row.job === filters.job) &&
       (!bounds ||
         (row.quota > 0 &&
           row.passedAdmin != null &&

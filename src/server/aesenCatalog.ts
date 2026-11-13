@@ -34,6 +34,7 @@ const FIELDS = `f.source_id as id, f.institution, f.job, f.location, f.education
 let pool: pg.Pool | undefined;
 let metadata: { expiresAt: number; data: Promise<AesenMetadata> } | undefined;
 let educationKeys: { expiresAt: number; data: Promise<string[]> } | undefined;
+let jobNames: { expiresAt: number; data: Promise<string[]> } | undefined;
 const totals = new Map<string, { expiresAt: number; data: Promise<number> }>();
 
 export function aesenCatalogEnabled(): boolean {
@@ -102,6 +103,21 @@ export async function getAesenFormationsByIds(ids: string[]): Promise<AesenForma
   return rows;
 }
 
+export function getAesenJobNames(): Promise<string[]> {
+  if (!jobNames || jobNames.expiresAt <= Date.now()) {
+    const data = catalogPool()
+      .query<{ job: string }>(
+        "select distinct job from aesen.formations where job <> '' order by job",
+      )
+      .then(({ rows }) => rows.map(({ job }) => job));
+    jobNames = { expiresAt: Date.now() + 60 * 60_000, data };
+    void data.catch(() => {
+      if (jobNames?.data === data) jobNames = undefined;
+    });
+  }
+  return jobNames.data;
+}
+
 export async function getFilteredAesenFormationsByIds(
   ids: string[],
   filters: CatalogFilters,
@@ -141,6 +157,7 @@ export function aesenFilterQuery(
   const conditions: string[] = [];
   const bind = (value: (typeof args)[number]) => `$${args.push(value)}`;
   if (filters.institution) conditions.push(`f.institution = ${bind(filters.institution)}`);
+  if (filters.job) conditions.push(`f.job = ${bind(filters.job)}`);
   if (filters.level) conditions.push(`i.level = ${bind(filters.level)}`);
   if (selection.sourceIds)
     conditions.push(`f.source_id = any(${bind(selection.sourceIds)}::text[])`);

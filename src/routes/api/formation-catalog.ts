@@ -3,16 +3,22 @@ import { getAuthenticatedUser } from "@/lib/auth/server";
 import {
   catalogCompetition,
   catalogEducationOptions,
+  catalogJobOptions,
   catalogLevel,
   catalogSort,
   catalogText,
 } from "@/lib/formationCatalog";
 import { getServerSupabase, jsonResponse } from "@/lib/supabase/server";
-import { aesenCatalogEnabled, getAesenEducationKeys } from "@/server/aesenCatalog";
+import {
+  aesenCatalogEnabled,
+  getAesenEducationKeys,
+  getAesenJobNames,
+} from "@/server/aesenCatalog";
 import {
   browseFormationCatalog,
   getCatalogInstitutions,
   getPilotEducationKeys,
+  getPilotJobNames,
   getUnifiedFormationCatalog,
 } from "@/server/formationCatalog";
 import { useSumopodSkdReads as readsSkdFromSumopod } from "@/server/skdPreview";
@@ -24,19 +30,26 @@ export const Route = createFileRoute("/api/formation-catalog")({
         const params = new URL(request.url).searchParams;
         try {
           const mode = params.get("mode");
-          if (mode === "institutions" || mode === "education") {
+          if (mode === "institutions" || mode === "education" || mode === "jobs") {
             const query = catalogText(params.get("q")) ?? "";
             const body =
               mode === "institutions"
                 ? { institutions: await getCatalogInstitutions() }
-                : {
-                    options: catalogEducationOptions(
-                      aesenCatalogEnabled()
-                        ? await getAesenEducationKeys()
-                        : getPilotEducationKeys(),
-                      query,
-                    ),
-                  };
+                : mode === "jobs"
+                  ? {
+                      options: catalogJobOptions(
+                        aesenCatalogEnabled() ? await getAesenJobNames() : getPilotJobNames(),
+                        query,
+                      ),
+                    }
+                  : {
+                      options: catalogEducationOptions(
+                        aesenCatalogEnabled()
+                          ? await getAesenEducationKeys()
+                          : getPilotEducationKeys(),
+                        query,
+                      ),
+                    };
             return Response.json(body, {
               headers: { "cache-control": "public, max-age=300, s-maxage=900" },
             });
@@ -48,6 +61,7 @@ export const Route = createFileRoute("/api/formation-catalog")({
                 sb,
                 {
                   query: catalogText(params.get("query")),
+                  job: catalogText(params.get("job"), 240),
                   institution: catalogText(params.get("institution"), 160),
                   education: catalogText(params.get("education"), 160),
                   level: catalogLevel(params.get("level")),

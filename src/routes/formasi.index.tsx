@@ -16,6 +16,7 @@ interface FormationPageSearch {
   lingkup?: CatalogLevel;
   halaman?: number;
   q?: string;
+  jabatan?: string;
   instansi?: string;
   pendidikan?: string;
   jenis?: string;
@@ -43,6 +44,7 @@ export const Route = createFileRoute("/formasi/")({
         ? search.halaman
         : undefined,
     q: searchText(search.q, 120),
+    jabatan: searchText(search.jabatan, 240),
     instansi: searchText(search.instansi),
     pendidikan: searchText(search.pendidikan),
     jenis: searchText(search.jenis, 80),
@@ -66,6 +68,7 @@ function FormationIndexPage() {
   const {
     banding,
     q,
+    jabatan,
     instansi,
     pendidikan,
     jenis,
@@ -82,6 +85,7 @@ function FormationIndexPage() {
         initialComparisonIds={parseFormationIds(banding)}
         filters={{
           query: q,
+          job: jabatan,
           institution: instansi,
           education: pendidikan,
           level: lingkup,

@@ -20,7 +20,15 @@ import {
   readSscasnAuditReviews,
 } from "../../src/server/sscasnAudit.ts";
 import { reconcileCatalog } from "../../src/lib/sscasnReconciliation.ts";
-import { catalogEducationOptions } from "../../src/lib/formationCatalog.ts";
+import { catalogEducationOptions, catalogJobOptions } from "../../src/lib/formationCatalog.ts";
+
+test("job suggestions preserve Aesen labels and the selected job is an exact filter", () => {
+  const jobs = ["ANALIS HUKUM AHLI PERTAMA", "ANALIS HUKUM AHLI MUDA", "AUDITOR AHLI PERTAMA"];
+  assert.deepEqual(catalogJobOptions(jobs, "pertama hukum"), [{ value: jobs[0], label: jobs[0] }]);
+  const filter = aesenFilterQuery({ job: jobs[0], query: "Jakarta" }, []);
+  assert.match(filter.where, /f\.job = \$1 and f\.search_text like \$2/);
+  assert.deepEqual(filter.args, [jobs[0], "%jakarta%"]);
+});
 
 test("catalogue suggestions find Aesen degrees without merging degree levels or unreviewed majors", () => {
   const keys = ["s1 hukum", "s1 ilmu hukum", "s2 hukum", "s1 hukum islam", "s1 teknik sipil"];

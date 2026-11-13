@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Columns3,
   FilterX,
+  LoaderCircle,
   Plus,
   Search,
 } from "lucide-react";
@@ -24,7 +25,7 @@ import {
 import { MAX_COMPARISON_FORMATIONS, serializeFormationIds } from "@/lib/formationSelection";
 import { getFormationFilterOptions } from "@/services/formationService";
 import { CatalogInstitutionPicker } from "./CatalogInstitutionPicker";
-import { CatalogEducationPicker } from "./CatalogEducationPicker";
+import { CatalogOptionPicker } from "./CatalogOptionPicker";
 
 const number = new Intl.NumberFormat("id-ID");
 const salary = new Intl.NumberFormat("id-ID", {
@@ -44,6 +45,7 @@ async function loadCatalog(
   const params = new URLSearchParams({ mode: "page", page: String(filters.page ?? 1) });
   for (const key of [
     "query",
+    "job",
     "institution",
     "education",
     "level",
@@ -65,6 +67,7 @@ function catalogSearch(filters: CatalogFilters) {
     tampilan: undefined,
     skd: filters.hasSkd || undefined,
     q: filters.query?.trim() || undefined,
+    jabatan: filters.job || undefined,
     instansi: filters.institution || undefined,
     pendidikan: filters.education?.trim() || undefined,
     lingkup: filters.level,
@@ -254,6 +257,7 @@ export function FormationCatalog({
     placeholderData: (previous) => previous,
   });
   const data = result.data;
+  const refreshing = result.isFetching && Boolean(data);
   const pagination = data?.pagination;
   const preview = data?.access === "preview";
   const institutionOptions = useQuery({
@@ -306,6 +310,7 @@ export function FormationCatalog({
   }
   const changed = Boolean(
     filters.query ||
+    filters.job ||
     filters.education ||
     filters.institution ||
     filters.level ||
@@ -327,7 +332,7 @@ export function FormationCatalog({
             event.preventDefault();
             apply({ ...filters, query, page: 1 });
           }}
-          className="grid grid-cols-2 gap-3 border-y border-border py-4 xl:grid-cols-[1.3fr_1fr_0.8fr_0.6fr_auto]"
+          className="grid grid-cols-2 gap-3 border-y border-border py-4 xl:grid-cols-[1fr_1fr_1fr_1fr_0.8fr_auto]"
         >
           <label className="col-span-2 grid min-w-0 gap-1 text-xs font-semibold xl:col-span-1">
             Jabatan atau lokasi
@@ -338,6 +343,12 @@ export function FormationCatalog({
               maxLength={120}
             />
           </label>
+          <CatalogOptionPicker
+            mode="jobs"
+            fieldClass={field}
+            value={filters.job}
+            onChange={(job) => apply({ ...filters, query, job, page: 1 })}
+          />
           <CatalogInstitutionPicker
             institutions={institutionOptions.data}
             level={filters.level}
@@ -345,7 +356,8 @@ export function FormationCatalog({
             fieldClass={field}
             onChange={(institution) => apply({ ...filters, query, institution, page: 1 })}
           />
-          <CatalogEducationPicker
+          <CatalogOptionPicker
+            mode="education"
             fieldClass={field}
             value={filters.education}
             onChange={(education) => apply({ ...filters, query, education, page: 1 })}
@@ -482,14 +494,22 @@ export function FormationCatalog({
         </div>
 
         <div className="my-3 flex flex-wrap items-center justify-between gap-2 text-sm">
-          <p aria-live="polite" className="text-muted-foreground">
+          <p role="status" className="flex min-h-5 items-center gap-2 text-muted-foreground">
+            {(result.isPending || result.isFetching) && (
+              <LoaderCircle
+                className="size-4 shrink-0 text-primary motion-safe:animate-spin"
+                aria-hidden
+              />
+            )}
             {result.isPending
               ? "Memuat katalog…"
-              : preview
-                ? `Pratinjau ${data.formations.length} dari ${number.format(data.catalogTotal)} formasi`
-                : data
-                  ? `${number.format(data.pagination.total)} formasi`
-                  : ""}
+              : refreshing
+                ? "Memuat hasil…"
+                : preview
+                  ? `Pratinjau ${data.formations.length} dari ${number.format(data.catalogTotal)} formasi`
+                  : data
+                    ? `${number.format(data.pagination.total)} formasi`
+                    : ""}
           </p>
           {preview && (
             <Link
@@ -538,7 +558,11 @@ export function FormationCatalog({
           </div>
         )}
         {data && (
-          <div className="overflow-hidden rounded-lg border border-border bg-white">
+          <div
+            aria-busy={refreshing}
+            inert={result.isPlaceholderData}
+            className={`overflow-hidden rounded-lg border border-border bg-white ${result.isPlaceholderData ? "opacity-60" : ""}`}
+          >
             {data.formations.length ? (
               <table className="block w-full table-fixed text-left sm:table">
                 <thead className="hidden bg-muted/50 text-xs text-muted-foreground sm:table-header-group">
