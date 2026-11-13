@@ -1,21 +1,14 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import {
-  ArrowLeft,
-  ArrowRight,
-  ChartNoAxesColumnIncreasing,
-  ClipboardCheck,
-  Crosshair,
-  ListFilter,
-} from "lucide-react";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import { Carousel, CarouselContent, CarouselItem } from "@/components/ui/carousel";
 import type { UseEmblaCarouselType } from "embla-carousel-react";
 
 const slides = [
-  { label: "SKD lama", icon: ClipboardCheck, image: "/home-slide-skd-2024.png" },
-  { label: "Tryout", icon: ChartNoAxesColumnIncreasing, image: null },
-  { label: "Pesaing", icon: Crosshair, image: null },
-  { label: "Formasi", icon: ListFilter, image: null },
+  { label: "SKD lama", image: "/home-slide-skd-2024.png" },
+  { label: "Tryout", image: null },
+  { label: "Pesaing", image: null },
+  { label: "Formasi", image: null },
 ] as const;
 
 export function HomeJourney() {
@@ -45,19 +38,6 @@ export function HomeJourney() {
         opts={{ loop: true }}
         setApi={setApi}
       >
-        <div className="home-flow-topics" aria-label="Topik ilustrasi" role="group">
-          {slides.map(({ label, icon: Icon }, index) => (
-            <button
-              key={label}
-              type="button"
-              aria-pressed={index === active}
-              onClick={() => goTo(index)}
-            >
-              <Icon className="size-4" aria-hidden />
-              {label}
-            </button>
-          ))}
-        </div>
         <CarouselContent className="ml-0">
           {slides.map(({ label, image }, index) => (
             <CarouselItem
@@ -90,10 +70,6 @@ export function HomeJourney() {
           ))}
         </CarouselContent>
         <div className="home-flow-controls">
-          <div className="home-flow-caption" aria-live="polite">
-            {slides[active].image && <span>Angka hanya ilustrasi</span>}
-            <span className="sr-only">{slides[active].label}</span>
-          </div>
           <div className="home-flow-nav">
             <button
               type="button"
@@ -103,7 +79,7 @@ export function HomeJourney() {
             >
               <ArrowLeft className="size-4" aria-hidden />
             </button>
-            <span className="home-flow-count font-mono">
+            <span className="home-flow-count font-mono" aria-live="polite">
               {active + 1} / {slides.length}
             </span>
             <button
