@@ -68,7 +68,6 @@ export function catalogEducationLabel(value: string): string {
 export function catalogEducationOptions(
   keys: readonly string[],
   query: string,
-  limit = 20,
 ): CatalogEducationOption[] {
   const normalized = normalizeCatalogSearch(query);
   const words = normalized.split(" ").filter(Boolean);
@@ -84,7 +83,6 @@ export function catalogEducationOptions(
     .map((key) => ({ key, rank: rank(key) }))
     .sort((a, b) => a.rank - b.rank || a.key.localeCompare(b.key, "id"))
     .filter(({ key }) => key.length <= 160)
-    .slice(0, limit)
     .map(({ key }) => ({
       value: key,
       label: catalogEducationLabel(key),

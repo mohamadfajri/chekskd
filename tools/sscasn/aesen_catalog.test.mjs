@@ -32,7 +32,17 @@ test("catalogue suggestions find Aesen degrees without merging degree levels or 
     { value: "s2 hukum", label: "S-2 HUKUM" },
   ]);
   assert.deepEqual(catalogEducationOptions(keys, "kedokteran"), []);
-  assert.equal(catalogEducationOptions(keys, "hukum", 2).length, 2);
+});
+
+test("education suggestions do not truncate browsing or search results", () => {
+  const keys = Array.from(
+    { length: 150 },
+    (_, index) => `s1 ilmu hukum ${String(index).padStart(3, "0")}`,
+  );
+  assert.equal(catalogEducationOptions(keys, "").length, 150);
+  const results = catalogEducationOptions(keys, "hukum");
+  assert.equal(results.length, 150);
+  assert.equal(results.at(-1)?.label, "S-1 ILMU HUKUM 149");
 });
 
 test("Aesen connection always verifies TLS, even if the URL requests otherwise", () => {

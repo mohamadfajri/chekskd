@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Check, ChevronsUpDown } from "lucide-react";
 import {
@@ -15,6 +15,8 @@ import {
   type CatalogEducationOption,
 } from "@/lib/formationCatalog";
 
+const RENDER_BATCH = 80;
+
 export function CatalogEducationPicker({
   value,
   onChange,
@@ -28,6 +30,9 @@ export function CatalogEducationPicker({
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [search, setSearch] = useState("");
+  const [window, setWindow] = useState({ search: "", size: RENDER_BATCH });
+  const list = useRef<HTMLDivElement>(null);
+  const sentinel = useRef<HTMLDivElement>(null);
   const normalized = normalizeCatalogSearch(input);
   useEffect(() => {
     const timer = setTimeout(() => setSearch(normalized), 220);
@@ -47,6 +52,22 @@ export function CatalogEducationPicker({
   });
   const busy = normalized !== search || options.isPending;
   const items = busy ? [] : (options.data ?? []);
+  const size = window.search === search ? window.size : RENDER_BATCH;
+  const hasMore = items.length > size;
+  useEffect(() => {
+    if (!open || !hasMore || !list.current || !sentinel.current) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) setWindow({ search, size: size + RENDER_BATCH });
+      },
+      { root: list.current, rootMargin: "0px 0px 140px 0px" },
+    );
+    observer.observe(sentinel.current);
+    return () => observer.disconnect();
+  }, [open, hasMore, search, size]);
+  useEffect(() => {
+    list.current?.scrollTo({ top: 0 });
+  }, [search]);
   const selected = normalizeCatalogSearch(value ?? "");
   function select(next?: string) {
     setOpen(false);
@@ -63,6 +84,7 @@ export function CatalogEducationPicker({
           if (next) {
             setInput("");
             setSearch("");
+            setWindow({ search: "", size: RENDER_BATCH });
           }
           setOpen(next);
         }}
@@ -93,7 +115,10 @@ export function CatalogEducationPicker({
               placeholder="Cari jenjang atau jurusan"
               maxLength={120}
             />
-            <CommandList className="max-h-[min(300px,calc(var(--radix-popover-content-available-height)-3rem))] overscroll-contain">
+            <CommandList
+              ref={list}
+              className="max-h-[min(300px,calc(var(--radix-popover-content-available-height)-3rem))] overscroll-contain"
+            >
               <CommandGroup>
                 {!normalized && (
                   <CommandItem value="all" onSelect={() => select()}>
@@ -101,7 +126,7 @@ export function CatalogEducationPicker({
                     Semua pendidikan
                   </CommandItem>
                 )}
-                {items.map(({ value: key, label }) => (
+                {items.slice(0, size).map(({ value: key, label }) => (
                   <CommandItem
                     key={key}
                     value={`education:${key}`}
@@ -125,6 +150,7 @@ export function CatalogEducationPicker({
                   </CommandItem>
                 )}
               </CommandGroup>
+              {hasMore && <div ref={sentinel} className="h-px" aria-hidden />}
               {busy ? (
                 <p role="status" className="px-3 py-2 text-sm text-muted-foreground">
                   Memuat pendidikan...
