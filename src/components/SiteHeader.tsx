@@ -71,7 +71,7 @@ const navItems: NavItem[] = [
 
 export function SiteHeader() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const [compact, setCompact] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
 
   const account = useQuery({
     queryKey: ["current-account"],
@@ -81,7 +81,7 @@ export function SiteHeader() {
   });
 
   useEffect(() => {
-    const update = () => setCompact(window.scrollY > 90);
+    const update = () => setScrolled(window.scrollY > 90);
     update();
     window.addEventListener("scroll", update, { passive: true });
     return () => window.removeEventListener("scroll", update);
@@ -89,16 +89,11 @@ export function SiteHeader() {
 
   return (
     <>
-      <header className={`public-nav-shell ${compact ? "is-compact" : ""}`}>
+      <header className={`public-nav-shell ${scrolled ? "is-scrolled" : ""}`}>
         <div className="public-nav">
           <Link to="/" aria-label="AnalisaCPNS - beranda" className="public-nav-brand">
-            <AnalisaCPNSLogo theme="dark" size={38} className="public-nav-logo-full" />
-            <AnalisaCPNSLogo
-              variant="icon"
-              theme="dark"
-              size={36}
-              className="public-nav-logo-icon"
-            />
+            <AnalisaCPNSLogo theme="dark" bareMark size={38} className="public-nav-logo-full" />
+            <AnalisaCPNSLogo variant="icon" bareMark size={36} className="public-nav-logo-icon" />
           </Link>
 
           <nav aria-label="Navigasi utama" className="public-nav-tabs">
@@ -133,7 +128,12 @@ export function SiteHeader() {
               {account.data ? <UserRound className="h-4 w-4" /> : <LogIn className="h-4 w-4" />}
               <span>{account.data ? "Akun" : "Masuk"}</span>
             </Link>
-            <Link to="/search" className="public-primary-button public-nav-cta">
+            <Link
+              to="/search"
+              search={{ targetFormationId: undefined }}
+              aria-label="Cari peserta"
+              className="public-primary-button public-nav-cta"
+            >
               <span>Cari peserta</span>
               <ArrowUpRight className="h-4 w-4" />
             </Link>

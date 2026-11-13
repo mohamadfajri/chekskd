@@ -4,13 +4,15 @@ import { useQuery } from "@tanstack/react-query";
 import {
   ArrowUpRight,
   Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Columns3,
   FilterX,
   LoaderCircle,
   Plus,
-  Search,
+  SlidersHorizontal,
+  X,
 } from "lucide-react";
 import {
   catalogCompetition,
@@ -34,7 +36,7 @@ const salary = new Intl.NumberFormat("id-ID", {
   maximumFractionDigits: 0,
 });
 const field =
-  "h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary";
+  "h-11 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary";
 const action =
   "inline-flex min-h-10 items-center justify-center gap-2 rounded-md px-3 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50";
 
@@ -117,25 +119,151 @@ function compensation(row: CatalogFormation) {
   return `${salary.format(row.salaryMin)} – ${salary.format(row.salaryMax)}`;
 }
 
-function CatalogRow({
-  row,
-  selected,
-  compareFull,
-  onCompare,
-}: {
+type CatalogRowProps = {
   row: CatalogFormation;
   selected: boolean;
   compareFull: boolean;
   onCompare: (id: string) => void;
-}) {
-  const degrees = row.education
-    .split("/")
-    .map((value) => value.trim())
-    .filter(Boolean);
+};
+
+function CatalogDegrees({ education }: { education: string }) {
+  const degrees = [
+    ...new Set(
+      education
+        .split("/")
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  ];
+  if (degrees.length <= 1) return degrees[0] || "Tidak tercantum";
+  return (
+    <details>
+      <summary className="cursor-pointer break-words font-medium">
+        {degrees[0]} <span className="ml-1 text-primary">+{degrees.length - 1}</span>
+      </summary>
+      <ul className="mt-1 space-y-1 break-words text-muted-foreground">
+        {degrees.slice(1).map((degree) => (
+          <li key={degree}>{degree}</li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
+function CatalogSkdActions({ row, selected, compareFull, onCompare }: CatalogRowProps) {
+  const skd = row.skd;
+  if (!skd) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <Link
+        to="/formasi/$formationId"
+        params={{ formationId: skd.id }}
+        className="inline-flex min-h-10 items-center gap-1 font-semibold text-primary hover:underline lg:min-h-8"
+      >
+        Detail SKD <ArrowUpRight className="size-3" aria-hidden />
+      </Link>
+      {skd.canSimulate && (
+        <Link
+          to="/simulasi-skd"
+          search={{ targetFormationId: skd.id }}
+          className="inline-flex min-h-10 items-center font-semibold text-primary hover:underline lg:min-h-8"
+        >
+          Simulasikan
+        </Link>
+      )}
+      <button
+        type="button"
+        title={selected ? "Hapus dari perbandingan" : "Tambah ke perbandingan"}
+        aria-label={`${selected ? "Hapus dari" : "Tambah ke"} perbandingan: ${row.job}`}
+        aria-pressed={selected}
+        disabled={compareFull && !selected}
+        onClick={() => onCompare(skd.id)}
+        className="inline-flex size-10 items-center justify-center rounded-md text-primary hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-40 lg:size-8"
+      >
+        {selected ? (
+          <Check className="size-4" aria-hidden />
+        ) : (
+          <Plus className="size-4" aria-hidden />
+        )}
+      </button>
+    </div>
+  );
+}
+
+function CatalogMobileRow(props: CatalogRowProps) {
+  const { row } = props;
+  const metrics = [
+    ["Kuota", number.format(row.quota)],
+    ["Lolos admin", row.passedAdmin == null ? "-" : number.format(row.passedAdmin)],
+    ["Ketetatan", catalogCompetitionRatio(row) ?? "-"],
+  ];
+  return (
+    <li className="min-w-0 border-b border-border py-4 last:border-b-0">
+      <h2 className="text-[15px] font-bold leading-snug [overflow-wrap:anywhere]">{row.job}</h2>
+      <p className="mt-1 text-sm leading-snug text-muted-foreground [overflow-wrap:anywhere]">
+        {row.institution}
+      </p>
+      <dl className="mt-3 grid grid-cols-3 divide-x divide-border">
+        {metrics.map(([label, value]) => (
+          <div key={label} className="min-w-0 px-2 first:pl-0">
+            <dt className="text-xs text-muted-foreground">{label}</dt>
+            <dd className="mt-0.5 text-base font-semibold tabular-nums">{value}</dd>
+          </div>
+        ))}
+      </dl>
+      <details className="group mt-1 text-sm">
+        <summary className="flex min-h-10 cursor-pointer list-none items-center gap-1.5 font-semibold text-primary [&::-webkit-details-marker]:hidden">
+          Rincian formasi <ChevronDown className="size-4 group-open:rotate-180" aria-hidden />
+        </summary>
+        <dl className="grid gap-2 pb-2 text-sm [overflow-wrap:anywhere]">
+          <div>
+            <dt className="text-xs text-muted-foreground">Pendidikan</dt>
+            <dd>
+              <CatalogDegrees education={row.education} />
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">Gaji 2024</dt>
+            <dd>{compensation(row)}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">Lokasi</dt>
+            <dd>{row.location || "Tidak tercantum"}</dd>
+          </div>
+          {(row.level || row.category) && (
+            <div>
+              <dt className="text-xs text-muted-foreground">Jenis dan lingkup</dt>
+              <dd>
+                {[
+                  row.category,
+                  row.level === "pusat" ? "Pusat" : row.level === "daerah" ? "Daerah" : null,
+                ]
+                  .filter(Boolean)
+                  .join(" / ")}
+              </dd>
+            </div>
+          )}
+          <div>
+            <dt className="text-xs text-muted-foreground">Hasil SKD</dt>
+            <dd>{coverage(row)}</dd>
+          </div>
+        </dl>
+      </details>
+      {row.skd && (
+        <div className="text-sm">
+          <CatalogSkdActions {...props} />
+        </div>
+      )}
+    </li>
+  );
+}
+
+function CatalogRow(props: CatalogRowProps) {
+  const { row } = props;
   const ratio = catalogCompetitionRatio(row);
   const applicants = row.passedAdmin;
   return (
-    <tr className="grid gap-2 border-b border-border px-3 py-4 last:border-b-0 sm:table-row sm:p-0">
+    <tr className="border-b border-border last:border-b-0 hover:bg-muted/20">
       <td className="min-w-0 sm:px-3 sm:py-3">
         <p className="break-words font-bold leading-snug">{row.job}</p>
         <p className="mt-1 text-xs text-muted-foreground">
@@ -144,35 +272,22 @@ function CatalogRow({
           {row.category ? ` · ${row.category}` : ""}
         </p>
         {row.location && row.location !== row.institution && (
-          <p className="mt-1 break-words text-xs text-muted-foreground">{row.location}</p>
+          <details className="mt-1 break-words text-xs text-muted-foreground">
+            <summary className="cursor-pointer">Lokasi penempatan</summary>
+            <p className="mt-1">{row.location}</p>
+          </details>
         )}
       </td>
       <td className="min-w-0 text-xs leading-5 sm:px-3 sm:py-3">
-        {degrees.length > 1 ? (
-          <details>
-            <summary className="cursor-pointer break-words font-medium">
-              {degrees[0]} <span className="ml-1 text-primary">+{degrees.length - 1}</span>
-            </summary>
-            <ul className="mt-1 space-y-1 break-words text-muted-foreground">
-              {[...new Set(degrees)].map((degree) => (
-                <li key={degree}>{degree}</li>
-              ))}
-            </ul>
-          </details>
-        ) : (
-          degrees[0] || "Tidak tercantum"
-        )}
+        <CatalogDegrees education={row.education} />
       </td>
       <td className="text-sm tabular-nums sm:px-2 sm:py-3 sm:text-right">
-        <span className="mr-1 text-muted-foreground sm:hidden">Kuota</span>
         {number.format(row.quota)}
       </td>
       <td className="min-w-0 text-xs sm:px-2 sm:py-3 sm:text-right">
-        <span className="mr-1 text-muted-foreground sm:hidden">Pelamar:</span>
         {applicants != null ? (
           <>
-            <span className="font-semibold tabular-nums">{number.format(applicants)}</span>{" "}
-            <span className="text-muted-foreground sm:mt-0.5 sm:block">Lolos administrasi</span>
+            <span className="font-semibold tabular-nums">{number.format(applicants)}</span>
           </>
         ) : (
           <span className="text-muted-foreground" aria-label="Jumlah pelamar tidak tersedia">
@@ -181,7 +296,6 @@ function CatalogRow({
         )}
       </td>
       <td className="min-w-0 text-xs sm:px-2 sm:py-3">
-        <span className="mr-1 text-muted-foreground sm:hidden">Ketetatan:</span>
         {ratio ? (
           <span className="font-semibold tabular-nums">{ratio}</span>
         ) : (
@@ -190,47 +304,10 @@ function CatalogRow({
           </span>
         )}
       </td>
-      <td className="break-words text-xs tabular-nums sm:px-3 sm:py-3">
-        <span className="mr-1 text-muted-foreground sm:hidden">Gaji tercantum:</span>
-        {compensation(row)}
-      </td>
+      <td className="break-words text-xs tabular-nums sm:px-3 sm:py-3">{compensation(row)}</td>
       <td className="text-xs sm:px-3 sm:py-3">
         {coverage(row)}
-        {row.skd && (
-          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-            <Link
-              to="/formasi/$formationId"
-              params={{ formationId: row.skd.id }}
-              className="inline-flex min-h-7 items-center gap-1 font-semibold text-primary hover:underline"
-            >
-              Detail SKD <ArrowUpRight className="size-3" aria-hidden />
-            </Link>
-            {row.skd.canSimulate && (
-              <Link
-                to="/simulasi-skd"
-                search={{ targetFormationId: row.skd.id }}
-                className="inline-flex min-h-7 items-center font-semibold text-primary hover:underline"
-              >
-                Simulasikan
-              </Link>
-            )}
-            <button
-              type="button"
-              title={selected ? "Hapus dari perbandingan" : "Tambah ke perbandingan"}
-              aria-label={`${selected ? "Hapus dari" : "Tambah ke"} perbandingan: ${row.job}`}
-              aria-pressed={selected}
-              disabled={compareFull && !selected}
-              onClick={() => row.skd && onCompare(row.skd.id)}
-              className="inline-flex size-8 items-center justify-center rounded-md border border-border text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-40"
-            >
-              {selected ? (
-                <Check className="size-4" aria-hidden />
-              ) : (
-                <Plus className="size-4" aria-hidden />
-              )}
-            </button>
-          </div>
-        )}
+        <CatalogSkdActions {...props} />
       </td>
     </tr>
   );
@@ -244,13 +321,11 @@ export function FormationCatalog({
   initialComparisonIds: string[];
 }) {
   const navigate = useNavigate();
-  const [query, setQuery] = useState(filters.query ?? "");
   const initialComparisonKey = serializeFormationIds(initialComparisonIds);
   const [comparison, setComparison] = useState(initialComparisonIds);
   useEffect(() => {
     setComparison(initialComparisonKey?.split(",") ?? []);
   }, [initialComparisonKey]);
-  useEffect(() => setQuery(filters.query ?? ""), [filters.query]);
   const result = useQuery({
     queryKey: ["formation-catalog", filters],
     queryFn: ({ signal }) => loadCatalog(filters, signal),
@@ -319,179 +394,159 @@ export function FormationCatalog({
     filters.competitionLevel ||
     filters.sort,
   );
+  const advancedCount = [
+    filters.hasSkd,
+    filters.level,
+    filters.formationType,
+    filters.competitionLevel,
+    filters.sort,
+  ].filter(Boolean).length;
+  const rowProps = (row: CatalogFormation): CatalogRowProps => ({
+    row,
+    selected: Boolean(row.skd && comparison.includes(row.skd.id)),
+    compareFull: comparison.length >= MAX_COMPARISON_FORMATIONS,
+    onCompare: compare,
+  });
 
   return (
     <div className="public-workspace">
-      <section className="formation-workspace-heading">
+      <header className="mb-4">
         <p className="public-kicker font-mono">CPNS 2024</p>
-        <h1>Daftar formasi</h1>
-      </section>
+        <h1 className="text-[26px] leading-tight font-bold sm:text-[34px]">Daftar formasi</h1>
+      </header>
       <div>
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            apply({ ...filters, query, page: 1 });
-          }}
-          className="grid grid-cols-2 gap-3 border-y border-border py-4 xl:grid-cols-[1fr_1fr_1fr_1fr_0.8fr_auto]"
-        >
-          <label className="col-span-2 grid min-w-0 gap-1 text-xs font-semibold xl:col-span-1">
-            Jabatan atau lokasi
-            <input
-              className={field}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              maxLength={120}
+        <div className="grid grid-cols-2 gap-x-2.5 gap-y-3 sm:grid-cols-3 sm:gap-x-3">
+          <div className="col-span-2 min-w-0 sm:col-span-1">
+            <CatalogOptionPicker
+              mode="jobs"
+              fieldClass={field}
+              value={filters.job}
+              onChange={(job) => apply({ ...filters, job, page: 1 })}
             />
-          </label>
-          <CatalogOptionPicker
-            mode="jobs"
-            fieldClass={field}
-            value={filters.job}
-            onChange={(job) => apply({ ...filters, query, job, page: 1 })}
-          />
+          </div>
           <CatalogInstitutionPicker
             institutions={institutionOptions.data}
             level={filters.level}
             value={filters.institution}
             fieldClass={field}
-            onChange={(institution) => apply({ ...filters, query, institution, page: 1 })}
+            onChange={(institution) => apply({ ...filters, institution, page: 1 })}
           />
           <CatalogOptionPicker
             mode="education"
             fieldClass={field}
             value={filters.education}
-            onChange={(education) => apply({ ...filters, query, education, page: 1 })}
+            onChange={(education) => apply({ ...filters, education, page: 1 })}
           />
-          <label className="grid min-w-0 gap-1 text-xs font-semibold">
-            Lingkup
-            <select
-              className={field}
-              value={filters.level ?? ""}
-              disabled={!data}
-              onChange={(e) => {
-                const level = catalogLevel(e.target.value);
-                const selectedLevel = (institutionOptions.data ?? []).find(
-                  ({ name }) => name === filters.institution,
-                )?.level;
-                apply({
-                  ...filters,
-                  query,
-                  level,
-                  institution:
-                    !level || !institutionOptions.data || selectedLevel === level
-                      ? filters.institution
-                      : undefined,
-                  page: 1,
-                });
-              }}
-            >
-              <option value="">Pusat dan daerah</option>
-              <option value="pusat">Pusat</option>
-              <option value="daerah">Daerah</option>
-            </select>
-          </label>
-          <div className="flex items-end gap-2">
-            <button
-              type="submit"
-              disabled={!data}
-              className={`${action} bg-primary text-primary-foreground`}
-            >
-              <Search className="size-4" aria-hidden /> Cari
-            </button>
-            {!preview && changed && (
-              <button
-                type="button"
-                title="Reset filter"
-                aria-label="Reset filter"
-                className={`${action} border border-border`}
-                onClick={() => {
-                  setQuery("");
-                  apply({});
+        </div>
+        <details className="group mt-2 border-b border-border">
+          <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-2 text-sm font-semibold text-primary [&::-webkit-details-marker]:hidden">
+            <SlidersHorizontal className="size-4" aria-hidden />
+            Filter tambahan
+            {advancedCount > 0 && <span className="tabular-nums">({advancedCount})</span>}
+            <ChevronDown className="size-4 group-open:rotate-180" aria-hidden />
+          </summary>
+          <div className="grid grid-cols-2 gap-3 pb-3 sm:grid-cols-4">
+            <label className="grid min-w-0 gap-1 text-xs font-semibold">
+              Lingkup
+              <select
+                className={field}
+                value={filters.level ?? ""}
+                disabled={!data}
+                onChange={(e) => {
+                  const level = catalogLevel(e.target.value);
+                  const selectedLevel = (institutionOptions.data ?? []).find(
+                    ({ name }) => name === filters.institution,
+                  )?.level;
+                  apply({
+                    ...filters,
+                    level,
+                    institution:
+                      !level || !institutionOptions.data || selectedLevel === level
+                        ? filters.institution
+                        : undefined,
+                    page: 1,
+                  });
                 }}
               >
-                <FilterX className="size-4" aria-hidden />
-              </button>
-            )}
+                <option value="">Pusat dan daerah</option>
+                <option value="pusat">Pusat</option>
+                <option value="daerah">Daerah</option>
+              </select>
+            </label>
+            <label className="col-span-full inline-flex min-h-10 items-center gap-2 text-sm font-semibold">
+              <input
+                type="checkbox"
+                className="size-4 accent-primary"
+                checked={Boolean(filters.hasSkd)}
+                disabled={!data}
+                onChange={(event) => apply({ ...filters, hasSkd: event.target.checked, page: 1 })}
+              />
+              Ada hasil SKD
+            </label>
+            <label className="grid gap-1 text-xs font-semibold">
+              Jenis formasi SKD
+              <select
+                className={field}
+                value={filters.formationType ?? ""}
+                disabled={!data}
+                onChange={(e) => apply({ ...filters, formationType: e.target.value, page: 1 })}
+              >
+                <option value="">Semua jenis</option>
+                {options.data?.formation_types.map(({ value }) => (
+                  <option key={value}>{value}</option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1 text-xs font-semibold">
+              Ketetatan
+              <select
+                className={field}
+                value={filters.competitionLevel ?? ""}
+                disabled={!data}
+                onChange={(e) =>
+                  apply({
+                    ...filters,
+                    competitionLevel: catalogCompetition(e.target.value),
+                    page: 1,
+                  })
+                }
+              >
+                <option value="">Semua tingkat</option>
+                <option value="quiet">Sepi peminat</option>
+                <option value="low">Rendah</option>
+                <option value="medium">Sedang</option>
+                <option value="high">Tinggi</option>
+              </select>
+            </label>
+            <label className="grid gap-1 text-xs font-semibold">
+              Urutkan
+              <select
+                className={field}
+                value={filters.sort ?? ""}
+                disabled={!data}
+                onChange={(e) => apply({ ...filters, sort: catalogSort(e.target.value), page: 1 })}
+              >
+                <option value="">Default</option>
+                <option value="competition_desc">Ketetatan tertinggi</option>
+                <option value="competition_asc">Ketetatan terendah</option>
+                <option value="cutoff_desc">Batas SKD tertinggi</option>
+                <option value="quota_desc">Kuota terbesar</option>
+                <option value="name_asc">Jabatan A-Z</option>
+              </select>
+            </label>
           </div>
-        </form>
-
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border py-3">
-          <label className="inline-flex min-h-8 items-center gap-2 text-sm font-semibold">
-            <input
-              type="checkbox"
-              className="size-4 accent-primary"
-              checked={Boolean(filters.hasSkd)}
-              disabled={!data}
-              onChange={(event) => apply({ ...filters, hasSkd: event.target.checked, page: 1 })}
-            />
-            Ada hasil SKD
-          </label>
-          <details
-            open={
-              filters.formationType || filters.competitionLevel || filters.sort ? true : undefined
-            }
-            className="w-full sm:w-auto"
+        </details>
+        {!preview && data && filters.query && (
+          <button
+            type="button"
+            className="mt-2 inline-flex min-h-10 max-w-full items-center gap-2 text-sm text-muted-foreground hover:text-primary"
+            onClick={() => apply({ ...filters, query: undefined, page: 1 })}
+            aria-label={`Hapus pencarian ${filters.query}`}
           >
-            <summary className="cursor-pointer text-sm font-semibold text-primary">
-              Filter lanjutan
-            </summary>
-            <div className="mt-2 grid gap-2 sm:grid-cols-3">
-              <label className="grid gap-1 text-xs font-semibold">
-                Jenis formasi SKD
-                <select
-                  className={field}
-                  value={filters.formationType ?? ""}
-                  disabled={!data}
-                  onChange={(e) => apply({ ...filters, formationType: e.target.value, page: 1 })}
-                >
-                  <option value="">Semua jenis</option>
-                  {options.data?.formation_types.map(({ value }) => (
-                    <option key={value}>{value}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="grid gap-1 text-xs font-semibold">
-                Ketetatan
-                <select
-                  className={field}
-                  value={filters.competitionLevel ?? ""}
-                  disabled={!data}
-                  onChange={(e) =>
-                    apply({
-                      ...filters,
-                      competitionLevel: catalogCompetition(e.target.value),
-                      page: 1,
-                    })
-                  }
-                >
-                  <option value="">Semua tingkat</option>
-                  <option value="quiet">Sepi peminat</option>
-                  <option value="low">Rendah</option>
-                  <option value="medium">Sedang</option>
-                  <option value="high">Tinggi</option>
-                </select>
-              </label>
-              <label className="grid gap-1 text-xs font-semibold">
-                Urutkan
-                <select
-                  className={field}
-                  value={filters.sort ?? ""}
-                  disabled={!data}
-                  onChange={(e) =>
-                    apply({ ...filters, sort: catalogSort(e.target.value), page: 1 })
-                  }
-                >
-                  <option value="">Default</option>
-                  <option value="competition_desc">Ketetatan tertinggi</option>
-                  <option value="competition_asc">Ketetatan terendah</option>
-                  <option value="cutoff_desc">Batas SKD tertinggi</option>
-                  <option value="quota_desc">Kuota terbesar</option>
-                  <option value="name_asc">Jabatan A-Z</option>
-                </select>
-              </label>
-            </div>
-          </details>
-        </div>
+            <span className="truncate">{filters.query}</span>
+            <X className="size-4 shrink-0" aria-hidden />
+          </button>
+        )}
 
         <div className="my-3 flex flex-wrap items-center justify-between gap-2 text-sm">
           <p role="status" className="flex min-h-5 items-center gap-2 text-muted-foreground">
@@ -519,6 +574,15 @@ export function FormationCatalog({
             >
               Masuk untuk membuka katalog
             </Link>
+          )}
+          {!preview && data && changed && (
+            <button
+              type="button"
+              className="inline-flex min-h-10 items-center gap-1.5 font-semibold text-primary hover:underline"
+              onClick={() => apply({})}
+            >
+              <FilterX className="size-4" aria-hidden /> Reset filter
+            </button>
           )}
         </div>
         {comparison.length > 0 && !preview && (
@@ -561,47 +625,48 @@ export function FormationCatalog({
           <div
             aria-busy={refreshing}
             inert={result.isPlaceholderData}
-            className={`overflow-hidden rounded-lg border border-border bg-white ${result.isPlaceholderData ? "opacity-60" : ""}`}
+            className={result.isPlaceholderData ? "opacity-60" : undefined}
           >
             {data.formations.length ? (
-              <table className="block w-full table-fixed text-left sm:table">
-                <thead className="hidden bg-muted/50 text-xs text-muted-foreground sm:table-header-group">
-                  <tr>
-                    <th scope="col" className="w-[25%] px-3 py-3">
-                      Jabatan dan instansi
-                    </th>
-                    <th scope="col" className="w-[16%] px-3 py-3">
-                      Pendidikan
-                    </th>
-                    <th scope="col" className="w-[7%] px-2 py-3 text-right">
-                      Kuota
-                    </th>
-                    <th scope="col" className="w-[10%] px-2 py-3 text-right">
-                      Pelamar
-                    </th>
-                    <th scope="col" className="w-[10%] px-2 py-3">
-                      Ketetatan
-                    </th>
-                    <th scope="col" className="w-[14%] px-3 py-3">
-                      Kisaran gaji 2024
-                    </th>
-                    <th scope="col" className="w-[18%] px-3 py-3">
-                      Hasil SKD
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="block align-top sm:table-row-group">
+              <>
+                <ul className="border-t border-border lg:hidden" aria-label="Daftar formasi">
                   {data.formations.map((row) => (
-                    <CatalogRow
-                      key={row.id}
-                      row={row}
-                      selected={Boolean(row.skd && comparison.includes(row.skd.id))}
-                      compareFull={comparison.length >= MAX_COMPARISON_FORMATIONS}
-                      onCompare={compare}
-                    />
+                    <CatalogMobileRow key={row.id} {...rowProps(row)} />
                   ))}
-                </tbody>
-              </table>
+                </ul>
+                <table className="hidden w-full table-fixed border-y border-border text-left lg:table">
+                  <thead className="bg-muted/40 text-xs text-muted-foreground">
+                    <tr>
+                      <th scope="col" className="w-[25%] px-3 py-3">
+                        Jabatan dan instansi
+                      </th>
+                      <th scope="col" className="w-[16%] px-3 py-3">
+                        Pendidikan
+                      </th>
+                      <th scope="col" className="w-[7%] px-2 py-3 text-right">
+                        Kuota
+                      </th>
+                      <th scope="col" className="w-[10%] px-2 py-3 text-right">
+                        Lolos admin
+                      </th>
+                      <th scope="col" className="w-[10%] px-2 py-3">
+                        Ketetatan
+                      </th>
+                      <th scope="col" className="w-[14%] px-3 py-3">
+                        Kisaran gaji 2024
+                      </th>
+                      <th scope="col" className="w-[18%] px-3 py-3">
+                        Hasil SKD
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="align-top">
+                    {data.formations.map((row) => (
+                      <CatalogRow key={row.id} {...rowProps(row)} />
+                    ))}
+                  </tbody>
+                </table>
+              </>
             ) : (
               <div className="px-4 py-8 text-center text-sm text-muted-foreground">
                 <p>

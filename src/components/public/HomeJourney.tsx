@@ -1,264 +1,122 @@
-import { useEffect, useState, type ComponentType } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import {
+  ArrowLeft,
   ArrowRight,
-  BarChart3,
-  FileCheck2,
-  Files,
-  MessageCircle,
-  Pause,
-  Play,
-  Search,
-  ShieldCheck,
-  UserCheck,
+  ChartNoAxesColumnIncreasing,
+  ClipboardCheck,
+  Crosshair,
+  ListFilter,
 } from "lucide-react";
+import { Carousel, CarouselContent, CarouselItem } from "@/components/ui/carousel";
+import type { UseEmblaCarouselType } from "embla-carousel-react";
 
-type JourneyStage = {
-  eyebrow: string;
-  title: string;
-  description: string;
-  icon: ComponentType<{ className?: string }>;
-  state: string;
-};
-
-const stages: JourneyStage[] = [
-  {
-    eyebrow: "01 - Sumber",
-    title: "Cari data resmi",
-    description: "Mesin membaca hasil SKD dari PDF pengumuman instansi.",
-    icon: Files,
-    state: "Membaca sumber PDF",
-  },
-  {
-    eyebrow: "02 - Peserta",
-    title: "Cocokkan peserta",
-    description: "Nama, instansi, formasi, dan nilai diperiksa bersama.",
-    icon: UserCheck,
-    state: "Mencocokkan peserta",
-  },
-  {
-    eyebrow: "03 - Posisi",
-    title: "Baca posisi nilai",
-    description: "Nilai dibandingkan dengan distribusi dan batas historis.",
-    icon: BarChart3,
-    state: "Menghitung posisi nilai",
-  },
-  {
-    eyebrow: "04 - WhatsApp",
-    title: "Terima hasil analisis",
-    description: "Ringkasan rasionalisasi dikirim sebagai kartu WhatsApp.",
-    icon: MessageCircle,
-    state: "Menyiapkan kartu WhatsApp",
-  },
-];
+const slides = [
+  { label: "SKD lama", icon: ClipboardCheck, image: "/home-slide-skd-2024.png" },
+  { label: "Tryout", icon: ChartNoAxesColumnIncreasing, image: null },
+  { label: "Pesaing", icon: Crosshair, image: null },
+  { label: "Formasi", icon: ListFilter, image: null },
+] as const;
 
 export function HomeJourney() {
-  const [activeStage, setActiveStage] = useState(0);
-  const [paused, setPaused] = useState(false);
+  const [api, setApi] = useState<UseEmblaCarouselType[1]>();
+  const [active, setActive] = useState(0);
 
   useEffect(() => {
-    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
-    if (media.matches) setPaused(true);
-  }, []);
+    if (!api) return;
+    const sync = () => setActive(api.selectedScrollSnap());
+    sync();
+    api.on("select", sync).on("reInit", sync);
+    return () => {
+      api.off("select", sync).off("reInit", sync);
+    };
+  }, [api]);
 
-  useEffect(() => {
-    if (paused) return;
-    const timer = window.setInterval(
-      () => setActiveStage((current) => (current + 1) % stages.length),
-      2600,
-    );
-    return () => window.clearInterval(timer);
-  }, [paused]);
+  function goTo(index: number) {
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    api?.scrollTo((index + slides.length) % slides.length, reduceMotion);
+  }
 
   return (
-    <section className="home-journey" data-stage={activeStage}>
-      <div className="home-journey-top">
-        <span className="home-live-state font-mono">
-          <i />
-          {stages[activeStage].state}
-        </span>
-        <button
-          type="button"
-          className="home-motion-toggle"
-          onClick={() => setPaused((current) => !current)}
-          aria-label={paused ? "Jalankan animasi" : "Jeda animasi"}
-          title={paused ? "Jalankan animasi" : "Jeda animasi"}
-        >
-          {paused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
-        </button>
-      </div>
-
-      <div className="home-journey-canvas">
-        <svg className="home-route" viewBox="0 0 1000 350" preserveAspectRatio="none" aria-hidden>
-          <path d="M125 180 C220 115,280 245,375 180 S530 115,625 180 S780 245,875 180" />
-        </svg>
-        <span className="home-route-packet" aria-hidden />
-
-        <div className="home-journey-nodes">
-          {stages.map((stage, index) => {
-            const Icon = stage.icon;
-            return (
-              <button
-                type="button"
-                key={stage.eyebrow}
-                className={`home-journey-node ${activeStage === index ? "is-active" : ""}`}
-                onClick={() => setActiveStage(index)}
-                aria-pressed={activeStage === index}
-              >
-                <span className="home-node-head">
-                  <span className="font-mono">{stage.eyebrow}</span>
-                  <span className="home-node-icon">
-                    <Icon className="h-4 w-4" />
-                  </span>
-                </span>
-                <strong>{stage.title}</strong>
-                <small>{stage.description}</small>
-                <span className="home-node-demo">{renderDemo(index)}</span>
-              </button>
-            );
-          })}
+    <section id="cara-kerja" className="home-flow">
+      <Carousel
+        aria-label="Alur analisis SKD"
+        className="home-flow-carousel"
+        opts={{ loop: true }}
+        setApi={setApi}
+      >
+        <div className="home-flow-topics" aria-label="Topik ilustrasi" role="group">
+          {slides.map(({ label, icon: Icon }, index) => (
+            <button
+              key={label}
+              type="button"
+              aria-pressed={index === active}
+              onClick={() => goTo(index)}
+            >
+              <Icon className="size-4" aria-hidden />
+              {label}
+            </button>
+          ))}
         </div>
-      </div>
-
-      <div className="home-journey-bottom">
-        <div className="home-step-dots" aria-label="Tahap animasi">
-          {stages.map((stage, index) => (
+        <CarouselContent className="ml-0">
+          {slides.map(({ label, image }, index) => (
+            <CarouselItem
+              key={label}
+              className="home-flow-slide pl-0"
+              aria-hidden={index !== active}
+              inert={index !== active}
+              aria-label={`${index + 1} dari ${slides.length}: ${label}`}
+            >
+              <div className="home-banner" data-empty={!image}>
+                {image && (
+                  <>
+                    <img
+                      src={image}
+                      width={1754}
+                      height={897}
+                      draggable={false}
+                      alt="Nilai SKD lamamu masih bisa bersaing? Contoh nilai SKD 2024: 370 dari 550. Pakai nilai lama atau tes ulang?"
+                    />
+                    <Link
+                      to="/search"
+                      search={{ targetFormationId: undefined }}
+                      className="home-banner-link"
+                      aria-label="Cek Nilai Saya"
+                    />
+                  </>
+                )}
+              </div>
+            </CarouselItem>
+          ))}
+        </CarouselContent>
+        <div className="home-flow-controls">
+          <div className="home-flow-caption" aria-live="polite">
+            {slides[active].image && <span>Angka hanya ilustrasi</span>}
+            <span className="sr-only">{slides[active].label}</span>
+          </div>
+          <div className="home-flow-nav">
             <button
               type="button"
-              key={stage.eyebrow}
-              className={activeStage === index ? "is-active" : ""}
-              onClick={() => setActiveStage(index)}
-              aria-label={`Buka ${stage.title}`}
-            />
-          ))}
+              aria-label="Slide sebelumnya"
+              title="Slide sebelumnya"
+              onClick={() => goTo(active - 1)}
+            >
+              <ArrowLeft className="size-4" aria-hidden />
+            </button>
+            <span className="home-flow-count font-mono">
+              {active + 1} / {slides.length}
+            </span>
+            <button
+              type="button"
+              aria-label="Slide berikutnya"
+              title="Slide berikutnya"
+              onClick={() => goTo(active + 1)}
+            >
+              <ArrowRight className="size-4" aria-hidden />
+            </button>
+          </div>
         </div>
-        <div className="home-active-copy">
-          <p className="font-mono">
-            Tahap {activeStage + 1} dari {stages.length}
-          </p>
-          <strong>{stages[activeStage].title}</strong>
-          <span>
-            {activeStage === 0
-              ? "Mulai dengan nama atau nomor peserta."
-              : stages[activeStage].description}
-          </span>
-        </div>
-        <Link to="/search" className="public-primary-button home-journey-cta">
-          Mulai cek data <ArrowRight className="h-4 w-4" />
-        </Link>
-      </div>
+      </Carousel>
     </section>
-  );
-}
-
-export function HomeTrustStrip() {
-  return (
-    <section className="home-trust-strip" aria-label="Keunggulan AnalisaCPNS">
-      <TrustItem
-        icon={FileCheck2}
-        title="Sumber dapat diperiksa"
-        description="Terhubung ke PDF dan halaman asli."
-      />
-      <TrustItem
-        icon={ShieldCheck}
-        title="Nilai tidak berdiri sendiri"
-        description="Dibaca dalam konteks persaingan."
-      />
-      <TrustItem
-        icon={MessageCircle}
-        title="Hasil ringkas di WhatsApp"
-        description="Satu kartu analisis yang mudah disimpan."
-      />
-    </section>
-  );
-}
-
-function TrustItem({
-  icon: Icon,
-  title,
-  description,
-}: {
-  icon: ComponentType<{ className?: string }>;
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="home-trust-item">
-      <span>
-        <Icon className="h-4 w-4" />
-      </span>
-      <div>
-        <strong>{title}</strong>
-        <small>{description}</small>
-      </div>
-    </div>
-  );
-}
-
-function renderDemo(index: number) {
-  if (index === 0) {
-    return (
-      <span className="home-pdf-demo">
-        <i />
-        <i />
-        <i />
-        <b>
-          <Search className="h-3 w-3" /> Fadila Bijaksana
-        </b>
-      </span>
-    );
-  }
-  if (index === 1) {
-    return (
-      <span className="home-person-demo">
-        <b>
-          <i>FB</i>
-          <span>
-            FAD*** BIJ******<small>Kejaksaan RI</small>
-          </span>
-        </b>
-        <span className="home-score-demo">
-          <i>
-            TWK<strong>85</strong>
-          </i>
-          <i>
-            TIU<strong>120</strong>
-          </i>
-          <i>
-            TKP<strong>207</strong>
-          </i>
-        </span>
-      </span>
-    );
-  }
-  if (index === 2) {
-    return (
-      <span className="home-rank-demo">
-        <b>
-          {[18, 31, 50, 78, 94, 72, 46].map((height, item) => (
-            <i key={item} style={{ height: `${height}%` }} />
-          ))}
-        </b>
-        <span className="home-rank-marker" />
-        <small className="font-mono">
-          <span>NILAI 412</span>
-          <span>BATAS 420</span>
-        </small>
-      </span>
-    );
-  }
-  return (
-    <span className="home-phone-demo">
-      <small>
-        <i />
-        AnalisaCPNS
-      </small>
-      <span>CEK RSKD-MCCNWWT4</span>
-      <b>
-        <small>POSISI SKD</small>
-        <strong>412</strong>
-        <small>Target siap dibandingkan</small>
-      </b>
-    </span>
   );
 }

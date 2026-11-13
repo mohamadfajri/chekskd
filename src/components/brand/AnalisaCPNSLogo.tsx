@@ -6,6 +6,7 @@ export type AnalisaCPNSLogoProps = {
   size?: number | string;
   className?: string;
   showEndorsement?: boolean;
+  bareMark?: boolean;
 };
 
 const palette = {
@@ -15,18 +16,20 @@ const palette = {
   white: "#FFFFFF",
 };
 
-function LogoMark({ onDark = false }: { onDark?: boolean }) {
+function LogoMark({ onDark = false, bare = false }: { onDark?: boolean; bare?: boolean }) {
   return (
     <g>
-      <rect
-        x={onDark ? 0.5 : 0}
-        y={onDark ? 0.5 : 0}
-        width={onDark ? 47 : 48}
-        height={onDark ? 47 : 48}
-        rx={onDark ? 12.5 : 13}
-        fill={palette.ink}
-        stroke={onDark ? "#24415F" : "none"}
-      />
+      {!bare && (
+        <rect
+          x={onDark ? 0.5 : 0}
+          y={onDark ? 0.5 : 0}
+          width={onDark ? 47 : 48}
+          height={onDark ? 47 : 48}
+          rx={onDark ? 12.5 : 13}
+          fill={palette.ink}
+          stroke={onDark ? "#24415F" : "none"}
+        />
+      )}
       <path
         d="M10.5 37 22.4 11.8c.65-1.38 2.61-1.38 3.26 0L37.5 37"
         fill="none"
@@ -35,22 +38,24 @@ function LogoMark({ onDark = false }: { onDark?: boolean }) {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <path
-        d="M25.15 12.7 37.5 37"
-        fill="none"
-        stroke={palette.royal}
-        strokeWidth="5.6"
-        strokeLinecap="round"
-      />
+      {!bare && (
+        <path
+          d="M25.15 12.7 37.5 37"
+          fill="none"
+          stroke={palette.royal}
+          strokeWidth="5.6"
+          strokeLinecap="round"
+        />
+      )}
       <path
         d="m15.8 30.2 6.1-4.1 5.2 2.25 5.15-6.2"
         fill="none"
-        stroke={palette.signal}
+        stroke={bare ? "#32B6FF" : palette.signal}
         strokeWidth="3.15"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <circle cx="32.25" cy="22.15" r="2.65" fill={palette.signal} />
+      {!bare && <circle cx="32.25" cy="22.15" r="2.65" fill={palette.signal} />}
     </g>
   );
 }
@@ -61,6 +66,7 @@ export function AnalisaCPNSLogo({
   size = 40,
   className,
   showEndorsement = true,
+  bareMark = false,
 }: AnalisaCPNSLogoProps) {
   const titleId = useId();
   const height = typeof size === "number" ? `${size}px` : size;
@@ -83,7 +89,10 @@ export function AnalisaCPNSLogo({
       style={{ width: "auto", height, aspectRatio, overflow: "visible" }}
     >
       <title id={titleId}>AnalisaCPNS</title>
-      {variant !== "wordmark" && <LogoMark onDark={theme === "dark"} />}
+      {variant !== "wordmark" && <LogoMark onDark={theme === "dark"} bare={bareMark} />}
+      {bareMark && variant === "full" && (
+        <path d="M49 7V42" stroke={palette.white} strokeWidth="1.25" aria-hidden="true" />
+      )}
       {variant !== "icon" && (
         <text
           x={variant === "full" ? 60 : 0}
@@ -94,7 +103,10 @@ export function AnalisaCPNSLogo({
           fontWeight="760"
           letterSpacing="0"
         >
-          Analisa<tspan fill={emphasisColor}>CPNS</tspan>
+          Analisa
+          <tspan fill={emphasisColor} style={{ fill: `var(--brand-emphasis, ${emphasisColor})` }}>
+            CPNS
+          </tspan>
         </text>
       )}
       {hasEndorsement && (
@@ -102,22 +114,24 @@ export function AnalisaCPNSLogo({
           <text
             x={variant === "full" ? 60.5 : 0.5}
             y="42.4"
-            fill={endorsementColor}
+            fill={bareMark ? palette.white : endorsementColor}
             fontFamily="'Manrope', 'Segoe UI', sans-serif"
-            fontSize="8.8"
+            fontSize={bareMark ? "12" : "8.8"}
             fontWeight="600"
           >
             by
           </text>
           <text
-            x={variant === "full" ? 73 : 12.5}
+            x={variant === "full" ? (bareMark ? 80 : 73) : bareMark ? 20 : 12.5}
             y="42.4"
             fontFamily="'Manrope', 'Segoe UI', sans-serif"
-            fontSize="8.8"
+            fontSize={bareMark ? "12" : "8.8"}
             fontWeight="750"
           >
-            <tspan fill="#9EDCFF">Mimin</tspan>
-            <tspan fill="#D8DCFF"> CPNS</tspan>
+            <tspan fill={bareMark ? "#32B6FF" : "#9EDCFF"}>
+              {bareMark ? "MiminCPNS" : "Mimin"}
+            </tspan>
+            {!bareMark && <tspan fill="#D8DCFF"> CPNS</tspan>}
           </text>
         </>
       )}
