@@ -3,6 +3,7 @@ import { useMutation } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import {
   AlertCircle,
+  ArrowUpRight,
   ChevronDown,
   ChevronUp,
   FileSearch,
@@ -17,13 +18,7 @@ import { searchSkdScores } from "@/services/skdService";
 
 type SearchMode = "name" | "participant";
 
-export function SkdSearchTool({
-  compact = false,
-  targetFormationId,
-}: {
-  compact?: boolean;
-  targetFormationId?: string;
-}) {
+export function SkdSearchTool({ targetFormationId }: { targetFormationId?: string }) {
   const [mode, setMode] = useState<SearchMode>("name");
   const [nama, setNama] = useState("");
   const [noPeserta, setNoPeserta] = useState("");
@@ -32,7 +27,13 @@ export function SkdSearchTool({
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const mutation = useMutation({
-    mutationFn: () => searchSkdScores({ nama, no_peserta: noPeserta, instansi, formasi }),
+    mutationFn: () =>
+      searchSkdScores({
+        nama: mode === "name" ? nama : "",
+        no_peserta: mode === "participant" ? noPeserta : undefined,
+        instansi,
+        formasi,
+      }),
   });
 
   const canSearch =
@@ -51,7 +52,7 @@ export function SkdSearchTool({
 
   function onSubmit(event: React.FormEvent) {
     event.preventDefault();
-    if (canSearch) mutation.mutate();
+    if (canSearch && !mutation.isPending) mutation.mutate();
   }
 
   return (
@@ -68,12 +69,9 @@ export function SkdSearchTool({
         </div>
       )}
 
-      <form
-        onSubmit={onSubmit}
-        className="skd-search-form border-y border-border bg-white py-5 sm:py-6"
-      >
+      <form onSubmit={onSubmit} className="skd-search-form border-y border-border py-4 sm:py-5">
         <div className="flex flex-col gap-4">
-          <div className="flex w-fit rounded-lg border border-border bg-muted p-1" role="tablist">
+          <div className="flex flex-wrap gap-x-4 gap-y-1" role="group" aria-label="Jenis pencarian">
             <ModeButton active={mode === "name"} onClick={() => changeMode("name")}>
               Nama peserta
             </ModeButton>
@@ -85,7 +83,7 @@ export function SkdSearchTool({
           <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
             <label className="block min-w-0">
               <span className="mb-1.5 block text-xs font-semibold text-foreground">
-                {mode === "name" ? "Cari nama pada data SKD" : "Masukkan nomor peserta"}
+                {mode === "name" ? "Nama lengkap atau sebagian" : "Nomor peserta"}
               </span>
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -94,9 +92,8 @@ export function SkdSearchTool({
                   onChange={(event) =>
                     mode === "name" ? setNama(event.target.value) : setNoPeserta(event.target.value)
                   }
-                  placeholder={
-                    mode === "name" ? "Contoh: Fadila Bijaksana" : "Masukkan minimal 6 angka"
-                  }
+                  placeholder={mode === "name" ? "Nama peserta" : "Masukkan minimal 6 angka"}
+                  inputMode={mode === "participant" ? "numeric" : undefined}
                   autoComplete="off"
                   className="h-12 w-full rounded-lg border border-input bg-white pl-10 pr-4 text-sm font-medium text-foreground shadow-sm transition placeholder:font-normal placeholder:text-[#8292a5] focus:border-primary"
                 />
@@ -112,7 +109,7 @@ export function SkdSearchTool({
               ) : (
                 <Search className="h-4 w-4" />
               )}
-              Cari data SKD
+              {mutation.isPending ? "Mencari..." : "Cari data SKD"}
             </button>
           </div>
 
@@ -124,7 +121,7 @@ export function SkdSearchTool({
               className="inline-flex items-center gap-2 rounded-md py-1 text-xs font-semibold text-muted-foreground transition hover:text-foreground"
             >
               <SlidersHorizontal className="h-3.5 w-3.5" />
-              Persempit dengan instansi atau formasi
+              Filter instansi atau formasi
               {filtersOpen ? (
                 <ChevronUp className="h-3.5 w-3.5" />
               ) : (
@@ -149,15 +146,10 @@ export function SkdSearchTool({
               </div>
             )}
           </div>
-
-          <p className="text-xs text-muted-foreground">
-            Data historis SKD 2024 dari pengumuman instansi. Nama dapat dicari sebagian, minimal{" "}
-            {MIN_NAME_SEARCH_LENGTH} karakter.
-          </p>
         </div>
       </form>
 
-      <div aria-live="polite" className={compact ? "mt-6" : "mt-8"}>
+      <div aria-live="polite" aria-busy={mutation.isPending} className="mt-6">
         {mutation.isError && (
           <div className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-[#8f3039]">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -181,30 +173,63 @@ export function SkdSearchTool({
 
         {results.length > 0 && (
           <section aria-labelledby="search-result-title">
-            <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-              <div>
-                <p className="font-mono text-[10px] font-semibold uppercase text-primary">
-                  Hasil pencarian
-                </p>
-                <h2 id="search-result-title" className="mt-1 text-lg font-bold">
-                  {results.length} data cocok
-                </h2>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Pilih data yang benar-benar milik Anda.
-              </p>
+            <h2 id="search-result-title" className="mb-3 text-base font-bold">
+              {results.length} hasil pencarian
+            </h2>
+            <div className="hidden rounded-lg border border-border bg-white md:block">
+              <table className="w-full table-fixed text-left" aria-labelledby="search-result-title">
+                <thead className="border-b border-border bg-muted/60 text-xs text-muted-foreground">
+                  <tr>
+                    <th scope="col" className="w-[26%] px-3 py-3">
+                      Peserta
+                    </th>
+                    <th scope="col" className="px-3 py-3">
+                      Formasi dan instansi
+                    </th>
+                    {scoreFields.map(({ label }) => (
+                      <th scope="col" key={label} className="w-[7%] px-1 py-3 text-center">
+                        {label}
+                      </th>
+                    ))}
+                    <th scope="col" className="w-[132px] px-2 py-3">
+                      <span className="sr-only">Pilih peserta</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {results.map((result) => (
+                    <tr key={result.id} className="hover:bg-muted/30">
+                      <th scope="row" className="px-3 py-3 align-middle">
+                        <Participant result={result} />
+                      </th>
+                      <td className="px-3 py-3">
+                        <Formation result={result} />
+                      </td>
+                      {scoreFields.map(({ field, label }) => (
+                        <td
+                          key={field}
+                          className={`px-1 py-3 text-center font-mono text-sm ${label === "Total" ? "font-bold text-primary" : ""}`}
+                        >
+                          {result[field] ?? "-"}
+                        </td>
+                      ))}
+                      <td className="px-2 py-3 text-right">
+                        <SelectResult result={result} targetFormationId={targetFormationId} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-
-            <div className="overflow-hidden rounded-lg border border-border bg-white">
-              {results.map((result, index) => (
+            <ul className="divide-y divide-border border-y border-border md:hidden">
+              {results.map((result) => (
                 <SearchResultRow
                   key={result.id}
                   result={result}
-                  first={index === 0}
                   targetFormationId={targetFormationId}
                 />
               ))}
-            </div>
+            </ul>
           </section>
         )}
       </div>
@@ -224,13 +249,12 @@ function ModeButton({
   return (
     <button
       type="button"
-      role="tab"
-      aria-selected={active}
+      aria-pressed={active}
       onClick={onClick}
-      className={`h-8 rounded-md px-3 text-xs font-semibold transition ${
+      className={`min-h-9 border-b-2 px-1 text-xs font-semibold transition ${
         active
-          ? "bg-white text-foreground shadow-sm"
-          : "text-muted-foreground hover:text-foreground"
+          ? "border-primary text-primary"
+          : "border-transparent text-muted-foreground hover:text-foreground"
       }`}
     >
       {children}
@@ -262,68 +286,93 @@ function FilterField({
   );
 }
 
-function SearchResultRow({
-  result,
-  first,
-  targetFormationId,
-}: {
-  result: Awaited<ReturnType<typeof searchSkdScores>>[number];
-  first: boolean;
-  targetFormationId?: string;
-}) {
+type SearchResult = Awaited<ReturnType<typeof searchSkdScores>>[number];
+
+const scoreFields = [
+  { field: "twk", label: "TWK" },
+  { field: "tiu", label: "TIU" },
+  { field: "tkp", label: "TKP" },
+  { field: "total", label: "Total" },
+] as const;
+
+function Participant({ result }: { result: SearchResult }) {
+  return (
+    <>
+      <span className="block text-sm font-bold [overflow-wrap:anywhere]">{result.nama}</span>
+      <span className="mt-1 block font-mono text-xs font-normal text-muted-foreground">
+        {maskNoPeserta(result.no_peserta)}
+        {result.source_page != null && ` · hal. ${result.source_page}`}
+      </span>
+    </>
+  );
+}
+
+function Formation({ result }: { result: SearchResult }) {
   const formation = result.skd_formations;
 
   return (
-    <article className={`${first ? "" : "border-t border-border"} p-4 sm:p-5`}>
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px_auto] lg:items-center">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-sm font-bold sm:text-base">{result.nama}</h3>
-            <span className="rounded-sm bg-muted px-2 py-1 font-mono text-[9px] font-semibold text-muted-foreground">
-              DATA {result.tahun_skd ?? 2024}
-            </span>
-          </div>
-          <p className="mt-1 font-mono text-[11px] text-muted-foreground">
-            {maskNoPeserta(result.no_peserta)} · halaman {result.source_page ?? "-"}
-          </p>
-          <p className="mt-3 text-sm font-semibold text-foreground">
-            {formation?.jabatan ?? "Formasi belum teridentifikasi"}
-          </p>
-          <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
-            {formation?.nama_instansi ?? "Instansi belum teridentifikasi"}
-          </p>
-        </div>
+    <>
+      <span className="block text-sm font-semibold [overflow-wrap:anywhere]">
+        {formation?.jabatan ?? "Formasi belum teridentifikasi"}
+      </span>
+      <span className="mt-1 block text-xs text-muted-foreground [overflow-wrap:anywhere]">
+        {formation?.nama_instansi ?? "Instansi belum teridentifikasi"}
+      </span>
+    </>
+  );
+}
 
-        <div className="grid grid-cols-4 overflow-hidden rounded-lg border border-border bg-muted/60">
-          {[
-            ["TWK", result.twk],
-            ["TIU", result.tiu],
-            ["TKP", result.tkp],
-            ["Total", result.total],
-          ].map(([label, value], index) => (
-            <div
-              key={String(label)}
-              className={`${index ? "border-l border-border" : ""} px-2 py-2.5 text-center`}
-            >
-              <p className="text-[9px] font-semibold uppercase text-muted-foreground">{label}</p>
-              <p
-                className={`mt-0.5 font-mono text-sm font-semibold ${index === 3 ? "text-primary" : ""}`}
-              >
-                {value ?? "-"}
-              </p>
-            </div>
-          ))}
-        </div>
+function SelectResult({
+  result,
+  targetFormationId,
+}: {
+  result: SearchResult;
+  targetFormationId?: string;
+}) {
+  return (
+    <Link
+      to="/result/$scoreId"
+      params={{ scoreId: result.id }}
+      search={{ targetFormationId }}
+      aria-label={`Ini data saya: ${result.nama}`}
+      className="inline-flex min-h-11 items-center justify-center gap-1 rounded-lg border border-primary/25 px-2 text-xs font-bold text-primary transition hover:border-primary/50 hover:bg-primary/5 md:min-h-9"
+    >
+      Ini data saya
+      <ArrowUpRight className="size-3.5 shrink-0" aria-hidden />
+    </Link>
+  );
+}
 
-        <Link
-          to="/result/$scoreId"
-          params={{ scoreId: result.id }}
-          search={{ targetFormationId }}
-          className="search-result-select inline-flex h-10 shrink-0 items-center justify-center rounded-lg bg-primary px-4 text-xs font-bold text-white transition"
-        >
-          Ini data saya
-        </Link>
+function SearchResultRow({
+  result,
+  targetFormationId,
+}: {
+  result: SearchResult;
+  targetFormationId?: string;
+}) {
+  return (
+    <li className="grid gap-3 py-4">
+      <div>
+        <Participant result={result} />
       </div>
-    </article>
+      <div>
+        <Formation result={result} />
+      </div>
+      <dl className="grid grid-cols-4 divide-x divide-border rounded-lg bg-muted/60 py-2 text-center">
+        {scoreFields.map(({ field, label }) => (
+          <div key={field}>
+            <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
+            <dd
+              className={`mt-1 font-mono text-sm font-semibold ${field === "total" ? "text-primary" : ""}`}
+            >
+              {result[field] ?? "-"}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      <div>
+        <SelectResult result={result} targetFormationId={targetFormationId} />
+      </div>
+    </li>
   );
 }

@@ -5,6 +5,7 @@ import { Calculator, Search } from "lucide-react";
 import { SiteFooter, SiteHeader } from "@/components/SiteHeader";
 import { LoginGate } from "@/components/public/LoginGate";
 import { SkdCoverageNote } from "@/components/public/SkdCoverageNote";
+import { SkdModeNav } from "@/components/public/SkdModeNav";
 import { cleanFormationId } from "@/lib/formationSelection";
 import {
   MANUAL_SKD_FIELDS,
@@ -52,27 +53,8 @@ function ManualSkdPage() {
   return (
     <div className="public-page min-h-screen bg-background">
       <SiteHeader />
-      <main className="public-workspace">
-        <nav
-          aria-label="Sumber nilai"
-          className="flex gap-4 border-b border-border text-sm font-semibold"
-        >
-          <Link
-            to="/search"
-            search={{ targetFormationId }}
-            className="py-3 text-muted-foreground hover:text-primary"
-          >
-            Cari nilai saya
-          </Link>
-          <Link
-            to="/simulasi-skd"
-            search={{ targetFormationId }}
-            aria-current="page"
-            className="border-b-2 border-primary py-3 text-primary"
-          >
-            Masukkan nilai sendiri
-          </Link>
-        </nav>
+      <main className="public-workspace skd-value-workspace">
+        <SkdModeNav mode="manual" targetFormationId={targetFormationId} />
         <header className="my-6">
           <p className="public-kicker font-mono">CPNS 2024 · FORMASI UMUM</p>
           <h1 className="mt-2 text-3xl font-bold">Simulasi nilai SKD</h1>
