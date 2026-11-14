@@ -249,29 +249,14 @@ export function buildRationalizationCaption(snapshot: RationalizationSnapshot): 
   if (recommendations.length) {
     const priority = snapshot.score_profile?.priority_subtest;
     return [
-      `Hasil rasionalisasi SKD ${snapshot.participant.name} sudah siap.`,
+      `Rasionalisasi SKD ${snapshot.dataset_year}`,
       `${snapshot.verdict.label} | Total ${snapshot.participant.total ?? "-"}`,
-      priority
-        ? `Prioritas latihan: ${priority}, berdasarkan posisi relatif subtes terhadap peserta lolos PG.`
-        : null,
-      ...recommendations.map((item, index) => {
+      priority ? `Prioritas latihan: ${priority}.` : null,
+      ...recommendations.slice(0, 3).map((item, index) => {
         const relation = item.is_mode_fallback ? " | lintas jabatan" : "";
-        const pool = item.eligible_pool ?? item.passing_grade;
-        const targetScore = item.recommended_total ?? item.cutoff.total;
-        const needed = item.score_needed_to_recommended_total;
-        const targetText =
-          targetScore === null
-            ? "target nilai -"
-            : needed && needed > 0
-              ? `target ${targetScore} (+${needed})`
-              : `target ${targetScore} (sudah terlampaui)`;
-        const recommendationScore = item.recommendation_score
-          ? ` | skor kecocokan ${item.recommendation_score}/100`
-          : "";
-        return `${index + 1}. ${item.strategy ?? item.verdict.label}: ${item.position} - ${item.institution} | posisi ${item.simulated_rank ?? "-"}/${pool} peserta lolos PG | ${targetText} | ${item.confidence?.label ?? "Data terbatas"}${recommendationScore}${relation}`;
+        return `${index + 1}. ${item.strategy ?? item.verdict.label}: ${shortName(item.position)} - ${shortName(item.institution)}${relation}\n${formationReason(item, snapshot.dataset_year)}`;
       }),
-      snapshot.recommendation_summary?.scope_note ?? null,
-      `Model ${snapshot.methodology?.model ?? `historis-v${snapshot.version}`}; tidak memakai hasil akhir SKB dan bukan jaminan seleksi berikutnya.`,
+      "Acuan SKD historis, bukan prediksi kelulusan.",
     ]
       .filter(Boolean)
       .join("\n");
@@ -282,6 +267,7 @@ export function buildRationalizationCaption(snapshot: RationalizationSnapshot): 
     `${snapshot.verdict.label} | Total ${snapshot.participant.total ?? "-"}`,
     rank ? `Posisi historis ${rank} dari ${attended} peserta hadir.` : null,
     target ? `Target: ${target.position} - ${target.institution}` : null,
+    target ? `Kenapa formasi ini? ${formationReason(target, snapshot.dataset_year)}` : null,
     target
       ? `${target.verdict.label} | Posisi simulasi ${targetRank ?? "-"}/${target.attended} | Selisih ${
           targetGap === null ? "-" : targetGap > 0 ? `+${targetGap}` : targetGap
@@ -292,6 +278,30 @@ export function buildRationalizationCaption(snapshot: RationalizationSnapshot): 
     .filter(Boolean)
     .join("\n");
 }
+
+function shortName(value: string) {
+  return value.length > 46 ? `${value.slice(0, 43)}...` : value;
+}
+
+export function formationReason(item: RationalizationTargetSimulation, year: number): string {
+  const gap = item.score_gap_to_shortlist_cutoff;
+  const comparison =
+    gap == null
+      ? `Skor pembanding lanjut SKB ${year} belum tersedia.`
+      : gap === 0
+        ? `Total sama dengan skor terakhir lanjut SKB ${year}; urutan subtes bisa membedakan posisi.`
+        : `${Math.abs(gap)} poin di ${gap > 0 ? "atas" : "bawah"} skor terakhir lanjut SKB ${year}.`;
+  return `Pendidikan cocok. ${comparison} ${item.attended} peserta hadir untuk ${item.quota} kuota.`;
+}
+
+export type SkdRationalizationPreview = Pick<
+  RationalizationSnapshot,
+  | "dataset_year"
+  | "verdict"
+  | "target_simulation"
+  | "target_recommendations"
+  | "recommendation_summary"
+>;
 
 export function rationalizationMarketingSegment(snapshot: RationalizationSnapshot): string {
   if (snapshot.verdict.code === "ineligible") return "needs_passing_grade";

@@ -80,3 +80,16 @@ export async function searchRationalizationTargets(
   }
   return body.items ?? [];
 }
+import type { SkdRationalizationPreview } from "@/lib/rationalization";
+
+export async function previewSkdRationalization(input: CreateSessionInput) {
+  const response = await fetch("/api/result-session", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ action: "preview", ...input }),
+  });
+  const data = await response.json().catch(() => null);
+  if (response.status === 401) throw new Error("AUTH_REQUIRED");
+  if (!response.ok || !data?.snapshot) throw new Error(data?.message ?? "Analisis belum tersedia.");
+  return data.snapshot as SkdRationalizationPreview;
+}

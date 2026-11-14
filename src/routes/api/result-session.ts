@@ -13,6 +13,7 @@ import {
   useSumopodSkdReads as readsSkdFromSumopod,
 } from "@/server/skdPreview";
 import { createSkdPreviewSession } from "@/server/skdPreviewSession";
+import { readSkdRationalization } from "@/server/skdRationalization";
 import {
   readSumopodSkdSessionSource,
   readSupabaseSkdSessionSource,
@@ -33,6 +34,7 @@ interface LeadInput {
 }
 
 interface CreateBody {
+  action?: "preview";
   score_id?: string;
   lead?: LeadInput;
 }
@@ -76,6 +78,7 @@ export const Route = createFileRoute("/api/result-session")({
         }
 
         const body = (await request.json().catch(() => null)) as CreateBody | null;
+        const preview = body?.action === "preview";
         const scoreId = cleanUuid(body?.score_id);
         const leadInput = body?.lead;
         const targetTahun = clean(leadInput?.target_tahun, 30) || "2026";
@@ -114,7 +117,7 @@ export const Route = createFileRoute("/api/result-session")({
           );
         }
 
-        if (!scoreId || leadInput?.consent_whatsapp !== true) {
+        if (!scoreId || (!preview && leadInput?.consent_whatsapp !== true)) {
           return jsonResponse(
             { message: "Data form belum lengkap atau persetujuan hasil belum diberikan." },
             400,
@@ -126,7 +129,7 @@ export const Route = createFileRoute("/api/result-session")({
         try {
           // Local parity testing still compares SumoPod results against the original score.
           source =
-            readsSkdFromSumopod(request) && !localPreview
+            readsSkdFromSumopod(request) && (preview || !localPreview)
               ? await readSumopodSkdSessionSource(scoreId, targetFormationId)
               : await readSupabaseSkdSessionSource(sb, scoreId, targetFormationId);
         } catch (error) {
@@ -151,6 +154,38 @@ export const Route = createFileRoute("/api/result-session")({
         }
         const { score, formation, target: targetFormation } = source;
         const namaPanggilan = clean(leadInput?.nama_panggilan, 80) || "Peserta";
+
+        if (preview) {
+          try {
+            const snapshot = await readSkdRationalization(
+              sb,
+              request,
+              score.id,
+              analysisGoal,
+              preferenceFlags,
+              targetFormationId,
+            );
+            if (!snapshot) return jsonResponse({ message: "Pembanding SKD belum tersedia." }, 422);
+            const {
+              dataset_year,
+              verdict,
+              target_simulation,
+              target_recommendations,
+              recommendation_summary,
+            } = snapshot;
+            return jsonResponse({
+              snapshot: {
+                dataset_year,
+                verdict,
+                target_simulation,
+                target_recommendations,
+                recommendation_summary,
+              },
+            });
+          } catch {
+            return jsonResponse({ message: "Analisis belum dapat dihitung. Coba lagi." }, 503);
+          }
+        }
 
         if (localPreview) {
           try {
@@ -198,6 +233,34 @@ export const Route = createFileRoute("/api/result-session")({
           }
         }
 
+        const useQueue = asyncRationalizationEnabled();
+        let readySnapshot;
+        if (!useQueue) {
+          try {
+            const result = await readSkdRationalization(
+              sb,
+              request,
+              score.id,
+              analysisGoal,
+              preferenceFlags,
+              targetFormationId,
+            );
+            if (!result) return jsonResponse({ message: "Pembanding SKD belum tersedia." }, 422);
+            readySnapshot = {
+              ...result,
+              request: {
+                nickname: namaPanggilan,
+                target_year: targetTahun,
+                target_institution: targetFormation?.nama_instansi ?? null,
+                target_formation: targetFormation?.jabatan ?? null,
+                plan: rencana,
+              },
+            };
+          } catch {
+            return jsonResponse({ message: "Analisis belum dapat dihitung. Coba lagi." }, 503);
+          }
+        }
+
         const { data: lead, error: leadError } = await sb
           .from("leads")
           .insert({
@@ -235,7 +298,6 @@ export const Route = createFileRoute("/api/result-session")({
             (analysisGoal === "related" ? "Bidang sejenis" : "Peluang terbesar"),
           rencana,
         };
-        const useQueue = asyncRationalizationEnabled();
         const legacyAnalysis = useQueue ? null : buildAnalysisText(context);
         const snapshot = useQueue ? {} : buildAnalysisSnapshot(context);
 
@@ -268,6 +330,7 @@ export const Route = createFileRoute("/api/result-session")({
               legacyAnalysis?.text ??
               "Rasionalisasi akan diproses setelah kode dikirim melalui WhatsApp.",
             analysis_snapshot: snapshot,
+            ...(readySnapshot ? { rationalization_snapshot: readySnapshot } : {}),
             status: useQueue ? "waiting" : "ready",
             ready_at: useQueue ? null : new Date().toISOString(),
             expired_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),

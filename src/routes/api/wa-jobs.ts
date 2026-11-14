@@ -6,7 +6,8 @@ import {
 } from "@/lib/rationalization";
 import { getServerSupabase, jsonResponse } from "@/lib/supabase/server";
 import { getSscasnContext } from "@/server/sscasn";
-import { getPreviewRationalization, useSumopodSkdReads } from "@/server/skdPreview";
+import { useSumopodSkdReads as readsSkdFromSumopod } from "@/server/skdPreview";
+import { readSkdRationalization } from "@/server/skdRationalization";
 
 interface WorkerRequest {
   action?: "process_next" | "mark_delivered";
@@ -133,28 +134,25 @@ export const Route = createFileRoute("/api/wa-jobs")({
               .maybeSingle()
           : { data: null };
 
-        const sumopod = useSumopodSkdReads(request);
+        const sumopod = readsSkdFromSumopod(request);
         const targetId = lead?.target_formation_id ?? null;
-        const goal = lead?.analysis_goal === "opportunity"
-          ? "opportunity"
-          : lead?.analysis_goal === "target" && targetId ? "target" : "related";
+        const goal =
+          lead?.analysis_goal === "opportunity"
+            ? "opportunity"
+            : lead?.analysis_goal === "target" && targetId
+              ? "target"
+              : "related";
         const flags = Array.isArray(lead?.preference_flags) ? lead.preference_flags : [];
-        const { data: rationalization, error: rationalizationError } = sumopod
-          ? await getPreviewRationalization(job.score_id, goal, flags, targetId)
-              .then((data) => ({ data, error: null }))
-              .catch(() => ({ data: null, error: { message: "sumopod_rationalization_unavailable" } }))
-          : await sb.rpc("get_skd_rationalization_v6", {
-              p_score_id: job.score_id,
-              p_analysis_goal: goal,
-              p_preference_flags: flags,
-              p_preferred_target_formation_id: targetId,
-            });
-        if (rationalizationError || !rationalization) {
-          await failJob(
-            sb,
-            job.job_id,
-            rationalizationError?.message ?? "rationalization_not_found",
-          );
+        const rationalization = await readSkdRationalization(
+          sb,
+          request,
+          job.score_id,
+          goal,
+          flags,
+          targetId,
+        ).catch(() => null);
+        if (!rationalization) {
+          await failJob(sb, job.job_id, "rationalization_unavailable");
           return jsonResponse(
             { success: false, message: "Rasionalisasi target belum dapat dihitung." },
             500,

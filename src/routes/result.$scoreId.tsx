@@ -9,11 +9,13 @@ import { cleanFormationId } from "@/lib/formationSelection";
 import type { SkdScoreWithFormation } from "@/lib/supabase/types";
 import {
   createLeadAndSession,
+  previewSkdRationalization,
   searchRationalizationTargets,
   type AnalysisGoal,
   type LeadFormInput,
   type RationalizationTargetOption,
 } from "@/services/leadService";
+import { formationReason, type SkdRationalizationPreview } from "@/lib/rationalization";
 import { getPublicFormationDetail, type PublicFormationDetail } from "@/services/formationService";
 import { getCurrentAccount } from "@/services/authService";
 import { getSkdScoreById } from "@/services/skdService";
@@ -33,6 +35,21 @@ export const Route = createFileRoute("/result/$scoreId")({
   }),
   component: ResultPage,
 });
+
+const analysisGoals = [
+  [
+    "opportunity",
+    "Cari peluang terbaik",
+    "Utamakan posisi historis terbaik dari formasi yang sesuai pendidikan.",
+  ],
+  ["related", "Cari jabatan sejenis", "Utamakan jabatan yang sama atau satu rumpun."],
+  ["target", "Cek target saya", "Analisis formasi incaran dan tampilkan alternatif bila tersedia."],
+] as const;
+
+const analysisPriorities = [
+  ["low_competition", "Persaingan lebih rendah"],
+  ["large_quota", "Kuota lebih besar"],
+] as const;
 
 function ResultPage() {
   const { scoreId } = Route.useParams();
@@ -94,6 +111,14 @@ function ResultPage() {
         return;
       }
       toast.error(`Kode belum berhasil dibuat: ${error.message}`);
+    },
+  });
+  const preview = useMutation({
+    mutationFn: () => previewSkdRationalization({ score_id: scoreId, lead: form }),
+    onError: (error) => {
+      if (error.message === "AUTH_REQUIRED") {
+        window.location.assign(`/login?next=${encodeURIComponent(returnTo)}`);
+      }
     },
   });
 
@@ -183,7 +208,7 @@ function ResultPage() {
 
   function onSubmit(event: React.FormEvent) {
     event.preventDefault();
-    if (createMutation.isPending) return;
+    if (createMutation.isPending || preview.isPending) return;
     if (!form.consent_whatsapp) {
       toast.error("Setujui pengiriman hasil melalui WhatsApp terlebih dahulu.");
       return;
@@ -196,6 +221,7 @@ function ResultPage() {
   }
 
   function chooseAnalysisGoal(goal: AnalysisGoal) {
+    preview.reset();
     preferredTargetHandled.current = true;
     if (goal !== "target") clearTarget();
     setForm((current) => ({
@@ -205,6 +231,7 @@ function ResultPage() {
   }
 
   function chooseTarget(target: RationalizationTargetOption) {
+    preview.reset();
     setSelectedTarget(target);
     setTargetSearch(`${target.institution} - ${target.position}`);
     setForm((current) => ({
@@ -217,6 +244,7 @@ function ResultPage() {
   }
 
   function clearTarget() {
+    preview.reset();
     setSelectedTarget(null);
     setTargetSearch("");
     setPreferredTargetMessage(null);
@@ -296,7 +324,7 @@ function ResultPage() {
             search={{ targetFormationId, scoreId, sumber: "skd" }}
             className="inline-flex min-h-10 items-center font-semibold text-primary hover:underline"
           >
-            Bandingkan nilai ini di web
+            Simulasi nilai manual
           </Link>
         </details>
       </section>
@@ -318,16 +346,10 @@ function ResultPage() {
         </p>
       ) : accountQuery.data ? (
         <form onSubmit={onSubmit} className="mt-4 space-y-3">
-          <fieldset disabled={createMutation.isPending}>
+          <fieldset disabled={createMutation.isPending || preview.isPending}>
             <legend className="mb-2 text-sm font-bold">Apa yang ingin kamu cari?</legend>
             <div className="grid grid-cols-3 gap-1 rounded-lg border border-border bg-muted/60 p-1">
-              {(
-                [
-                  ["opportunity", "Rekomendasi formasi"],
-                  ["related", "Jabatan sejenis"],
-                  ["target", "Cek target saya"],
-                ] as const
-              ).map(([goal, label]) => (
+              {analysisGoals.map(([goal, label]) => (
                 <label key={goal} className="min-w-0 cursor-pointer">
                   <input
                     type="radio"
@@ -343,7 +365,49 @@ function ResultPage() {
                 </label>
               ))}
             </div>
+            <p className="mt-1.5 text-xs leading-5 text-muted-foreground">
+              {analysisGoals.find(([goal]) => goal === form.analysis_goal)?.[2]}
+            </p>
           </fieldset>
+
+          <details className="text-sm">
+            <summary className="w-fit cursor-pointer py-1 font-semibold text-primary">
+              Atur prioritas
+              {form.preference_flags.length ? ` (${form.preference_flags.length})` : ""}
+            </summary>
+            <fieldset
+              disabled={createMutation.isPending || preview.isPending}
+              className="mt-1 flex flex-wrap gap-x-4 gap-y-1"
+            >
+              <legend className="sr-only">Prioritas rekomendasi</legend>
+              {analysisPriorities.map(([flag, label]) => (
+                <label
+                  key={flag}
+                  className="flex min-h-9 cursor-pointer items-center gap-2 text-xs"
+                >
+                  <input
+                    type="checkbox"
+                    className="size-4 accent-primary"
+                    checked={form.preference_flags.includes(flag)}
+                    onChange={(event) => {
+                      const checked = event.target.checked;
+                      preview.reset();
+                      setForm((current) => ({
+                        ...current,
+                        preference_flags: checked
+                          ? [...current.preference_flags, flag]
+                          : current.preference_flags.filter((item) => item !== flag),
+                      }));
+                    }}
+                  />
+                  {label}
+                </label>
+              ))}
+            </fieldset>
+            <p className="text-xs text-muted-foreground">
+              Mengubah urutan rekomendasi, bukan menyaring formasi.
+            </p>
+          </details>
 
           {targetFormationId &&
             preferredTargetQuery.isLoading &&
@@ -372,7 +436,7 @@ function ResultPage() {
                 <button
                   type="button"
                   onClick={clearTarget}
-                  disabled={createMutation.isPending}
+                  disabled={createMutation.isPending || preview.isPending}
                   className="min-h-11 shrink-0 text-sm font-semibold text-primary hover:underline"
                 >
                   Ganti
@@ -456,6 +520,7 @@ function ResultPage() {
             type="submit"
             disabled={
               createMutation.isPending ||
+              preview.isPending ||
               (form.analysis_goal === "target" && !selectedTarget) ||
               Boolean(
                 targetFormationId &&
@@ -472,6 +537,23 @@ function ResultPage() {
             )}
             {createMutation.isPending ? "Membuat kode..." : "Buat kode hasil WhatsApp"}
           </button>
+          <button
+            type="button"
+            className="mx-auto block min-h-9 text-sm font-semibold text-primary hover:underline disabled:opacity-50"
+            disabled={
+              preview.isPending ||
+              createMutation.isPending ||
+              (form.analysis_goal === "target" && !selectedTarget) ||
+              Boolean(
+                targetFormationId &&
+                preferredTargetQuery.isLoading &&
+                !preferredTargetHandled.current,
+              )
+            }
+            onClick={() => preview.mutate()}
+          >
+            {preview.isPending ? "Menghitung analisis..." : "Lihat hasil di web"}
+          </button>
         </form>
       ) : (
         <div className="mt-4">
@@ -484,10 +566,64 @@ function ResultPage() {
           </Link>
         </div>
       )}
+      {preview.isError && preview.error.message !== "AUTH_REQUIRED" && (
+        <p className="mt-3 text-sm text-destructive" role="alert">
+          {preview.error.message}
+        </p>
+      )}
+      {preview.data && <RationalizationResult result={preview.data} />}
       <p className="mt-3 text-xs leading-5 text-muted-foreground">
         Pembanding: hasil SKD 2024. Bukan prediksi kelulusan 2026.
       </p>
     </PageShell>
+  );
+}
+
+function RationalizationResult({ result }: { result: SkdRationalizationPreview }) {
+  const target = result.target_simulation;
+  const items = (result.target_recommendations ?? []).filter(
+    (item) => item.formation_id !== target?.formation_id,
+  );
+  return (
+    <section
+      className="mt-4 border-y border-border py-4"
+      aria-live="polite"
+      aria-labelledby="analysis-result"
+    >
+      <h2 id="analysis-result" className="text-base font-bold">
+        Hasil perbandingan SKD {result.dataset_year}
+      </h2>
+      <p className="mt-1 text-sm text-muted-foreground">{result.verdict.label}</p>
+      {target || items.length ? (
+        <ul className="mt-2 divide-y divide-border">
+          {[...(target ? [target] : []), ...items].map((item) => (
+            <li key={item.formation_id} className="py-3">
+              <p className="text-xs font-semibold text-primary">
+                {item.formation_id === target?.formation_id
+                  ? "Target pilihanmu"
+                  : (item.strategy ?? item.verdict.label)}
+                {item.is_mode_fallback ? " · Lintas jabatan" : ""}
+              </p>
+              <h3 className="mt-1 text-sm font-bold [overflow-wrap:anywhere]">{item.position}</h3>
+              <p className="text-xs text-muted-foreground">{item.institution}</p>
+              {item.simulated_rank != null && (
+                <p className="mt-1 text-xs">
+                  Posisi simulasi {item.simulated_rank} · {item.eligible_pool ?? item.passing_grade}{" "}
+                  peserta historis lolos ambang batas
+                </p>
+              )}
+              <p className="mt-1 text-xs leading-5">
+                <strong>Kenapa formasi ini?</strong> {formationReason(item, result.dataset_year)}
+              </p>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-2 text-sm">
+          Belum ada rekomendasi yang dapat dihitung untuk nilai dan cakupan ini.
+        </p>
+      )}
+    </section>
   );
 }
 
