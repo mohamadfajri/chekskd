@@ -2,16 +2,16 @@ export type AnalysisGoal = "opportunity" | "related" | "target";
 export type PreferenceFlag = "low_competition" | "large_quota" | "strong_data";
 
 export interface LeadFormInput {
-  nama_panggilan: string;
-  target_tahun: "2026" | "2027" | "Belum tahu";
-  rencana: "Pakai nilai lama" | "Tes ulang" | "Belum yakin";
+  nama_panggilan?: string;
+  target_tahun?: "2026" | "2027" | "Belum tahu";
+  rencana?: "Pakai nilai lama" | "Tes ulang" | "Belum yakin";
   target_instansi?: string;
   target_formasi?: string;
   target_formation_id?: string;
   analysis_goal: AnalysisGoal;
   preference_flags: PreferenceFlag[];
   consent_whatsapp: boolean;
-  consent_marketing: boolean;
+  consent_marketing?: boolean;
 }
 
 export interface RationalizationTargetOption {

@@ -1,28 +1,8 @@
 import { useDeferredValue, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import {
-  AlertCircle,
-  ArrowLeft,
-  BarChart3,
-  BriefcaseBusiness,
-  Check,
-  CheckCircle2,
-  Crosshair,
-  Gauge,
-  Loader2,
-  MessageCircle,
-  Search,
-  ShieldCheck,
-  SlidersHorizontal,
-  Target,
-  Trophy,
-  UserRound,
-  X,
-} from "lucide-react";
+import { AlertCircle, ArrowLeft, Loader2, LockKeyhole, MessageCircle, Search } from "lucide-react";
 import { toast } from "sonner";
-import { LoginGate } from "@/components/public/LoginGate";
-import { SkdCoverageNote } from "@/components/public/SkdCoverageNote";
 import { SiteFooter, SiteHeader } from "@/components/SiteHeader";
 import { lolosPassingGrade } from "@/lib/analysis";
 import { cleanFormationId } from "@/lib/formationSelection";
@@ -32,7 +12,6 @@ import {
   searchRationalizationTargets,
   type AnalysisGoal,
   type LeadFormInput,
-  type PreferenceFlag,
   type RationalizationTargetOption,
 } from "@/services/leadService";
 import { getPublicFormationDetail, type PublicFormationDetail } from "@/services/formationService";
@@ -59,6 +38,7 @@ function ResultPage() {
   const { scoreId } = Route.useParams();
   const { targetFormationId } = Route.useSearch();
   const navigate = useNavigate();
+  const returnTo = `/result/${scoreId}${targetFormationId ? `?targetFormationId=${targetFormationId}` : ""}`;
   const scoreQuery = useQuery({
     queryKey: ["skd-score", scoreId],
     queryFn: () => getSkdScoreById(scoreId),
@@ -76,16 +56,12 @@ function ResultPage() {
     staleTime: 60_000,
   });
   const [form, setForm] = useState<LeadFormInput>({
-    nama_panggilan: "",
-    target_tahun: "2026",
-    rencana: "Belum yakin",
     target_instansi: "",
     target_formasi: "",
     target_formation_id: "",
     analysis_goal: "opportunity",
     preference_flags: [],
     consent_whatsapp: false,
-    consent_marketing: false,
   });
   const [targetSearch, setTargetSearch] = useState("");
   const [selectedTarget, setSelectedTarget] = useState<RationalizationTargetOption | null>(null);
@@ -114,7 +90,7 @@ function ResultPage() {
     },
     onError: (error: Error) => {
       if (error.message === "AUTH_REQUIRED") {
-        window.location.assign(`/login?next=${encodeURIComponent(`/result/${scoreId}`)}`);
+        window.location.assign(`/login?next=${encodeURIComponent(returnTo)}`);
         return;
       }
       toast.error(`Kode belum berhasil dibuat: ${error.message}`);
@@ -207,6 +183,7 @@ function ResultPage() {
 
   function onSubmit(event: React.FormEvent) {
     event.preventDefault();
+    if (createMutation.isPending) return;
     if (!form.consent_whatsapp) {
       toast.error("Setujui pengiriman hasil melalui WhatsApp terlebih dahulu.");
       return;
@@ -219,29 +196,12 @@ function ResultPage() {
   }
 
   function chooseAnalysisGoal(goal: AnalysisGoal) {
+    preferredTargetHandled.current = true;
     if (goal !== "target") clearTarget();
     setForm((current) => ({
       ...current,
       analysis_goal: goal,
-      preference_flags: goal === "target" ? [] : current.preference_flags,
     }));
-  }
-
-  function togglePreference(preference: PreferenceFlag) {
-    setForm((current) => {
-      const selected = current.preference_flags.includes(preference);
-      if (selected) {
-        return {
-          ...current,
-          preference_flags: current.preference_flags.filter((item) => item !== preference),
-        };
-      }
-      if (current.preference_flags.length >= 2) {
-        toast.info("Pilih maksimal dua prioritas agar rekomendasi tidak terlalu sempit.");
-        return current;
-      }
-      return { ...current, preference_flags: [...current.preference_flags, preference] };
-    });
   }
 
   function chooseTarget(target: RationalizationTargetOption) {
@@ -273,395 +233,261 @@ function ResultPage() {
       <Link
         to="/search"
         search={{ targetFormationId }}
-        className="mb-6 inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground transition hover:text-foreground"
+        className="mb-3 inline-flex min-h-8 items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
       >
-        <ArrowLeft className="h-4 w-4" /> Kembali ke hasil pencarian
+        <ArrowLeft className="size-4" aria-hidden /> Kembali ke pencarian
       </Link>
 
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_410px] lg:items-start">
-        <div>
-          <section aria-labelledby="participant-title">
-            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-5">
-              <div>
-                <p className="font-mono text-[10px] font-semibold uppercase text-primary">
-                  Data peserta terpilih
-                </p>
-                <h1 id="participant-title" className="mt-2 text-2xl font-extrabold sm:text-3xl">
-                  {score.nama}
-                </h1>
-              </div>
-              <span className="rounded-sm bg-muted px-2 py-1 font-mono text-[10px] font-semibold text-muted-foreground">
-                SKD {score.tahun_skd ?? 2024}
-              </span>
+      <section aria-labelledby="participant-title" className="border-y border-border py-3">
+        <p className="text-xs font-semibold text-primary">Nilai SKD {score.tahun_skd ?? 2024}</p>
+        <h1
+          id="participant-title"
+          className="mt-1 text-xl font-bold leading-tight [overflow-wrap:anywhere] sm:text-2xl"
+        >
+          {score.nama}
+        </h1>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground [overflow-wrap:anywhere] sm:text-sm">
+          {[formation?.jabatan, formation?.nama_instansi].filter(Boolean).join(" · ") ||
+            "Formasi asal tidak tercatat"}
+        </p>
+        <dl className="my-3 grid grid-cols-4 divide-x divide-border bg-white text-center">
+          {(
+            [
+              ["Total", score.total],
+              ["TWK", score.twk],
+              ["TIU", score.tiu],
+              ["TKP", score.tkp],
+            ] as const
+          ).map(([label, value]) => (
+            <div key={label} className="py-1.5">
+              <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
+              <dd
+                className={`font-mono text-lg font-bold ${label === "Total" ? "text-primary" : ""}`}
+              >
+                {value ?? "-"}
+              </dd>
             </div>
-
-            <div className="grid gap-5 border-b border-border py-5 sm:grid-cols-2">
-              <Detail label="Instansi" value={formation?.nama_instansi ?? "-"} />
-              <Detail label="Formasi" value={formation?.jabatan ?? "-"} />
-              <Detail label="Pendidikan" value={score.pendidikan ?? formation?.pendidikan ?? "-"} />
-              <Detail
-                label="Sumber"
-                value={`Pengumuman halaman ${score.source_page ?? "-"}`}
-                mono
-              />
+          ))}
+        </dl>
+        <details className="text-xs text-muted-foreground">
+          <summary className="w-fit cursor-pointer py-1 font-semibold text-primary">
+            Lihat detail
+          </summary>
+          <dl className="mt-2 grid gap-2 [overflow-wrap:anywhere] sm:grid-cols-3">
+            <div>
+              <dt>Pendidikan</dt>
+              <dd className="font-semibold text-foreground">
+                {score.pendidikan ?? formation?.pendidikan ?? "-"}
+              </dd>
             </div>
-
-            <div className="grid grid-cols-2 overflow-hidden border-b border-border sm:grid-cols-4">
-              <ScoreCell label="TWK" value={score.twk} threshold={65} />
-              <ScoreCell label="TIU" value={score.tiu} threshold={80} bordered />
-              <ScoreCell label="TKP" value={score.tkp} threshold={166} bordered />
-              <ScoreCell label="Total" value={score.total} highlight bordered />
+            <div>
+              <dt>Halaman PDF</dt>
+              <dd className="font-semibold text-foreground">{score.source_page ?? "-"}</dd>
             </div>
-
-            <div className="border-b border-border">
-              <StatusBlock
-                label="Ambang batas dasar SKD 2024"
-                value={passed ? "Memenuhi" : "Belum memenuhi"}
-                tone={passed ? "success" : "risk"}
-              />
+            <div>
+              <dt>Ambang batas dasar</dt>
+              <dd className="font-semibold text-foreground">
+                {passed ? "Memenuhi" : "Belum memenuhi"}
+              </dd>
             </div>
-
-            <Link
-              to="/simulasi-skd"
-              search={{ targetFormationId, scoreId, sumber: "skd" }}
-              className="mt-5 inline-flex min-h-11 items-center rounded-md bg-primary px-4 text-sm font-bold text-primary-foreground"
-            >
-              Bandingkan nilai ini dengan formasi lain
-            </Link>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Pembanding memakai hasil SKD 2024. Perbandingan tidak menentukan apakah nilai ini
-              dapat dipakai pada 2026.
-            </p>
-          </section>
-
-          <section className="mt-10 border-t border-border pt-7" aria-labelledby="reading-title">
-            <div className="flex items-center gap-3">
-              <span className="grid h-9 w-9 place-items-center rounded-lg bg-muted text-primary">
-                <BarChart3 className="h-4 w-4" />
-              </span>
-              <div>
-                <p className="font-mono text-[10px] font-semibold uppercase text-muted-foreground">
-                  Langkah berikutnya
-                </p>
-                <h2 id="reading-title" className="mt-0.5 text-lg font-bold">
-                  Tentukan cara nilai ini dibandingkan
-                </h2>
-              </div>
-            </div>
-            <p className="mt-4 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Pilih apakah mesin perlu mencari peluang historis terbesar, menjaga bidang pekerjaan
-              tetap sejenis, atau membedah satu target yang sudah Anda incar.
-            </p>
-            <SkdCoverageNote className="mt-3 max-w-2xl" />
-          </section>
-        </div>
-
-        {accountQuery.isLoading ? (
-          <div className="flex min-h-72 items-center justify-center text-sm text-muted-foreground">
-            <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Memeriksa akun
-          </div>
-        ) : accountQuery.data ? (
-          <form
-            onSubmit={onSubmit}
-            className="overflow-hidden rounded-lg border border-border bg-white shadow-lg shadow-[#071b36]/5 lg:sticky lg:top-20"
+          </dl>
+          <Link
+            to="/simulasi-skd"
+            search={{ targetFormationId, scoreId, sumber: "skd" }}
+            className="inline-flex min-h-10 items-center font-semibold text-primary hover:underline"
           >
-            <div className="border-b border-border bg-primary px-5 py-5 text-white">
-              <p className="font-mono text-[9px] font-semibold uppercase text-white/70">
-                Siapkan rasionalisasi
-              </p>
-              <h2 className="mt-1 text-lg font-bold">Pilih tujuan analisis</h2>
-              <p className="mt-1 text-xs leading-5 text-white/75">
-                Hasil lengkap dikirim sebagai satu gambar melalui WhatsApp.
-              </p>
+            Bandingkan nilai ini di web
+          </Link>
+        </details>
+      </section>
+
+      {accountQuery.isLoading ? (
+        <p role="status" className="my-4 flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="size-4 animate-spin" aria-hidden /> Memeriksa akun...
+        </p>
+      ) : accountQuery.isError ? (
+        <p className="my-4 text-sm text-muted-foreground" role="status">
+          Akses akun belum bisa diperiksa.{" "}
+          <button
+            type="button"
+            onClick={() => void accountQuery.refetch()}
+            className="font-semibold text-primary hover:underline"
+          >
+            Coba lagi
+          </button>
+        </p>
+      ) : accountQuery.data ? (
+        <form onSubmit={onSubmit} className="mt-4 space-y-3">
+          <fieldset disabled={createMutation.isPending}>
+            <legend className="mb-2 text-sm font-bold">Apa yang ingin kamu cari?</legend>
+            <div className="grid grid-cols-3 gap-1 rounded-lg border border-border bg-muted/60 p-1">
+              {(
+                [
+                  ["opportunity", "Rekomendasi formasi"],
+                  ["related", "Jabatan sejenis"],
+                  ["target", "Cek target saya"],
+                ] as const
+              ).map(([goal, label]) => (
+                <label key={goal} className="min-w-0 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="analysis-goal"
+                    value={goal}
+                    checked={form.analysis_goal === goal}
+                    onChange={() => chooseAnalysisGoal(goal)}
+                    className="peer sr-only"
+                  />
+                  <span className="flex min-h-11 items-center justify-center rounded-md px-1 text-center text-xs font-semibold leading-tight text-muted-foreground peer-checked:bg-[#082b85] peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-primary peer-focus-visible:ring-offset-1">
+                    {label}
+                  </span>
+                </label>
+              ))}
             </div>
+          </fieldset>
 
-            <div className="space-y-6 p-5">
-              <FormSection icon={UserRound} number="01" title="Tujuan Anda">
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-                  <InputField label="Nama panggilan" required>
-                    <input
-                      value={form.nama_panggilan}
-                      onChange={(event) =>
-                        setForm((current) => ({ ...current, nama_panggilan: event.target.value }))
-                      }
-                      className="result-input"
-                      placeholder="Nama untuk hasil"
-                      required
-                    />
-                  </InputField>
-                  <InputField label="Target seleksi" required>
-                    <select
-                      value={form.target_tahun}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          target_tahun: event.target.value as LeadFormInput["target_tahun"],
-                        }))
-                      }
-                      className="result-input"
-                    >
-                      <option value="2026">2026</option>
-                      <option value="2027">2027</option>
-                      <option value="Belum tahu">Belum tahu</option>
-                    </select>
-                  </InputField>
-                </div>
-                <InputField label="Rencana saat ini" required>
-                  <select
-                    value={form.rencana}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        rencana: event.target.value as LeadFormInput["rencana"],
-                      }))
-                    }
-                    className="result-input"
-                  >
-                    <option value="Pakai nilai lama">Pakai nilai lama</option>
-                    <option value="Tes ulang">Tes ulang</option>
-                    <option value="Belum yakin">Belum yakin</option>
-                  </select>
-                </InputField>
-              </FormSection>
-
-              <FormSection icon={BarChart3} number="02" title="Tujuan analisis">
-                <div className="space-y-2" role="radiogroup" aria-label="Tujuan analisis">
-                  <GoalButton
-                    icon={Trophy}
-                    active={form.analysis_goal === "opportunity"}
-                    title="Peluang terbesar"
-                    description="Cari posisi historis terbaik dari seluruh formasi yang sesuai."
-                    onClick={() => chooseAnalysisGoal("opportunity")}
+          {targetFormationId &&
+            preferredTargetQuery.isLoading &&
+            !preferredTargetHandled.current && (
+              <p role="status" className="text-xs text-muted-foreground">
+                Memeriksa target pilihan...
+              </p>
+            )}
+          {preferredTargetMessage && (
+            <p role="status" className="text-xs text-muted-foreground">
+              {preferredTargetMessage}
+            </p>
+          )}
+          {form.analysis_goal === "target" &&
+            (selectedTarget ? (
+              <div className="flex items-center justify-between gap-3 border-l-2 border-primary pl-3">
+                <p className="min-w-0 text-sm [overflow-wrap:anywhere]">
+                  <strong>{selectedTarget.position}</strong>
+                  <br />
+                  <span className="text-xs text-muted-foreground">
+                    {[selectedTarget.institution, selectedTarget.location]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </span>
+                </p>
+                <button
+                  type="button"
+                  onClick={clearTarget}
+                  disabled={createMutation.isPending}
+                  className="min-h-11 shrink-0 text-sm font-semibold text-primary hover:underline"
+                >
+                  Ganti
+                </button>
+              </div>
+            ) : (
+              <div>
+                <label className="relative block">
+                  <span className="sr-only">Cari instansi atau jabatan</span>
+                  <Search
+                    className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                    aria-hidden
                   />
-                  <GoalButton
-                    icon={BriefcaseBusiness}
-                    active={form.analysis_goal === "related"}
-                    title="Bidang sejenis"
-                    description="Utamakan jabatan yang masih satu rumpun pekerjaan."
-                    onClick={() => chooseAnalysisGoal("related")}
+                  <input
+                    value={targetSearch}
+                    onChange={(event) => setTargetSearch(event.target.value)}
+                    disabled={createMutation.isPending}
+                    className="h-11 w-full rounded-lg border border-input bg-white pl-9 pr-3 text-sm"
+                    placeholder="Cari instansi atau jabatan"
+                    autoComplete="off"
                   />
-                  <GoalButton
-                    icon={Crosshair}
-                    active={form.analysis_goal === "target"}
-                    title="Analisis target saya"
-                    description="Bedah satu instansi atau jabatan yang sudah Anda incar."
-                    onClick={() => chooseAnalysisGoal("target")}
-                  />
-                </div>
-              </FormSection>
-
-              {form.analysis_goal === "target" ? (
-                <FormSection icon={Target} number="03" title="Target pilihan">
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <input
-                      value={targetSearch}
-                      onChange={(event) => {
-                        if (selectedTarget) clearTarget();
-                        setTargetSearch(event.target.value);
-                      }}
-                      className="result-input pl-9 pr-9"
-                      placeholder="Cari instansi atau jabatan"
-                      autoComplete="off"
-                    />
+                </label>
+                {deferredTargetSearch.length >= 2 && (
+                  <div className="mt-1 max-h-36 overflow-y-auto rounded-lg border border-border bg-white">
                     {targetQuery.isFetching ? (
-                      <Loader2 className="absolute right-3 top-3 h-4 w-4 animate-spin text-muted-foreground" />
-                    ) : targetSearch ? (
-                      <button
-                        type="button"
-                        onClick={clearTarget}
-                        title="Hapus target"
-                        aria-label="Hapus target"
-                        className="absolute right-2 top-1.5 grid h-7 w-7 place-items-center rounded-md text-muted-foreground hover:bg-muted"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    ) : null}
-
-                    {!selectedTarget && deferredTargetSearch.length >= 2 && (
-                      <div className="absolute z-20 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-border bg-white shadow-xl">
-                        {targetQuery.isError ? (
-                          <p className="p-3 text-xs text-destructive">Target belum dapat dimuat.</p>
-                        ) : targetQuery.data?.length ? (
-                          targetQuery.data.map((target) => (
-                            <button
-                              key={target.id}
-                              type="button"
-                              onClick={() => chooseTarget(target)}
-                              className="block w-full border-b border-border px-3 py-3 text-left last:border-b-0 hover:bg-muted"
-                            >
-                              <span className="block text-xs font-bold">{target.position}</span>
-                              <span className="mt-0.5 block text-[11px] text-muted-foreground">
-                                {target.institution}
-                              </span>
-                              <span className="mt-1 block font-mono text-[9px] text-muted-foreground">
-                                Kuota {target.quota} · hadir {target.attended} · batas{" "}
-                                {target.cutoff_total ?? "-"}
-                              </span>
-                            </button>
-                          ))
-                        ) : !targetQuery.isFetching ? (
-                          <p className="p-3 text-xs text-muted-foreground">
-                            Tidak ada target yang cocok dengan pencarian ini.
-                          </p>
-                        ) : null}
-                      </div>
+                      <p role="status" className="p-2 text-xs text-muted-foreground">
+                        Mencari target...
+                      </p>
+                    ) : targetQuery.isError ? (
+                      <p role="status" className="p-2 text-xs text-destructive">
+                        Target belum dapat dimuat.{" "}
+                        <button
+                          type="button"
+                          className="font-semibold underline"
+                          onClick={() => void targetQuery.refetch()}
+                        >
+                          Coba lagi
+                        </button>
+                      </p>
+                    ) : targetQuery.data?.length ? (
+                      targetQuery.data.map((target) => (
+                        <button
+                          key={target.id}
+                          type="button"
+                          onClick={() => chooseTarget(target)}
+                          className="block min-h-11 w-full border-b border-border px-3 py-2 text-left last:border-b-0 hover:bg-muted"
+                        >
+                          <span className="block text-xs font-bold [overflow-wrap:anywhere]">
+                            {target.position}
+                          </span>
+                          <span className="block text-xs text-muted-foreground [overflow-wrap:anywhere]">
+                            {[target.institution, target.location].filter(Boolean).join(" · ")}
+                          </span>
+                        </button>
+                      ))
+                    ) : (
+                      <p role="status" className="p-2 text-xs text-muted-foreground">
+                        Tidak ada target yang cocok.
+                      </p>
                     )}
                   </div>
-
-                  {selectedTarget ? (
-                    <TargetPreview target={selectedTarget} />
-                  ) : (
-                    <>
-                      {targetFormationId && preferredTargetQuery.isLoading ? (
-                        <p className="mt-2 flex items-center gap-2 text-[11px] leading-5 text-muted-foreground">
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Memeriksa kecocokan
-                          target
-                        </p>
-                      ) : null}
-                      {preferredTargetMessage ? (
-                        <div className="mt-3 flex gap-2 border-l-2 border-[#a45e00] bg-[#fff8eb] p-3 text-[11px] leading-5 text-[#7a4b08]">
-                          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                          <p>{preferredTargetMessage}</p>
-                        </div>
-                      ) : null}
-                      {!preferredTargetMessage ? (
-                        <p className="mt-2 text-[11px] leading-5 text-muted-foreground">
-                          Mesin akan membedah target ini dan menambahkan dua alternatif yang lebih
-                          rasional.
-                        </p>
-                      ) : null}
-                    </>
-                  )}
-                </FormSection>
-              ) : (
-                <FormSection icon={SlidersHorizontal} number="03" title="Prioritas tambahan">
-                  <div
-                    className="flex flex-wrap gap-2"
-                    role="group"
-                    aria-label="Prioritas tambahan"
-                  >
-                    <PreferenceChip
-                      icon={Gauge}
-                      selected={form.preference_flags.includes("low_competition")}
-                      label="Persaingan rendah"
-                      onClick={() => togglePreference("low_competition")}
-                    />
-                    <PreferenceChip
-                      icon={Trophy}
-                      selected={form.preference_flags.includes("large_quota")}
-                      label="Kuota lebih besar"
-                      onClick={() => togglePreference("large_quota")}
-                    />
-                    <PreferenceChip
-                      icon={ShieldCheck}
-                      selected={form.preference_flags.includes("strong_data")}
-                      label="Data paling kuat"
-                      onClick={() => togglePreference("strong_data")}
-                    />
-                  </div>
-                  <p className="text-[10px] leading-5 text-muted-foreground">
-                    Opsional, maksimal dua. Hasil tetap berisi pilihan pengaman, seimbang, dan
-                    ambisius.
-                  </p>
-                </FormSection>
-              )}
-
-              <div className="space-y-3 border-t border-border pt-5">
-                <ConsentRow
-                  checked={form.consent_whatsapp}
-                  onChange={(checked) =>
-                    setForm((current) => ({ ...current, consent_whatsapp: checked }))
-                  }
-                  required
-                >
-                  Kirim kartu hasil analisis melalui WhatsApp.
-                </ConsentRow>
-                <ConsentRow
-                  checked={form.consent_marketing}
-                  onChange={(checked) =>
-                    setForm((current) => ({ ...current, consent_marketing: checked }))
-                  }
-                >
-                  Saya bersedia menerima informasi CPNS dan tryout. Pilihan ini tidak wajib.
-                </ConsentRow>
-              </div>
-            </div>
-
-            <div className="border-t border-border bg-muted px-5 py-4">
-              <button
-                type="submit"
-                disabled={createMutation.isPending}
-                className="public-primary-button h-12 w-full disabled:opacity-50"
-              >
-                {createMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <MessageCircle className="h-4 w-4" />
                 )}
-                Buat kode analisis
-              </button>
-            </div>
-          </form>
-        ) : (
-          <div className="lg:sticky lg:top-20">
-            <LoginGate
-              next={`/result/${scoreId}`}
-              title="Masuk untuk merasionalisasi nilai"
-              description="Nilai peserta tetap dapat diperiksa tanpa akun. Login diperlukan saat mesin membandingkan formasi dan membuat kode RSKD."
+              </div>
+            ))}
+
+          <label className="flex min-h-8 cursor-pointer items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              required
+              checked={form.consent_whatsapp}
+              disabled={createMutation.isPending}
+              onChange={(event) => {
+                const checked = event.target.checked;
+                setForm((current) => ({ ...current, consent_whatsapp: checked }));
+              }}
+              className="size-4 shrink-0 accent-primary"
             />
-          </div>
-        )}
-      </div>
-
-      <style>{`
-        .result-input { width:100%; height:40px; border-radius:8px; border:1px solid var(--color-input); background:#fff; padding:0 12px; font-size:12px; color:var(--color-foreground); transition:border-color .15s, box-shadow .15s; }
-        .result-input:focus { border-color:var(--color-primary); box-shadow:0 0 0 3px #dce8ff; outline:none; }
-      `}</style>
-    </PageShell>
-  );
-}
-
-function TargetPreview({ target }: { target: RationalizationTargetOption }) {
-  const gapLabel =
-    target.score_gap == null
-      ? "-"
-      : target.score_gap >= 0
-        ? `+${target.score_gap}`
-        : String(target.score_gap);
-  return (
-    <div className="mt-3 overflow-hidden border-l-2 border-[#16805c] bg-[#eef9f5] text-xs text-[#116347]">
-      <div className="flex gap-2 p-3">
-        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-        <div className="min-w-0">
-          <p className="font-bold">Target diprioritaskan</p>
-          <p className="mt-1 leading-5">{target.position}</p>
-          <p className="leading-5 opacity-80">{target.institution}</p>
+            Kirim kartu hasil ke WhatsApp saya
+          </label>
+          <button
+            type="submit"
+            disabled={
+              createMutation.isPending ||
+              (form.analysis_goal === "target" && !selectedTarget) ||
+              Boolean(
+                targetFormationId &&
+                preferredTargetQuery.isLoading &&
+                !preferredTargetHandled.current,
+              )
+            }
+            className="public-primary-button min-h-11 w-full disabled:opacity-50"
+          >
+            {createMutation.isPending ? (
+              <Loader2 className="size-4 animate-spin" aria-hidden />
+            ) : (
+              <MessageCircle className="size-4" aria-hidden />
+            )}
+            {createMutation.isPending ? "Membuat kode..." : "Buat kode hasil WhatsApp"}
+          </button>
+        </form>
+      ) : (
+        <div className="mt-4">
+          <Link
+            to="/login"
+            search={{ next: returnTo }}
+            className="public-primary-button min-h-11 w-full"
+          >
+            <LockKeyhole className="size-4" aria-hidden /> Masuk untuk analisis
+          </Link>
         </div>
-      </div>
-      <div className="grid grid-cols-4 gap-px bg-[#cfe9df]">
-        <TargetMetric label="Kuota" value={formatCompactNumber(target.quota)} />
-        <TargetMetric label="Hadir" value={formatCompactNumber(target.attended)} />
-        <TargetMetric
-          label="Rasio"
-          value={
-            target.competition_ratio == null
-              ? "-"
-              : `${formatCompactNumber(target.competition_ratio)}x`
-          }
-        />
-        <TargetMetric label="Selisih" value={gapLabel} />
-      </div>
-    </div>
-  );
-}
-
-function TargetMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0 bg-[#f7fcfa] px-2 py-2.5 text-center">
-      <p className="text-[8px] font-semibold uppercase opacity-70">{label}</p>
-      <p className="mt-1 truncate font-mono text-[11px] font-bold">{value}</p>
-    </div>
+      )}
+      <p className="mt-3 text-xs leading-5 text-muted-foreground">
+        Pembanding: hasil SKD 2024. Bukan prediksi kelulusan 2026.
+      </p>
+    </PageShell>
   );
 }
 
@@ -732,221 +558,13 @@ function canonicalEducation(value: string | null | undefined): string {
   return normalized;
 }
 
-function formatCompactNumber(value: number): string {
-  return new Intl.NumberFormat("id-ID", { maximumFractionDigits: 1 }).format(value);
-}
-
-function Detail({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div>
-      <p className="text-[10px] font-semibold uppercase text-muted-foreground">{label}</p>
-      <p className={`mt-1 text-sm font-semibold leading-6 ${mono ? "font-mono text-xs" : ""}`}>
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function ScoreCell({
-  label,
-  value,
-  threshold,
-  highlight = false,
-  bordered = false,
-}: {
-  label: string;
-  value: number | null;
-  threshold?: number;
-  highlight?: boolean;
-  bordered?: boolean;
-}) {
-  return (
-    <div className={`${bordered ? "border-l border-border" : ""} px-3 py-4 text-center sm:py-5`}>
-      <p className="text-[10px] font-semibold uppercase text-muted-foreground">{label}</p>
-      <p className={`mt-1 font-mono text-2xl font-semibold ${highlight ? "text-primary" : ""}`}>
-        {value ?? "-"}
-      </p>
-      {threshold ? (
-        <p className="mt-1 font-mono text-[9px] text-muted-foreground">PG {threshold}</p>
-      ) : null}
-    </div>
-  );
-}
-
-function StatusBlock({
-  label,
-  value,
-  tone,
-  bordered = false,
-}: {
-  label: string;
-  value: string;
-  tone: "success" | "warning" | "risk";
-  bordered?: boolean;
-}) {
-  const toneClass =
-    tone === "success"
-      ? "text-[#16805c]"
-      : tone === "warning"
-        ? "text-[#a45e00]"
-        : "text-[#b43b45]";
-  return (
-    <div
-      className={`${bordered ? "border-t border-border sm:border-l sm:border-t-0" : ""} px-4 py-4`}
-    >
-      <p className="text-[10px] font-semibold uppercase text-muted-foreground">{label}</p>
-      <p className={`mt-1 text-sm font-bold ${toneClass}`}>{value}</p>
-    </div>
-  );
-}
-
-function FormSection({
-  icon: Icon,
-  number,
-  title,
-  children,
-}: {
-  icon: typeof UserRound;
-  number: string;
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <fieldset>
-      <legend className="mb-3 flex w-full items-center gap-2 text-xs font-bold">
-        <span className="grid h-7 w-7 place-items-center rounded-md bg-muted text-primary">
-          <Icon className="h-3.5 w-3.5" />
-        </span>
-        <span className="font-mono text-[9px] text-[#8ca0b7]">{number}</span>
-        {title}
-      </legend>
-      <div className="space-y-3">{children}</div>
-    </fieldset>
-  );
-}
-
-function InputField({
-  label,
-  required = false,
-  children,
-}: {
-  label: string;
-  required?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="block">
-      <span className="mb-1.5 block text-[11px] font-semibold text-muted-foreground">
-        {label} {required ? <span className="text-destructive">*</span> : null}
-      </span>
-      {children}
-    </label>
-  );
-}
-
-function GoalButton({
-  icon: Icon,
-  active,
-  title,
-  description,
-  onClick,
-}: {
-  icon: typeof Trophy;
-  active: boolean;
-  title: string;
-  description: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={active}
-      onClick={onClick}
-      className={`flex min-h-[72px] w-full items-start gap-3 rounded-md border p-3 text-left transition ${
-        active
-          ? "border-primary bg-[#f3f7ff] text-foreground shadow-sm shadow-[#1058f5]/10"
-          : "border-border bg-white text-muted-foreground hover:border-[#a8c3ff] hover:text-foreground"
-      }`}
-    >
-      <span
-        className={`grid h-8 w-8 shrink-0 place-items-center rounded-md ${
-          active ? "bg-primary text-white" : "bg-muted text-primary"
-        }`}
-      >
-        <Icon className="h-4 w-4" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="flex items-center justify-between gap-2 text-[11px] font-bold">
-          {title}
-          {active ? <Check className="h-4 w-4 shrink-0 text-primary" /> : null}
-        </span>
-        <span className="mt-1 block text-[9px] leading-4 text-muted-foreground">{description}</span>
-      </span>
-    </button>
-  );
-}
-
-function PreferenceChip({
-  icon: Icon,
-  selected,
-  label,
-  onClick,
-}: {
-  icon: typeof Gauge;
-  selected: boolean;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      role="checkbox"
-      aria-checked={selected}
-      onClick={onClick}
-      className={`inline-flex h-9 items-center gap-1.5 rounded-md border px-3 text-[10px] font-semibold transition ${
-        selected
-          ? "border-primary bg-[#f3f7ff] text-primary"
-          : "border-border bg-white text-muted-foreground hover:border-[#a8c3ff] hover:text-foreground"
-      }`}
-    >
-      <Icon className="h-3.5 w-3.5" />
-      {label}
-      {selected ? <Check className="h-3.5 w-3.5" /> : null}
-    </button>
-  );
-}
-
-function ConsentRow({
-  checked,
-  onChange,
-  required = false,
-  children,
-}: {
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  required?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="flex cursor-pointer items-start gap-2 text-[11px] leading-5 text-muted-foreground">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(event) => onChange(event.target.checked)}
-        required={required}
-        className="mt-0.5 h-4 w-4 shrink-0 accent-[#2f6bff]"
-      />
-      <span>{children}</span>
-    </label>
-  );
-}
-
 function PageShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="public-page min-h-screen bg-background">
       <SiteHeader />
-      <main className="mx-auto max-w-[1180px] px-4 py-8 sm:px-6 sm:py-10">{children}</main>
+      <main className="mx-auto w-full max-w-[680px] px-4 pb-4 pt-2 sm:px-6 sm:pt-4">
+        {children}
+      </main>
       <SiteFooter />
     </div>
   );

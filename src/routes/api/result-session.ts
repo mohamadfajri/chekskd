@@ -78,8 +78,7 @@ export const Route = createFileRoute("/api/result-session")({
         const body = (await request.json().catch(() => null)) as CreateBody | null;
         const scoreId = cleanUuid(body?.score_id);
         const leadInput = body?.lead;
-        const namaPanggilan = clean(leadInput?.nama_panggilan, 80);
-        const targetTahun = clean(leadInput?.target_tahun, 30);
+        const targetTahun = clean(leadInput?.target_tahun, 30) || "2026";
         const rawTargetFormationId: unknown = leadInput?.target_formation_id;
         const targetFormationId = cleanUuid(leadInput?.target_formation_id);
         const analysisGoal =
@@ -96,7 +95,7 @@ export const Route = createFileRoute("/api/result-session")({
             ),
           ),
         );
-        const rencana = clean(leadInput?.rencana, 50);
+        const rencana = clean(leadInput?.rencana, 50) || "Tidak diisi";
 
         if (
           rawTargetFormationId != null &&
@@ -115,13 +114,7 @@ export const Route = createFileRoute("/api/result-session")({
           );
         }
 
-        if (
-          !scoreId ||
-          !namaPanggilan ||
-          !targetTahun ||
-          !rencana ||
-          leadInput?.consent_whatsapp !== true
-        ) {
+        if (!scoreId || leadInput?.consent_whatsapp !== true) {
           return jsonResponse(
             { message: "Data form belum lengkap atau persetujuan hasil belum diberikan." },
             400,
@@ -157,6 +150,7 @@ export const Route = createFileRoute("/api/result-session")({
           return jsonResponse({ message }, status);
         }
         const { score, formation, target: targetFormation } = source;
+        const namaPanggilan = clean(leadInput?.nama_panggilan, 80) || "Peserta";
 
         if (localPreview) {
           try {
