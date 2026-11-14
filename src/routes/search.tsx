@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { LoaderCircle, Target } from "lucide-react";
 import { SiteFooter, SiteHeader } from "@/components/SiteHeader";
@@ -8,7 +8,7 @@ import { cleanFormationId } from "@/lib/formationSelection";
 import { getPublicFormationDetail } from "@/services/formationService";
 
 export const Route = createFileRoute("/search")({
-  validateSearch: (search: Record<string, unknown>) => ({
+  validateSearch: (search: Record<string, unknown>): { targetFormationId?: string } => ({
     targetFormationId: cleanFormationId(search.targetFormationId),
   }),
   head: () => ({
@@ -32,8 +32,7 @@ function SearchPage() {
     <div className="public-page min-h-screen bg-background">
       <SiteHeader />
       <main className="public-workspace skd-value-workspace">
-        <h1 className="sr-only">Cek nilai SKD</h1>
-        <SkdModeNav mode="search" targetFormationId={targetFormationId} />
+        <SkdModeNav mode="skd" targetFormationId={targetFormationId} />
         {targetFormationId && (
           <div className="public-target-notice" role="status">
             {target.isLoading ? (
@@ -57,6 +56,13 @@ function SearchPage() {
           </div>
         )}
         <SkdSearchTool targetFormationId={targetFormationId} />
+        <Link
+          to="/simulasi-skd"
+          search={{ targetFormationId, sumber: "skd" }}
+          className="inline-flex min-h-11 items-center text-sm font-semibold text-primary hover:underline"
+        >
+          Masukkan nilai SKD 2024 manual
+        </Link>
       </main>
       <SiteFooter />
     </div>

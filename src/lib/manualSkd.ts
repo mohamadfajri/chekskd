@@ -22,7 +22,13 @@ export interface ManualSkdResult {
   rank: number | null;
   ties: number | null;
   scoreGap: number;
+  average: number | null;
   belowThreshold: ManualSkdField[];
+}
+
+export interface ManualSkdAnalysis {
+  results: ManualSkdResult[];
+  targetUnavailable: boolean;
 }
 
 export function manualSkdScore(input: Record<string, unknown>): ManualSkdScore | null {

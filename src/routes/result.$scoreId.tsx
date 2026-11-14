@@ -24,7 +24,7 @@ import { toast } from "sonner";
 import { LoginGate } from "@/components/public/LoginGate";
 import { SkdCoverageNote } from "@/components/public/SkdCoverageNote";
 import { SiteFooter, SiteHeader } from "@/components/SiteHeader";
-import { getZona, lolosPassingGrade, zonaLabel } from "@/lib/analysis";
+import { lolosPassingGrade } from "@/lib/analysis";
 import { cleanFormationId } from "@/lib/formationSelection";
 import type { SkdScoreWithFormation } from "@/lib/supabase/types";
 import {
@@ -203,7 +203,6 @@ function ResultPage() {
 
   const score = scoreQuery.data;
   const formation = score.skd_formations;
-  const zone = getZona(score.total);
   const passed = lolosPassingGrade(score);
 
   function onSubmit(event: React.FormEvent) {
@@ -314,24 +313,25 @@ function ResultPage() {
               <ScoreCell label="Total" value={score.total} highlight bordered />
             </div>
 
-            <div className="grid border-b border-border sm:grid-cols-2">
+            <div className="border-b border-border">
               <StatusBlock
-                label="Ambang batas dasar"
+                label="Ambang batas dasar SKD 2024"
                 value={passed ? "Memenuhi" : "Belum memenuhi"}
                 tone={passed ? "success" : "risk"}
               />
-              <StatusBlock
-                label="Indikator nilai awal"
-                value={zonaLabel(zone)}
-                tone={zone === "aman" ? "success" : zone === "waspada" ? "warning" : "risk"}
-                bordered
-              />
             </div>
 
-            <div className="mt-6 border-l-2 border-primary bg-muted px-4 py-3 text-sm leading-6 text-muted-foreground">
-              Memenuhi ambang batas belum berarti posisi akhir aman. Mesin akan membaca skor ini
-              bersama kuota, peserta hadir, batas historis, pendidikan, dan kualitas data formasi.
-            </div>
+            <Link
+              to="/simulasi-skd"
+              search={{ targetFormationId, scoreId, sumber: "skd" }}
+              className="mt-5 inline-flex min-h-11 items-center rounded-md bg-primary px-4 text-sm font-bold text-primary-foreground"
+            >
+              Bandingkan nilai ini dengan formasi lain
+            </Link>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Pembanding memakai hasil SKD 2024. Perbandingan tidak menentukan apakah nilai ini
+              dapat dipakai pada 2026.
+            </p>
           </section>
 
           <section className="mt-10 border-t border-border pt-7" aria-labelledby="reading-title">

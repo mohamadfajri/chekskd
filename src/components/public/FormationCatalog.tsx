@@ -106,7 +106,7 @@ function coverage(row: CatalogFormation) {
   }
   return (
     <span className="text-muted-foreground">
-      {row.coverage === "no_skd" ? "SKD belum tersedia" : "Cakupan SKD belum diketahui"}
+      {row.coverage === "no_skd" ? "Belum ada pembanding SKD 2024" : "Cakupan SKD belum diketahui"}
     </span>
   );
 }

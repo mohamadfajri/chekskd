@@ -28,7 +28,7 @@ export const Route = createFileRoute("/api/manual-skd")({
 
         const input = await request.json().catch(() => null);
         const education = catalogText(input?.education, 160);
-        if (!education || !["targets", "simulate"].includes(input?.action)) {
+        if (!education || !["targets", "simulate", "analyze"].includes(input?.action)) {
           return jsonResponse({ message: "Pendidikan dan jenis permintaan wajib diisi." }, 400);
         }
         try {
@@ -47,11 +47,39 @@ export const Route = createFileRoute("/api/manual-skd")({
           }
           const score = manualSkdScore(input);
           const targetId = cleanFormationId(input.targetId);
-          if (!score || !targetId) {
+          if (
+            !score ||
+            (input.targetId != null && !targetId) ||
+            (input.action === "simulate" && !targetId)
+          ) {
             return jsonResponse(
               { message: "Periksa nilai TWK, TIU, TKP, dan formasi target." },
               400,
             );
+          }
+          if (input.action === "analyze") {
+            const [requested, recommended] = await Promise.all([
+              targetId ? getManualSkdTargets(sb, { education, targetId }, fromSumopod) : [],
+              getManualSkdTargets(sb, { education, recommendations: true }, fromSumopod),
+            ]);
+            const sourceFormationId = cleanFormationId(input.sourceFormationId);
+            const targets = [
+              ...requested,
+              ...recommended.filter(
+                (item) => item.id !== targetId && item.id !== sourceFormationId,
+              ),
+            ].slice(0, 3);
+            const results = (
+              await Promise.all(
+                targets.map((target) => simulateManualSkd(sb, target, score, fromSumopod)),
+              )
+            ).filter((result) => result.average !== null);
+            return jsonResponse({
+              results,
+              targetUnavailable: Boolean(
+                targetId && !results.some((result) => result.target.id === targetId),
+              ),
+            });
           }
           const [target] = await getManualSkdTargets(sb, { education, targetId }, fromSumopod);
           if (!target) {
