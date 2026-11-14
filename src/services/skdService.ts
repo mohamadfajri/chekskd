@@ -1,7 +1,8 @@
 import type { SkdScoreWithFormation } from "@/lib/supabase/types";
 import { MIN_NAME_SEARCH_LENGTH, normalizeNameForSearch } from "@/lib/skdSearch";
 
-export const useLocalSkdPreview = import.meta.env.DEV && import.meta.env.VITE_SKD_LOCAL_PREVIEW === "true";
+export const useLocalSkdPreview =
+  import.meta.env.DEV && import.meta.env.VITE_SKD_LOCAL_PREVIEW === "true";
 
 async function readSkd<T>(params: Record<string, string>): Promise<T> {
   const response = await fetch(`/api/skd-data?${new URLSearchParams(params)}`);
@@ -16,6 +17,11 @@ export interface SearchParams {
   instansi?: string;
   formasi?: string;
   limit?: number;
+}
+
+export async function getSkdSearchInstitutions(): Promise<string[]> {
+  const data = await readSkd<{ institutions: string[] }>({ type: "institutions" });
+  return data.institutions;
 }
 
 interface PublicSkdSearchRow {
@@ -57,8 +63,12 @@ export async function searchSkdScores(params: SearchParams): Promise<SkdScoreWit
   }
 
   const data = await readSkd<PublicSkdSearchRow[]>({
-    type: "search", nama: normalizedName, no_peserta: params.no_peserta?.trim() ?? "",
-    instansi: params.instansi?.trim() ?? "", formasi: params.formasi?.trim() ?? "", limit: String(limit),
+    type: "search",
+    nama: normalizedName,
+    no_peserta: params.no_peserta?.trim() ?? "",
+    instansi: params.instansi?.trim() ?? "",
+    formasi: params.formasi?.trim() ?? "",
+    limit: String(limit),
   });
 
   return data.map(

@@ -1,20 +1,11 @@
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import {
-  AlertCircle,
-  ArrowUpRight,
-  ChevronDown,
-  ChevronUp,
-  FileSearch,
-  Loader2,
-  Search,
-  SlidersHorizontal,
-} from "lucide-react";
+import { AlertCircle, ArrowUpRight, ChevronDown, FileSearch, Loader2, Search } from "lucide-react";
 import { isSupabaseConfigured, supabaseConfigError } from "@/lib/supabase/client";
 import { maskNoPeserta } from "@/lib/analysis";
 import { MIN_NAME_SEARCH_LENGTH } from "@/lib/skdSearch";
-import { searchSkdScores } from "@/services/skdService";
+import { getSkdSearchInstitutions, searchSkdScores } from "@/services/skdService";
 
 type SearchMode = "name" | "participant";
 
@@ -23,8 +14,13 @@ export function SkdSearchTool({ targetFormationId }: { targetFormationId?: strin
   const [nama, setNama] = useState("");
   const [noPeserta, setNoPeserta] = useState("");
   const [instansi, setInstansi] = useState("");
-  const [formasi, setFormasi] = useState("");
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  const institutions = useQuery({
+    queryKey: ["skd-search-institutions"],
+    queryFn: getSkdSearchInstitutions,
+    enabled: isSupabaseConfigured,
+    staleTime: 5 * 60_000,
+    retry: 1,
+  });
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -32,7 +28,6 @@ export function SkdSearchTool({ targetFormationId }: { targetFormationId?: strin
         nama: mode === "name" ? nama : "",
         no_peserta: mode === "participant" ? noPeserta : undefined,
         instansi,
-        formasi,
       }),
   });
 
@@ -69,8 +64,8 @@ export function SkdSearchTool({ targetFormationId }: { targetFormationId?: strin
         </div>
       )}
 
-      <form onSubmit={onSubmit} className="skd-search-form border-y border-border py-4 sm:py-5">
-        <div className="flex flex-col gap-4">
+      <form onSubmit={onSubmit} className="skd-search-form border-y border-border py-3 sm:py-5">
+        <div className="flex flex-col gap-3">
           <div className="flex flex-wrap gap-x-4 gap-y-1" role="group" aria-label="Jenis pencarian">
             <ModeButton active={mode === "name"} onClick={() => changeMode("name")}>
               Nama peserta
@@ -80,7 +75,7 @@ export function SkdSearchTool({ targetFormationId }: { targetFormationId?: strin
             </ModeButton>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+          <div className="grid gap-2.5 sm:grid-cols-[minmax(0,1fr)_minmax(0,0.65fr)_auto] sm:gap-3">
             <label className="block min-w-0">
               <span className="mb-1.5 block text-xs font-semibold text-foreground">
                 {mode === "name" ? "Nama lengkap atau sebagian" : "Nomor peserta"}
@@ -99,6 +94,37 @@ export function SkdSearchTool({ targetFormationId }: { targetFormationId?: strin
                 />
               </div>
             </label>
+            <label className="block min-w-0">
+              <span className="mb-1.5 block text-xs font-semibold text-foreground">Instansi</span>
+              <div className="relative">
+                <select
+                  value={instansi}
+                  onChange={(event) => {
+                    setInstansi(event.target.value);
+                    mutation.reset();
+                  }}
+                  disabled={mutation.isPending || !institutions.data?.length}
+                  className="h-12 w-full appearance-none truncate rounded-lg border border-input bg-white pl-3 pr-9 text-sm text-foreground shadow-sm disabled:text-muted-foreground"
+                >
+                  <option value="">
+                    {institutions.isLoading
+                      ? "Memuat instansi..."
+                      : institutions.isSuccess && !institutions.data.length
+                        ? "Belum ada instansi SKD"
+                        : "Semua instansi"}
+                  </option>
+                  {institutions.data?.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden
+                />
+              </div>
+            </label>
             <button
               type="submit"
               disabled={!canSearch || mutation.isPending}
@@ -113,43 +139,22 @@ export function SkdSearchTool({ targetFormationId }: { targetFormationId?: strin
             </button>
           </div>
 
-          <div>
-            <button
-              type="button"
-              onClick={() => setFiltersOpen((open) => !open)}
-              aria-expanded={filtersOpen}
-              className="inline-flex items-center gap-2 rounded-md py-1 text-xs font-semibold text-muted-foreground transition hover:text-foreground"
-            >
-              <SlidersHorizontal className="h-3.5 w-3.5" />
-              Filter instansi atau formasi
-              {filtersOpen ? (
-                <ChevronUp className="h-3.5 w-3.5" />
-              ) : (
-                <ChevronDown className="h-3.5 w-3.5" />
-              )}
-            </button>
-
-            {filtersOpen && (
-              <div className="mt-3 grid gap-3 border-l-2 border-[#dce8ff] pl-4 sm:grid-cols-2">
-                <FilterField
-                  label="Instansi"
-                  value={instansi}
-                  onChange={setInstansi}
-                  placeholder="Contoh: Kejaksaan Agung"
-                />
-                <FilterField
-                  label="Formasi atau jabatan"
-                  value={formasi}
-                  onChange={setFormasi}
-                  placeholder="Contoh: Analis Hukum"
-                />
-              </div>
-            )}
-          </div>
+          {institutions.isError && (
+            <p className="text-xs text-muted-foreground" role="status">
+              Daftar instansi belum dapat dimuat.{" "}
+              <button
+                type="button"
+                onClick={() => void institutions.refetch()}
+                className="font-semibold text-primary hover:underline"
+              >
+                Coba lagi
+              </button>
+            </p>
+          )}
         </div>
       </form>
 
-      <div aria-live="polite" aria-busy={mutation.isPending} className="mt-6">
+      <div aria-live="polite" aria-busy={mutation.isPending} className="mt-4 sm:mt-6">
         {mutation.isError && (
           <div className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-[#8f3039]">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -165,8 +170,7 @@ export function SkdSearchTool({ targetFormationId }: { targetFormationId?: strin
             <FileSearch className="mx-auto h-9 w-9 text-[#8ca0b7]" />
             <h2 className="mt-3 text-base font-bold">Data belum ditemukan</h2>
             <p className="mx-auto mt-1 max-w-lg text-sm leading-6 text-muted-foreground">
-              Periksa ejaan, coba sebagian nama, atau kosongkan filter instansi dan formasi untuk
-              memperluas hasil.
+              Periksa ejaan atau pilih Semua instansi untuk memperluas pencarian.
             </p>
           </div>
         )}
@@ -262,30 +266,6 @@ function ModeButton({
   );
 }
 
-function FilterField({
-  label,
-  value,
-  onChange,
-  placeholder,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder: string;
-}) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-[11px] font-semibold text-muted-foreground">{label}</span>
-      <input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        className="h-10 w-full rounded-lg border border-input bg-white px-3 text-sm transition placeholder:text-[#8a9aac] focus:border-primary"
-      />
-    </label>
-  );
-}
-
 type SearchResult = Awaited<ReturnType<typeof searchSkdScores>>[number];
 
 const scoreFields = [
@@ -351,28 +331,38 @@ function SearchResultRow({
   targetFormationId?: string;
 }) {
   return (
-    <li className="grid gap-3 py-4">
-      <div>
+    <li className="grid grid-cols-[minmax(0,1fr)_44px] items-center gap-x-2 gap-y-1 py-2">
+      <div className="min-w-0 leading-snug">
         <Participant result={result} />
       </div>
-      <div>
-        <Formation result={result} />
-      </div>
-      <dl className="grid grid-cols-4 divide-x divide-border rounded-lg bg-muted/60 py-2 text-center">
+      <Link
+        to="/result/$scoreId"
+        params={{ scoreId: result.id }}
+        search={{ targetFormationId }}
+        aria-label={`Ini data saya: ${result.nama}`}
+        title="Ini data saya"
+        className="grid size-11 place-items-center rounded-lg border border-primary/25 text-primary hover:bg-primary/5"
+      >
+        <ArrowUpRight className="size-4" aria-hidden />
+      </Link>
+      <p className="col-span-2 line-clamp-2 text-xs leading-snug text-muted-foreground [overflow-wrap:anywhere]">
+        <span className="font-semibold text-foreground">
+          {result.skd_formations?.jabatan ?? "Formasi belum teridentifikasi"}
+        </span>
+        {result.skd_formations?.nama_instansi && ` · ${result.skd_formations.nama_instansi}`}
+      </p>
+      <dl className="col-span-2 flex flex-wrap gap-x-3 gap-y-1">
         {scoreFields.map(({ field, label }) => (
-          <div key={field}>
-            <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
+          <div key={field} className="flex items-baseline gap-1">
+            <dt className="text-[11px] text-muted-foreground">{label}</dt>
             <dd
-              className={`mt-1 font-mono text-sm font-semibold ${field === "total" ? "text-primary" : ""}`}
+              className={`font-mono text-xs font-bold ${field === "total" ? "text-primary" : ""}`}
             >
               {result[field] ?? "-"}
             </dd>
           </div>
         ))}
       </dl>
-      <div>
-        <SelectResult result={result} targetFormationId={targetFormationId} />
-      </div>
     </li>
   );
 }

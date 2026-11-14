@@ -121,6 +121,21 @@ export async function getSumopodSkdFormationFilters() {
   return rows[0]?.value ?? null;
 }
 
+export async function getSumopodSkdSearchInstitutions(): Promise<string[]> {
+  const { rows } = await getSkdDatabase().query<{ nama_instansi: string }>(
+    `select distinct f.nama_instansi
+     from public.skd_formations f
+     join public.skd_batches b on b.id = f.batch_id and b.status = 'published'
+     where f.quality_status = 'verified'
+       and exists (
+         select 1 from public.skd_scores s
+         where s.formation_id = f.id and s.batch_id = b.id and s.quality_status = 'verified'
+       )
+     order by f.nama_instansi`,
+  );
+  return rows.map(({ nama_instansi }) => nama_instansi);
+}
+
 export async function getPreviewRationalization(
   scoreId: string,
   goal: AnalysisGoal,
